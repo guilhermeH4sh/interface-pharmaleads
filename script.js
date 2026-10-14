@@ -1066,6 +1066,13 @@ const DOM = {
   logsModalClose: document.getElementById("logsModalClose"),
   logsModalCloseBtn2: document.getElementById("logsModalCloseBtn2"),
 
+  // Modal Novo Lead
+  btnOpenNewLeadModal: document.getElementById("btnOpenNewLeadModal"),
+  newLeadModal: document.getElementById("newLeadModal"),
+  newLeadModalClose: document.getElementById("newLeadModalClose"),
+  newLeadModalCancel: document.getElementById("newLeadModalCancel"),
+  newLeadForm: document.getElementById("newLeadForm"),
+
   // Exportação CSV
   btnExportCsv: document.getElementById("btnExportCsv"),
 
@@ -1616,6 +1623,23 @@ function closeLogsModal() {
   document.body.style.overflow = "";
 }
 
+function openNewLeadModal() {
+  if (!DOM.newLeadModal) return;
+  DOM.newLeadModal.classList.add("active");
+  document.body.style.overflow = "hidden";
+  setTimeout(() => {
+    const inputNome = document.getElementById("newLeadNome");
+    if (inputNome) inputNome.focus();
+  }, 100);
+}
+
+function closeNewLeadModal() {
+  if (!DOM.newLeadModal) return;
+  DOM.newLeadModal.classList.remove("active");
+  document.body.style.overflow = "";
+  if (DOM.newLeadForm) DOM.newLeadForm.reset();
+}
+
 // =============================================================================
 // 12. VINCULAÇÃO DE EVENTOS (EVENT LISTENERS)
 // =============================================================================
@@ -1938,12 +1962,133 @@ function setupEventListeners() {
     });
   }
 
+  // Modal de Cadastro de Nova Farmácia
+  if (DOM.btnOpenNewLeadModal) {
+    DOM.btnOpenNewLeadModal.addEventListener("click", openNewLeadModal);
+  }
+  if (DOM.newLeadModalClose) {
+    DOM.newLeadModalClose.addEventListener("click", closeNewLeadModal);
+  }
+  if (DOM.newLeadModalCancel) {
+    DOM.newLeadModalCancel.addEventListener("click", closeNewLeadModal);
+  }
+  if (DOM.newLeadModal) {
+    DOM.newLeadModal.addEventListener("click", (e) => {
+      if (e.target === DOM.newLeadModal) closeNewLeadModal();
+    });
+  }
+
+  // Máscara dinâmica de CNPJ
+  const inputCnpj = document.getElementById("newLeadCnpj");
+  if (inputCnpj) {
+    inputCnpj.addEventListener("input", (e) => {
+      let v = e.target.value.replace(/\D/g, "");
+      if (v.length > 14) v = v.slice(0, 14);
+      if (v.length > 12) {
+        v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})$/, "$1.$2.$3/$4-$5");
+      } else if (v.length > 8) {
+        v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{1,4})$/, "$1.$2.$3/$4");
+      } else if (v.length > 5) {
+        v = v.replace(/^(\d{2})(\d{3})(\d{1,3})$/, "$1.$2.$3");
+      } else if (v.length > 2) {
+        v = v.replace(/^(\d{2})(\d{1,3})$/, "$1.$2");
+      }
+      e.target.value = v;
+    });
+  }
+
+  // Máscara dinâmica de Telefone
+  const inputTel = document.getElementById("newLeadTelefone");
+  if (inputTel) {
+    inputTel.addEventListener("input", (e) => {
+      let v = e.target.value.replace(/\D/g, "");
+      if (v.length > 11) v = v.slice(0, 11);
+      if (v.length > 10) {
+        v = v.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3");
+      } else if (v.length > 6) {
+        v = v.replace(/^(\d{2})(\d{4})(\d{0,4})$/, "($1) $2-$3");
+      } else if (v.length > 2) {
+        v = v.replace(/^(\d{2})(\d{0,5})$/, "($1) $2");
+      }
+      e.target.value = v;
+    });
+  }
+
+  // Submissão do Formulário de Cadastro
+  if (DOM.newLeadForm) {
+    DOM.newLeadForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const nome = document.getElementById("newLeadNome").value.trim();
+      const razao = document.getElementById("newLeadRazao").value.trim();
+      const cnpj = document.getElementById("newLeadCnpj").value.trim();
+      const uf = document.getElementById("newLeadUf").value;
+      const cidade = document.getElementById("newLeadCidade").value.trim();
+      const bairro = document.getElementById("newLeadBairro").value.trim();
+      const telefone = document.getElementById("newLeadTelefone").value.trim();
+      const email = document.getElementById("newLeadEmail").value.trim();
+      const responsavel = document.getElementById("newLeadResponsavel").value;
+      const status = document.getElementById("newLeadStatus").value;
+      const cnae = document.getElementById("newLeadCnae").value.trim();
+      const observacoes = document.getElementById("newLeadObservacoes").value.trim();
+
+      if (!nome || !cnpj || !cidade || !telefone) {
+        showToast("Por favor, preencha todos os campos obrigatórios (*)", "info");
+        return;
+      }
+
+      // Validação de unicidade de CNPJ
+      const limpo = cleanCnpj(cnpj);
+      const isDuplicado = leadsData.some(l => cleanCnpj(l.cnpj) === limpo);
+
+      const nextId = leadsData.reduce((max, l) => Math.max(max, l.id), 0) + 1;
+      const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+      const novoLead = {
+        id: nextId,
+        nome: nome,
+        razaoSocial: razao || `${nome} Medicamentos Ltda`,
+        uf: uf,
+        cidade: cidade,
+        bairro: bairro || "Centro",
+        cnpj: cnpj,
+        telefone: telefone,
+        email: email || null,
+        responsavel: responsavel,
+        status: status,
+        cnae: cnae || "4771-7/01 - Comércio varejista de produtos farmacêuticos",
+        dataCadastro: HOJE_FORMATADO,
+        duplicado: isDuplicado,
+        observacoes: observacoes || "Estabelecimento incluído manualmente no painel Centrus.",
+        historico: [
+          { data: `${HOJE_FORMATADO} ${horaAtual}`, texto: "Estabelecimento cadastrado manualmente no sistema." }
+        ]
+      };
+
+      // Adiciona no topo da lista
+      leadsData.unshift(novoLead);
+
+      // Atualiza badge de contagem no cabeçalho
+      const navCount = document.getElementById("headerNavLeadCount");
+      if (navCount) navCount.textContent = leadsData.length;
+
+      // Atualiza estado e interface
+      updateKpiIndicators();
+      state.currentPage = 1;
+      renderTable();
+      closeNewLeadModal();
+
+      showToast(`Farmácia "${nome}" cadastrada com sucesso!`);
+    });
+  }
+
   // Atalho de Teclado (ESC fecha modais e drawer)
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       closeLeadDrawer();
       closeExtractModal();
       closeLogsModal();
+      closeNewLeadModal();
     }
   });
 }

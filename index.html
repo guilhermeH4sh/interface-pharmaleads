@@ -103,13 +103,20 @@
           </svg>
           Exportar CSV
         </button>
-        <button type="button" class="btn btn-primary" id="btnExtractLeads" title="Sincronizar e capturar estabelecimentos cadastrados">
+        <button type="button" class="btn btn-secondary" id="btnExtractLeads" title="Sincronizar e capturar estabelecimentos cadastrados">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="23 4 23 10 17 10"></polyline>
             <polyline points="1 20 1 14 7 14"></polyline>
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
           </svg>
-          Sincronizar Leads
+          Sincronizar
+        </button>
+        <button type="button" class="btn btn-primary" id="btnOpenNewLeadModal" title="Cadastrar manualmente um novo estabelecimento farmacêutico">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Nova Farmácia
         </button>
       </div>
     </section>
@@ -746,6 +753,114 @@
       <footer class="modal-footer">
         <button type="button" class="btn btn-secondary" id="logsModalCloseBtn2">Fechar Painel</button>
       </footer>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL 3: CADASTRAR NOVA FARMÁCIA
+       ===================================================================== -->
+  <div class="modal-backdrop" id="newLeadModal" role="dialog" aria-modal="true" aria-labelledby="newLeadModalTitle">
+    <div class="modal-dialog" style="max-width: 680px;">
+      <header class="modal-header">
+        <h3 class="modal-title" id="newLeadModalTitle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5518f0" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Cadastrar Nova Farmácia / Drogaria
+        </h3>
+        <button type="button" class="btn-icon" id="newLeadModalClose" aria-label="Fechar modal">✕</button>
+      </header>
+
+      <form id="newLeadForm">
+        <div class="modal-body">
+          <div class="callout-box">
+            <strong>Cadastro Comercial Centrus:</strong> Adicione os dados do novo estabelecimento farmacêutico para inclusão imediata na base regional de prospecção.
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group full-width">
+              <label class="form-label" for="newLeadNome">Nome Fantasia do Estabelecimento *</label>
+              <input type="text" id="newLeadNome" class="form-input" placeholder="Ex: Drogaria Santa Fé" required />
+            </div>
+
+            <div class="form-group full-width">
+              <label class="form-label" for="newLeadRazao">Razão Social</label>
+              <input type="text" id="newLeadRazao" class="form-input" placeholder="Ex: Santa Fé Medicamentos e Perfumaria Ltda" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="newLeadCnpj">CNPJ *</label>
+              <input type="text" id="newLeadCnpj" class="form-input" placeholder="00.000.000/0000-00" required maxlength="18" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="newLeadUf">Região (UF) *</label>
+              <select id="newLeadUf" class="filter-select" style="width: 100%;" required>
+                <option value="SP" selected>São Paulo (SP)</option>
+                <option value="GO">Goiás (GO)</option>
+                <option value="DF">Distrito Federal (DF)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="newLeadCidade">Cidade *</label>
+              <input type="text" id="newLeadCidade" class="form-input" placeholder="Ex: São Paulo" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="newLeadBairro">Bairro</label>
+              <input type="text" id="newLeadBairro" class="form-input" placeholder="Ex: Centro" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="newLeadTelefone">Telefone Comercial *</label>
+              <input type="tel" id="newLeadTelefone" class="form-input" placeholder="(11) 3456-7890" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="newLeadEmail">E-mail Comercial</label>
+              <input type="email" id="newLeadEmail" class="form-input" placeholder="compras@farmacia.com.br" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="newLeadResponsavel">Consultor Responsável</label>
+              <select id="newLeadResponsavel" class="filter-select" style="width: 100%;">
+                <option value="Mariana Costa">Mariana Costa</option>
+                <option value="Lucas Ferreira">Lucas Ferreira</option>
+                <option value="Camila Rocha">Camila Rocha</option>
+                <option value="Ricardo Mendes">Ricardo Mendes</option>
+                <option value="Patrícia Lima">Patrícia Lima</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="newLeadStatus">Status Inicial</label>
+              <select id="newLeadStatus" class="filter-select" style="width: 100%;">
+                <option value="Não contatado" selected>Não contatado</option>
+                <option value="Em contato">Em contato</option>
+                <option value="Respondido">Respondido</option>
+                <option value="Qualificado">Qualificado</option>
+              </select>
+            </div>
+
+            <div class="form-group full-width">
+              <label class="form-label" for="newLeadCnae">Atividade Econômica (CNAE)</label>
+              <input type="text" id="newLeadCnae" class="form-input" value="4771-7/01 - Comércio varejista de produtos farmacêuticos" />
+            </div>
+
+            <div class="form-group full-width">
+              <label class="form-label" for="newLeadObservacoes">Anotações Comerciais Iniciais</label>
+              <textarea id="newLeadObservacoes" class="notes-textarea" style="height: 65px;" placeholder="Preferências de compra, linhas demandadas, condições negociadas..."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="newLeadModalCancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveNewLead">Salvar Estabelecimento</button>
+        </footer>
+      </form>
     </div>
   </div>
 
