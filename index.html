@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Centrus PharmaLeads - Plataforma B2B de prospecção e inteligência comercial para farmácias e drogarias em SP, GO e DF." />
+  <title>Centrus PharmaLeads</title>
+  
+  <!-- Favicon com o logotipo oficial Centrus -->
+  <link rel="icon" type="image/png" href="assets/centrus-logo.png" />
+  
+  <!-- Estilos da Aplicação (CSS Puro) -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+
+  <!-- =====================================================================
+       CABEÇALHO SUPERIOR (NAVY ESCURO COM IDENTIDADE CENTRUS)
+       ===================================================================== -->
+  <header class="app-header">
+    <div class="header-container">
+      
+      <!-- Marca Centrus + Nome do Produto -->
+      <a href="#" class="brand-section" aria-label="Centrus PharmaLeads Página Inicial">
+        <img src="assets/centrus-logo.png" alt="Logotipo Centrus" class="brand-logo-img" />
+        <div class="brand-title-wrap">
+          <div class="brand-title-row">
+            <span class="brand-name">Centrus</span>
+            <span class="brand-product">PharmaLeads</span>
+          </div>
+          <span class="brand-subtitle">Inteligência Farmacêutica • B2B</span>
+        </div>
+      </a>
+
+      <!-- Menu de Navegação do Dashboard -->
+      <nav class="header-nav" aria-label="Navegação Principal">
+        <button type="button" class="nav-link">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          Visão Geral
+        </button>
+        <button type="button" class="nav-link active">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          Leads
+          <span class="badge-nav" id="headerNavLeadCount">50</span>
+        </button>
+        <button type="button" class="nav-link" id="btnOpenScraperLogs">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+          Auditoria & Logs
+        </button>
+        <button type="button" class="nav-link" onclick="showToast('Parâmetros e integrações do sistema ativos.', 'info')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          Parâmetros
+        </button>
+      </nav>
+
+      <!-- Ações do Cabeçalho e Usuário -->
+      <div class="header-actions">
+        <div class="user-profile">
+          <div class="user-avatar" title="Operador Comercial Centrus">C</div>
+          <div class="user-info">
+            <span class="user-name">Comercial Centrus</span>
+            <span class="user-role">SP • GO • DF</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- =====================================================================
+       CONTEÚDO PRINCIPAL
+       ===================================================================== -->
+  <main class="main-wrapper">
+
+    <!-- Título da Página e Botões de Ação Primária -->
+    <section class="page-title-row">
+      <div class="page-title-group">
+        <h1>Prospecção e Gestão de Contas Farmacêuticas</h1>
+        <p>Mapeamento estratégico, qualificação de leads e gestão de relacionamento com drogarias e farmácias em São Paulo, Goiás e Distrito Federal.</p>
+      </div>
+      <div class="header-cta-group">
+        <button type="button" class="btn btn-secondary" id="btnExportCsv" title="Exportar leads em formato CSV (compatível com Excel)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Exportar CSV
+        </button>
+        <button type="button" class="btn btn-primary" id="btnExtractLeads" title="Sincronizar e capturar estabelecimentos cadastrados">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+          Sincronizar Leads
+        </button>
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         INDICADORES DINÂMICOS (CARDS DE KPIs & RESUMO REGIONAL)
+         =================================================================== -->
+    <section class="kpi-section" aria-label="Indicadores Comerciais">
+      
+      <!-- KPI 1: Total de Leads -->
+      <article class="kpi-card highlight">
+        <div class="kpi-header">
+          <span class="kpi-title">Total Mapeado</span>
+          <div class="kpi-icon-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kpiTotalLeads">--</div>
+        <div class="kpi-footer">
+          <span class="badge-subtle" style="background:#e0e7ff; color:#4338ca;">Ativo</span>
+          <span>Rede regional unificada</span>
+        </div>
+      </article>
+
+      <!-- KPI 2: Leads em Prospecção -->
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Em Negociação</span>
+          <div class="kpi-icon-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kpiEmContato">--</div>
+        <div class="kpi-footer">
+          <span class="badge-subtle" style="background:#eff6ff; color:#1d4ed8;">Prospecção</span>
+          <span>Contatos em andamento</span>
+        </div>
+      </article>
+
+      <!-- KPI 3: Novos Hoje -->
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Entradas Recentes</span>
+          <div class="kpi-icon-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 14 14"></polyline>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kpiNovosHoje">--</div>
+        <div class="kpi-footer">
+          <span class="badge-subtle" style="background:#ecfdf5; color:#047857;">Ciclo Atual</span>
+          <span>Novas oportunidades</span>
+        </div>
+      </article>
+
+      <!-- KPI 4: Leads Respondidos & Qualificados -->
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Qualificados</span>
+          <div class="kpi-icon-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kpiRespondidos">--</div>
+        <div class="kpi-footer">
+          <span class="badge-subtle" style="background:#f5f3ff; color:#6d28d9;">Interesse</span>
+          <span>Prontos para fechamento</span>
+        </div>
+      </article>
+
+      <!-- KPI 5: Duplicidades Identificadas -->
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Auditados</span>
+          <div class="kpi-icon-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kpiDuplicados">--</div>
+        <div class="kpi-footer">
+          <span class="badge-subtle" style="background:#fff1f2; color:#be123c;">Normalizado</span>
+          <span>Unicidade por CNPJ</span>
+        </div>
+      </article>
+
+      <!-- Gráfico Resumo de Distribuição por Região (SP, GO, DF) -->
+      <article class="kpi-card chart-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Distribuição Regional</span>
+          <span style="font-size: 0.72rem; color: var(--text-dim); font-weight: 600;">COBERTURA</span>
+        </div>
+        
+        <div class="mini-chart-container">
+          <!-- SP -->
+          <div class="mini-bar-row">
+            <span class="mini-bar-label">SP</span>
+            <div class="mini-bar-track">
+              <div class="mini-bar-fill fill-sp" id="fillSp" style="width: 40%;"></div>
+            </div>
+            <span class="mini-bar-count" id="countSp">--</span>
+          </div>
+          <!-- GO -->
+          <div class="mini-bar-row">
+            <span class="mini-bar-label">GO</span>
+            <div class="mini-bar-track">
+              <div class="mini-bar-fill fill-go" id="fillGo" style="width: 30%;"></div>
+            </div>
+            <span class="mini-bar-count" id="countGo">--</span>
+          </div>
+          <!-- DF -->
+          <div class="mini-bar-row">
+            <span class="mini-bar-label">DF</span>
+            <div class="mini-bar-track">
+              <div class="mini-bar-fill fill-df" id="fillDf" style="width: 30%;"></div>
+            </div>
+            <span class="mini-bar-count" id="countDf">--</span>
+          </div>
+        </div>
+      </article>
+
+    </section>
+
+    <!-- ===================================================================
+         PAINEL DE FILTROS E PESQUISA
+         =================================================================== -->
+    <section class="filter-panel" aria-label="Filtros e Pesquisa">
+      <div class="filter-controls-row">
+        
+        <!-- Campo de Pesquisa -->
+        <div class="filter-item">
+          <label for="searchInput" class="filter-label">Pesquisar por Estabelecimento ou CNPJ</label>
+          <div class="search-input-wrapper">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input 
+              type="text" 
+              id="searchInput" 
+              class="search-input" 
+              placeholder="Digite o nome da farmácia, cidade ou CNPJ..." 
+              autocomplete="off"
+            />
+            <button type="button" id="searchClearBtn" class="search-clear-btn" title="Limpar pesquisa" aria-label="Limpar texto da busca">
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <!-- Filtro: Região / UF -->
+        <div class="filter-item">
+          <label for="filterUf" class="filter-label">Região (UF)</label>
+          <select id="filterUf" class="filter-select">
+            <option value="TODAS">Todas as Regiões (SP, GO, DF)</option>
+            <option value="SP">São Paulo (SP)</option>
+            <option value="GO">Goiás (GO)</option>
+            <option value="DF">Distrito Federal (DF)</option>
+          </select>
+        </div>
+
+        <!-- Filtro: Status Comercial -->
+        <div class="filter-item">
+          <label for="filterStatus" class="filter-label">Status da Negociação</label>
+          <select id="filterStatus" class="filter-select">
+            <option value="TODOS">Todos os Status</option>
+            <option value="Não contatado">Não contatado</option>
+            <option value="Em contato">Em contato</option>
+            <option value="Respondido">Respondido</option>
+            <option value="Qualificado">Qualificado</option>
+            <option value="Sem interesse">Sem interesse</option>
+          </select>
+        </div>
+
+        <!-- Filtro: Disponibilidade de Contatos -->
+        <div class="filter-item">
+          <label for="filterContact" class="filter-label">Disponibilidade de Contato</label>
+          <select id="filterContact" class="filter-select">
+            <option value="TODOS">Todos os Registros</option>
+            <option value="COM_AMBOS">Com Telefone e E-mail</option>
+            <option value="COM_TELEFONE">Apenas com Telefone</option>
+            <option value="COM_EMAIL">Apenas com E-mail</option>
+            <option value="INCOMPLETOS">Com Dados Incompletos</option>
+          </select>
+        </div>
+
+        <!-- Botão Limpar Filtros -->
+        <div class="filter-item">
+          <button type="button" class="btn btn-secondary" id="btnClearFilters" title="Restaurar visualização original">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="1 4 1 10 7 10"></polyline>
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+            </svg>
+            Limpar
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Linha de Resumo e Tags de Filtro -->
+      <div class="filter-summary-row">
+        <span class="filter-count-badge" id="filterCountDisplay">Carregando leads...</span>
+        <div class="filter-active-tags" id="activeFilterTags"></div>
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         TABELA DE LEADS
+         =================================================================== -->
+    <section class="table-card" aria-label="Tabela de Leads Farmacêuticos">
+      <div class="table-responsive">
+        <table class="leads-table" id="leadsTable">
+          <thead>
+            <tr>
+              <th class="th-checkbox">
+                <input type="checkbox" id="selectAllCheckbox" class="table-checkbox" aria-label="Selecionar todos os leads da página atual" />
+              </th>
+              <th class="sortable" data-sort="nome">
+                <div class="th-sort-wrapper">
+                  <span>Farmácia / Drogaria</span>
+                  <span class="sort-icon">▲</span>
+                </div>
+              </th>
+              <th class="sortable" data-sort="uf">
+                <div class="th-sort-wrapper">
+                  <span>UF</span>
+                  <span class="sort-icon">▲</span>
+                </div>
+              </th>
+              <th class="sortable" data-sort="cnpj">
+                <div class="th-sort-wrapper">
+                  <span>CNPJ</span>
+                  <span class="sort-icon">▲</span>
+                </div>
+              </th>
+              <th>Telefone</th>
+              <th>E-mail</th>
+              <th class="sortable" data-sort="cidade">
+                <div class="th-sort-wrapper">
+                  <span>Cidade</span>
+                  <span class="sort-icon">▲</span>
+                </div>
+              </th>
+              <th class="sortable" data-sort="responsavel">
+                <div class="th-sort-wrapper">
+                  <span>Responsável</span>
+                  <span class="sort-icon">▲</span>
+                </div>
+              </th>
+              <th class="sortable" data-sort="status">
+                <div class="th-sort-wrapper">
+                  <span>Status Comercial</span>
+                  <span class="sort-icon">▲</span>
+                </div>
+              </th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="leadsTableBody">
+            <!-- Linhas geradas dinamicamente via script.js -->
+          </tbody>
+        </table>
+
+        <!-- Estado Vazio Amigável -->
+        <div class="empty-state" id="emptyState" style="display: none;">
+          <div class="empty-state-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </div>
+          <h3 class="empty-state-title">Nenhum lead encontrado</h3>
+          <p class="empty-state-text">Não encontramos estabelecimentos correspondentes aos filtros selecionados. Tente ajustar os termos de busca ou limpar os filtros.</p>
+          <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('btnClearFilters').click();">
+            Redefinir Filtros
+          </button>
+        </div>
+      </div>
+
+      <!-- Rodapé da Tabela: Paginação -->
+      <footer class="table-footer">
+        <div class="pagination-info" id="paginationInfo">Carregando paginação...</div>
+        <div class="pagination-controls">
+          <div class="page-size-selector">
+            <label for="pageSizeSelect">Itens por página:</label>
+            <select id="pageSizeSelect" class="page-size-select">
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+            </select>
+          </div>
+          <div class="pagination-buttons" id="paginationButtons">
+            <!-- Botões numéricos gerados dinamicamente -->
+          </div>
+        </div>
+      </footer>
+    </section>
+
+  </main>
+
+  <!-- =====================================================================
+       BARRA FLUTUANTE DE AÇÕES EM LOTE (SELEÇÃO MÚLTIPLA)
+       ===================================================================== -->
+  <aside class="batch-actions-bar" id="batchActionsBar" aria-label="Ações em Lote">
+    <span class="batch-count" id="batchCountDisplay">0 leads selecionados</span>
+    <div class="batch-divider"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <select id="batchStatusSelect" class="batch-select-status" aria-label="Selecionar novo status para os leads selecionados">
+        <option value="Não contatado">Não contatado</option>
+        <option value="Em contato">Em contato</option>
+        <option value="Respondido">Respondido</option>
+        <option value="Qualificado">Qualificado</option>
+        <option value="Sem interesse">Sem interesse</option>
+      </select>
+      <button type="button" class="btn btn-primary btn-sm" id="btnApplyBatchStatus">
+        Alterar Status
+      </button>
+    </div>
+    <div class="batch-divider"></div>
+    <button type="button" class="btn btn-secondary btn-sm" id="btnExportBatch">
+      Exportar CSV
+    </button>
+    <button type="button" class="btn btn-icon" id="btnDeselectAll" title="Desmarcar todos" style="color: #cbd5e1;">
+      ✕
+    </button>
+  </aside>
+
+  <!-- =====================================================================
+       DRAWER LATERAL (FICHA CADASTRAL E COMERCIAL DO LEAD)
+       ===================================================================== -->
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="lead-drawer" id="leadDrawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+    
+    <header class="drawer-header">
+      <div class="drawer-title-group">
+        <h2 class="drawer-title" id="drawerTitle">Ficha Cadastral e Comercial</h2>
+        <span class="drawer-subtitle" id="drawerSubtitle">Razão Social & Localização Regional</span>
+      </div>
+      <button type="button" class="btn-icon" id="drawerCloseBtn" aria-label="Fechar painel de detalhes">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </header>
+
+    <div class="drawer-body">
+      
+      <!-- Seção: Status e Negociação -->
+      <section class="drawer-section">
+        <span class="drawer-section-title">Etapa no Funil de Vendas</span>
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 0.85rem; color: var(--text-muted);">Status Comercial Atual:</span>
+          <div class="status-select-wrap">
+            <select class="status-badge-select" id="drawerStatusSelect">
+              <option value="Não contatado">Não contatado</option>
+              <option value="Em contato">Em contato</option>
+              <option value="Respondido">Respondido</option>
+              <option value="Qualificado">Qualificado</option>
+              <option value="Sem interesse">Sem interesse</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- Seção: Informações Cadastrais -->
+      <section class="drawer-section">
+        <span class="drawer-section-title">Dados Fiscais & Cadastrais</span>
+        <div class="drawer-grid">
+          
+          <div class="drawer-field">
+            <span class="drawer-field-label">CNPJ</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="drawer-field-value monospace" id="drawerCnpj">--</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnCopyCnpj" style="padding: 2px 6px; font-size: 0.72rem;" title="Copiar CNPJ">
+                Copiar
+              </button>
+            </div>
+          </div>
+
+          <div class="drawer-field">
+            <span class="drawer-field-label">Data de Entrada na Base</span>
+            <span class="drawer-field-value" id="drawerDataCadastro">--</span>
+          </div>
+
+          <div class="drawer-field full-width">
+            <span class="drawer-field-label">Razão Social</span>
+            <span class="drawer-field-value" id="drawerRazao">--</span>
+          </div>
+
+          <div class="drawer-field full-width">
+            <span class="drawer-field-label">Atividade Econômica (CNAE)</span>
+            <span class="drawer-field-value" id="drawerCnae" style="font-size: 0.82rem;">--</span>
+          </div>
+
+          <div class="drawer-field full-width">
+            <span class="drawer-field-label">Endereço Comercial</span>
+            <span class="drawer-field-value" id="drawerCidadeUf">--</span>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Seção: Contato & Atribuição Comercial -->
+      <section class="drawer-section">
+        <span class="drawer-section-title">Contatos & Representação Regional</span>
+        <div class="drawer-grid">
+          
+          <div class="drawer-field">
+            <span class="drawer-field-label">Telefone Comercial</span>
+            <span class="drawer-field-value" id="drawerTelefone">--</span>
+          </div>
+
+          <div class="drawer-field">
+            <span class="drawer-field-label">E-mail Corporativo</span>
+            <span class="drawer-field-value" id="drawerEmail">--</span>
+          </div>
+
+          <div class="drawer-field full-width">
+            <span class="drawer-field-label">Consultor Centrus Responsável</span>
+            <span class="drawer-field-value" id="drawerResponsavel">--</span>
+          </div>
+
+        </div>
+
+        <div class="drawer-actions-row">
+          <button type="button" class="btn btn-secondary btn-sm" id="btnWhatsappAction" style="display:none; color: #047857;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+            </svg>
+            Contato WhatsApp
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnEmailAction" style="display:none;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+              <polyline points="22,6 12,13 2,6"></polyline>
+            </svg>
+            Enviar Proposta
+          </button>
+        </div>
+      </section>
+
+      <!-- Seção: Anotações do Consultor -->
+      <section class="drawer-section">
+        <span class="drawer-section-title">Registro de Negociação & Notas Comerciais</span>
+        <textarea id="drawerObservacoes" class="notes-textarea" placeholder="Registre condições comerciais negociadas, linha de produtos demandada, prazos ou retorno de contatos..."></textarea>
+        <div>
+          <button type="button" class="btn btn-primary btn-sm" id="btnSaveNotes">
+            Salvar Anotação Comercial
+          </button>
+        </div>
+      </section>
+
+      <!-- Seção: Histórico de Interações (Timeline) -->
+      <section class="drawer-section">
+        <span class="drawer-section-title">Linha do Tempo de Relacionamento</span>
+        <div class="timeline" id="drawerTimeline">
+          <!-- Timeline gerada dinamicamente -->
+        </div>
+      </section>
+
+    </div>
+
+    <footer class="drawer-footer">
+      <span style="font-size: 0.75rem; color: var(--text-dim);">Centrus Distribuidora • Gestão Estratégica B2B</span>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="closeLeadDrawer();">Fechar</button>
+    </footer>
+
+  </aside>
+
+  <!-- =====================================================================
+       MODAL 1: SINCRONIZAÇÃO E CAPTURA DE LEADS
+       ===================================================================== -->
+  <div class="modal-backdrop" id="extractModal" role="dialog" aria-modal="true" aria-labelledby="extractModalTitle">
+    <div class="modal-dialog">
+      <header class="modal-header">
+        <h3 class="modal-title" id="extractModalTitle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5518f0" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+          Sincronização e Captura de Estabelecimentos
+        </h3>
+        <button type="button" class="btn-icon" id="extractModalClose" aria-label="Fechar modal">✕</button>
+      </header>
+
+      <div class="modal-body">
+        <div class="callout-box" style="border-left: 3px solid #5518f0; background: #f8f6ff;">
+          <strong>Rotina de Coleta Automatizada:</strong> Varredura e consolidação de estabelecimentos farmacêuticos com dados cadastrais e telefones validados na Receita Federal.
+        </div>
+
+        <div style="margin: 16px 0; display: flex; flex-direction: column; gap: 12px;">
+          <div>
+            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Região de Varredura:</label>
+            <select class="filter-select" id="syncRegionSelect" style="width: 100%;">
+              <option value="TODAS">Todas as Regiões (SP, GO e DF)</option>
+              <option value="SP">São Paulo (Capital, RMC e Interior)</option>
+              <option value="GO">Goiás (Goiânia, Anápolis e Interior)</option>
+              <option value="DF">Distrito Federal (Brasília e Regiões Administrativas)</option>
+            </select>
+          </div>
+
+          <div>
+            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Filtro de Segmento:</label>
+            <div style="display: flex; gap: 12px; font-size: 0.85rem; color: var(--text-muted);">
+              <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" checked /> Varejo Farmacêutico (CNAE 4771-7/01)</label>
+              <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" checked /> Manipulação (CNAE 4771-7/02)</label>
+            </div>
+          </div>
+
+          <div style="background: var(--bg-muted); padding: 12px; border-radius: var(--radius-md); font-size: 0.82rem; color: var(--text-muted);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span>Fontes Integradas:</span>
+              <strong style="color: var(--text-main);">Google Places B2B & RFB</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span>Validação Cadastral:</span>
+              <strong style="color: #047857;">Deduplicação Ativa por CNPJ</strong>
+            </div>
+          </div>
+        </div>
+
+        <div id="syncProgressContainer" style="display: none; margin-top: 12px;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
+            <span id="syncProgressLabel">Consultando registros...</span>
+            <span id="syncProgressPercent">0%</span>
+          </div>
+          <div style="height: 6px; background: #e2e8f0; border-radius: 9999px; overflow: hidden;">
+            <div id="syncProgressBar" style="height: 100%; width: 0%; background: #5518f0; transition: width 0.3s ease;"></div>
+          </div>
+        </div>
+      </div>
+
+      <footer class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="extractModalCloseBtn2">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnExecuteSync">
+          Executar Sincronização
+        </button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL 2: PAINEL DE AUDITORIA E LOGS
+       ===================================================================== -->
+  <div class="modal-backdrop" id="logsModal" role="dialog" aria-modal="true" aria-labelledby="logsModalTitle">
+    <div class="modal-dialog" style="max-width: 800px;">
+      <header class="modal-header">
+        <h3 class="modal-title" id="logsModalTitle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5518f0" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+          Auditoria de Sincronizações Cadastrais
+        </h3>
+        <button type="button" class="btn-icon" id="logsModalClose" aria-label="Fechar modal de logs">✕</button>
+      </header>
+
+      <div class="modal-body">
+        <div class="callout-box">
+          <strong>Histórico Operacional:</strong> Registros das rotinas de coleta regional, enriquecimento de contatos e validação de CNPJs na Receita Federal do Brasil.
+        </div>
+
+        <div class="log-table-wrap">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Fonte</th>
+                <th>Região Alvo</th>
+                <th>Execução</th>
+                <th>Coletados</th>
+                <th>Auditados</th>
+                <th>Duração</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>#SYNC-1042</code></td>
+                <td>Google Places / RFB</td>
+                <td>São Paulo (Capital & RMC)</td>
+                <td>Hoje 08:30 - 08:34</td>
+                <td>20 registros</td>
+                <td>1 normalizado</td>
+                <td>4m 12s</td>
+                <td><span class="log-status-badge log-status-ok">Sincronizado</span></td>
+              </tr>
+              <tr>
+                <td><code>#SYNC-1041</code></td>
+                <td>Google Places / RFB</td>
+                <td>Goiás (Goiânia & Anápolis)</td>
+                <td>Hoje 08:15 - 08:19</td>
+                <td>15 registros</td>
+                <td>1 normalizado</td>
+                <td>3m 48s</td>
+                <td><span class="log-status-badge log-status-ok">Sincronizado</span></td>
+              </tr>
+              <tr>
+                <td><code>#SYNC-1040</code></td>
+                <td>Google Places / RFB</td>
+                <td>Distrito Federal (Brasília & DF)</td>
+                <td>Hoje 08:00 - 08:03</td>
+                <td>15 registros</td>
+                <td>0 divergências</td>
+                <td>3m 22s</td>
+                <td><span class="log-status-badge log-status-ok">Sincronizado</span></td>
+              </tr>
+              <tr>
+                <td><code>#SYNC-1039</code></td>
+                <td>Google Places / RFB</td>
+                <td>Interior SP (Ribeirão Preto)</td>
+                <td>Ontem 17:40 - 17:42</td>
+                <td>8 registros</td>
+                <td>0 divergências</td>
+                <td>2m 15s</td>
+                <td><span class="log-status-badge log-status-ok">Concluído</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <footer class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="logsModalCloseBtn2">Fechar Painel</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Container de Notificações Toast -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <!-- Script Principal da Aplicação -->
+  <script src="script.js"></script>
+</body>
+</html>
