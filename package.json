@@ -1,0 +1,17 @@
+{
+  "name": "centrus-pharmaleads",
+  "version": "1.0.0",
+  "description": "Plataforma de inteligência comercial e prospecção farmacêutica - Centrus Distribuidora",
+  "type": "module",
+  "scripts": {
+    "test:db": "node test-db.js",
+    "seed": "node scraper/seed.js",
+    "scrape": "node scraper/places-scraper.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.48.1",
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.7"
+  }
+}
