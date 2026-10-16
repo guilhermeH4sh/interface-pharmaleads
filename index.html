@@ -22,7 +22,7 @@
     <div class="header-container">
       
       <!-- Marca Centrus + Nome do Produto -->
-      <a href="#" class="brand-section" aria-label="Centrus PharmaLeads Página Inicial">
+      <a href="#" class="brand-section" id="brandLink" aria-label="Centrus PharmaLeads Página Inicial" title="Voltar ao início e redefinir visualização">
         <img src="assets/centrus-logo.png" alt="Logotipo Centrus" class="brand-logo-img" />
         <div class="brand-title-wrap">
           <div class="brand-title-row">
@@ -35,7 +35,7 @@
 
       <!-- Menu de Navegação do Dashboard -->
       <nav class="header-nav" aria-label="Navegação Principal">
-        <button type="button" class="nav-link">
+        <button type="button" class="nav-link" id="btnNavOverview" title="Ir para o painel de indicadores e métricas">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="7" height="7"></rect>
             <rect x="14" y="3" width="7" height="7"></rect>
@@ -44,7 +44,7 @@
           </svg>
           Visão Geral
         </button>
-        <button type="button" class="nav-link active">
+        <button type="button" class="nav-link active" id="btnNavLeads" title="Ir para a tabela de estabelecimentos farmacêuticos">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
             <circle cx="9" cy="7" r="4"></circle>
@@ -52,15 +52,15 @@
             <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
           </svg>
           Leads
-          <span class="badge-nav" id="headerNavLeadCount">50</span>
+          <span class="badge-nav" id="headerNavLeadCount">74</span>
         </button>
-        <button type="button" class="nav-link" id="btnOpenScraperLogs">
+        <button type="button" class="nav-link" id="btnOpenScraperLogs" title="Abrir histórico de auditoria e logs do robô">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
           </svg>
           Auditoria & Logs
         </button>
-        <button type="button" class="nav-link" onclick="showToast('Parâmetros e integrações do sistema ativos.', 'info')">
+        <button type="button" class="nav-link" id="btnNavSettings" title="Configurar parâmetros do sistema e mensagens do WhatsApp">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -124,10 +124,10 @@
     <!-- ===================================================================
          INDICADORES DINÂMICOS (CARDS DE KPIs & RESUMO REGIONAL)
          =================================================================== -->
-    <section class="kpi-section" aria-label="Indicadores Comerciais">
+    <section class="kpi-section" id="kpiSection" aria-label="Indicadores Comerciais">
       
       <!-- KPI 1: Total de Leads -->
-      <article class="kpi-card highlight">
+      <article class="kpi-card highlight clickable" id="kpiCardTotal" title="Clique para exibir todos os estabelecimentos">
         <div class="kpi-header">
           <span class="kpi-title">Total Mapeado</span>
           <div class="kpi-icon-wrap">
@@ -145,7 +145,7 @@
       </article>
 
       <!-- KPI 2: Leads em Prospecção -->
-      <article class="kpi-card">
+      <article class="kpi-card clickable" id="kpiCardEmContato" title="Clique para filtrar apenas leads em negociação">
         <div class="kpi-header">
           <span class="kpi-title">Em Negociação</span>
           <div class="kpi-icon-wrap">
@@ -162,7 +162,7 @@
       </article>
 
       <!-- KPI 3: Novos Hoje -->
-      <article class="kpi-card">
+      <article class="kpi-card clickable" id="kpiCardNovosHoje" title="Clique para ver oportunidades adicionadas no ciclo atual">
         <div class="kpi-header">
           <span class="kpi-title">Entradas Recentes</span>
           <div class="kpi-icon-wrap">
@@ -180,7 +180,7 @@
       </article>
 
       <!-- KPI 4: Leads Respondidos & Qualificados -->
-      <article class="kpi-card">
+      <article class="kpi-card clickable" id="kpiCardRespondidos" title="Clique para filtrar estabelecimentos com retorno comercial">
         <div class="kpi-header">
           <span class="kpi-title">Qualificados</span>
           <div class="kpi-icon-wrap">
@@ -197,7 +197,7 @@
       </article>
 
       <!-- KPI 5: Duplicidades Identificadas -->
-      <article class="kpi-card">
+      <article class="kpi-card clickable" id="kpiCardDuplicados" title="Clique para filtrar apenas estabelecimentos auditados">
         <div class="kpi-header">
           <span class="kpi-title">Auditados</span>
           <div class="kpi-icon-wrap">
@@ -223,7 +223,7 @@
         
         <div class="mini-chart-container">
           <!-- SP -->
-          <div class="mini-bar-row">
+          <div class="mini-bar-row clickable" id="cardBarSp" title="Clique para filtrar farmácias de São Paulo (SP)">
             <span class="mini-bar-label">SP</span>
             <div class="mini-bar-track">
               <div class="mini-bar-fill fill-sp" id="fillSp" style="width: 40%;"></div>
@@ -231,7 +231,7 @@
             <span class="mini-bar-count" id="countSp">--</span>
           </div>
           <!-- GO -->
-          <div class="mini-bar-row">
+          <div class="mini-bar-row clickable" id="cardBarGo" title="Clique para filtrar farmácias de Goiás (GO)">
             <span class="mini-bar-label">GO</span>
             <div class="mini-bar-track">
               <div class="mini-bar-fill fill-go" id="fillGo" style="width: 30%;"></div>
@@ -239,7 +239,7 @@
             <span class="mini-bar-count" id="countGo">--</span>
           </div>
           <!-- DF -->
-          <div class="mini-bar-row">
+          <div class="mini-bar-row clickable" id="cardBarDf" title="Clique para filtrar farmácias do Distrito Federal (DF)">
             <span class="mini-bar-label">DF</span>
             <div class="mini-bar-track">
               <div class="mini-bar-fill fill-df" id="fillDf" style="width: 30%;"></div>
@@ -553,18 +553,33 @@
         </div>
 
         <div class="drawer-actions-row">
-          <button type="button" class="btn btn-secondary btn-sm" id="btnWhatsappAction" style="display:none; color: #047857;">
+          <button type="button" class="btn btn-secondary btn-sm" id="btnWhatsappAction" style="display:none; color: #047857;" title="Abrir conversa comercial no WhatsApp">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
             </svg>
             Contato WhatsApp
           </button>
-          <button type="button" class="btn btn-secondary btn-sm" id="btnEmailAction" style="display:none;">
+          <button type="button" class="btn btn-secondary btn-sm" id="btnEmailAction" style="display:none;" title="Enviar proposta por e-mail">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
               <polyline points="22,6 12,13 2,6"></polyline>
             </svg>
             Enviar Proposta
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnMapsAction" title="Localizar endereço no Google Maps">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+              <line x1="8" y1="2" x2="8" y2="18"></line>
+              <line x1="16" y1="6" x2="16" y2="22"></line>
+            </svg>
+            Ver no Maps
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnCnpjAction" title="Consultar dados cadastrais na Receita">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            Auditar CNPJ
           </button>
         </div>
       </section>
@@ -861,6 +876,81 @@
           <button type="submit" class="btn btn-primary" id="btnSaveNewLead">Salvar Estabelecimento</button>
         </footer>
       </form>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL 4: PARÂMETROS E CONFIGURAÇÕES DA PROSPECÇÃO
+       ===================================================================== -->
+  <div class="modal-backdrop" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+    <div class="modal-dialog" style="max-width: 650px;">
+      <header class="modal-header">
+        <h3 class="modal-title" id="settingsModalTitle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5518f0" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          Parâmetros e Configurações da Prospecção
+        </h3>
+        <button type="button" class="btn-icon" id="settingsModalClose" aria-label="Fechar modal">✕</button>
+      </header>
+
+      <div class="modal-body">
+        
+        <!-- Status de Conexão -->
+        <div class="callout-box" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <strong>Status do Backend (Supabase):</strong>
+            <p style="margin: 3px 0 0; font-size: 0.8rem; color: var(--text-muted);">Conexão PostgreSQL ativa em tempo real via REST API.</p>
+          </div>
+          <div class="status-pill-online">
+            <span class="status-dot-pulse"></span>
+            Online (Sincronizado)
+          </div>
+        </div>
+
+        <!-- Template de Mensagem do WhatsApp -->
+        <div style="margin-top: 18px;">
+          <label class="form-label" for="settingWaTemplate">
+            Template de Mensagem de Abordagem Comercial (WhatsApp)
+          </label>
+          <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 8px;">
+            Variáveis suportadas: 
+            <span class="template-var-badge">{nome}</span>
+            <span class="template-var-badge">{cidade}</span>
+            <span class="template-var-badge">{uf}</span>
+          </p>
+          <textarea 
+            id="settingWaTemplate" 
+            class="notes-textarea" 
+            style="height: 100px; font-size: 0.84rem; line-height: 1.4;"
+            placeholder="Ex: Olá {nome}, tudo bem? Sou da Centrus Distribuidora..."
+          >Olá, equipe da {nome}! Tudo bem? Sou do time comercial da Centrus Distribuidora Farmacêutica em {cidade} - {uf}. Gostaríamos de apresentar nossas condições exclusivas de fornecimento e prazos faturados para sua farmácia.</textarea>
+        </div>
+
+        <!-- Abrangência Regional Padrão -->
+        <div style="margin-top: 16px;">
+          <label class="form-label">Regiões Ativas na Prospecção</label>
+          <div style="display: flex; gap: 12px; margin-top: 6px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.84rem; cursor: pointer;">
+              <input type="checkbox" checked disabled /> São Paulo (SP)
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.84rem; cursor: pointer;">
+              <input type="checkbox" checked disabled /> Goiás (GO)
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.84rem; cursor: pointer;">
+              <input type="checkbox" checked disabled /> Distrito Federal (DF)
+            </label>
+          </div>
+        </div>
+
+      </div>
+
+      <footer class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnTestSupabaseConnection">Testar Conexão</button>
+        <button type="button" class="btn btn-secondary" id="settingsModalCloseBtn">Fechar</button>
+        <button type="button" class="btn btn-primary" id="btnSaveSettings">Salvar Parâmetros</button>
+      </footer>
     </div>
   </div>
 

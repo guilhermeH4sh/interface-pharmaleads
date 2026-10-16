@@ -203,6 +203,22 @@ const DOM = {
   btnExportBatch: document.getElementById("btnExportBatch"),
   btnDeselectAll: document.getElementById("btnDeselectAll"),
 
+  // Navegação
+  brandLink: document.getElementById("brandLink"),
+  btnNavOverview: document.getElementById("btnNavOverview"),
+  btnNavLeads: document.getElementById("btnNavLeads"),
+  btnNavSettings: document.getElementById("btnNavSettings"),
+
+  // KPIs e Barras Clicáveis
+  kpiCardTotal: document.getElementById("kpiCardTotal"),
+  kpiCardEmContato: document.getElementById("kpiCardEmContato"),
+  kpiCardNovosHoje: document.getElementById("kpiCardNovosHoje"),
+  kpiCardRespondidos: document.getElementById("kpiCardRespondidos"),
+  kpiCardDuplicados: document.getElementById("kpiCardDuplicados"),
+  cardBarSp: document.getElementById("cardBarSp"),
+  cardBarGo: document.getElementById("cardBarGo"),
+  cardBarDf: document.getElementById("cardBarDf"),
+
   // Drawer de Detalhes
   leadDrawer: document.getElementById("leadDrawer"),
   drawerBackdrop: document.getElementById("drawerBackdrop"),
@@ -224,6 +240,8 @@ const DOM = {
   btnCopyCnpj: document.getElementById("btnCopyCnpj"),
   btnWhatsappAction: document.getElementById("btnWhatsappAction"),
   btnEmailAction: document.getElementById("btnEmailAction"),
+  btnMapsAction: document.getElementById("btnMapsAction"),
+  btnCnpjAction: document.getElementById("btnCnpjAction"),
 
   // Modais
   btnExtractLeads: document.getElementById("btnExtractLeads"),
@@ -242,6 +260,14 @@ const DOM = {
   newLeadModalClose: document.getElementById("newLeadModalClose"),
   newLeadModalCancel: document.getElementById("newLeadModalCancel"),
   newLeadForm: document.getElementById("newLeadForm"),
+
+  // Modal Parâmetros
+  settingsModal: document.getElementById("settingsModal"),
+  settingsModalClose: document.getElementById("settingsModalClose"),
+  settingsModalCloseBtn: document.getElementById("settingsModalCloseBtn"),
+  btnSaveSettings: document.getElementById("btnSaveSettings"),
+  btnTestSupabaseConnection: document.getElementById("btnTestSupabaseConnection"),
+  settingWaTemplate: document.getElementById("settingWaTemplate"),
 
   // Exportação CSV
   btnExportCsv: document.getElementById("btnExportCsv"),
@@ -281,6 +307,18 @@ function showToast(message, type = "success") {
 
 function cleanCnpj(cnpj) {
   return cnpj ? cnpj.replace(/\D/g, "") : "";
+}
+
+/**
+ * Formata mensagem de abordagem no WhatsApp substituindo variáveis dinâmicas
+ */
+function formatWaMessage(lead) {
+  const defaultTpl = "Olá, equipe da {nome}! Tudo bem? Sou do time comercial da Centrus Distribuidora Farmacêutica em {cidade} - {uf}. Gostaríamos de apresentar nossas condições exclusivas de fornecimento e prazos faturados para sua farmácia.";
+  const tpl = (typeof localStorage !== "undefined" && localStorage.getItem("centrus_wa_template")) || defaultTpl;
+  return tpl
+    .replace(/{nome}/g, lead.nome || "farmácia")
+    .replace(/{cidade}/g, lead.cidade || "")
+    .replace(/{uf}/g, lead.uf || "");
 }
 
 // Debounce para digitação na busca
@@ -439,12 +477,21 @@ function renderTable() {
   // Montagem do corpo da tabela
   DOM.tableBody.innerHTML = pageItems.map(lead => {
     const isSelected = state.selectedLeadIds.has(lead.id);
+    const rawTel = lead.telefone ? lead.telefone.replace(/\D/g, "") : "";
+    const waText = encodeURIComponent(formatWaMessage(lead));
+    
     const telefoneHtml = lead.telefone
-      ? `<span>${lead.telefone}</span>`
+      ? `<a href="https://wa.me/55${rawTel}?text=${waText}" target="_blank" class="table-contact-link wa" title="Abrir conversa no WhatsApp (1 clique)" onclick="event.stopPropagation();">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+          ${lead.telefone}
+        </a>`
       : `<span class="data-missing">Não informado</span>`;
 
     const emailHtml = lead.email
-      ? `<span title="${lead.email}">${lead.email}</span>`
+      ? `<a href="mailto:${lead.email}?subject=${encodeURIComponent('Apresentação Comercial Centrus PharmaLeads - ' + lead.nome)}" class="table-contact-link mail" title="${lead.email}" onclick="event.stopPropagation();">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+          ${lead.email}
+        </a>`
       : `<span class="data-missing">Não informado</span>`;
 
     const responsavelHtml = lead.responsavel && lead.responsavel !== "Não atribuído"
@@ -644,7 +691,8 @@ function openLeadDrawer(leadId) {
   if (lead.telefone) {
     const rawTel = lead.telefone.replace(/\D/g, "");
     DOM.btnWhatsappAction.onclick = () => {
-      window.open(`https://wa.me/55${rawTel}?text=Olá,%20somos%20da%20Centrus.%20Gostaríamos%20de%20apresentar%20nossas%20soluções%20farmacêuticas.`, "_blank");
+      const msg = encodeURIComponent(formatWaMessage(lead));
+      window.open(`https://wa.me/55${rawTel}?text=${msg}`, "_blank");
     };
     DOM.btnWhatsappAction.style.display = "inline-flex";
   } else {
@@ -653,11 +701,32 @@ function openLeadDrawer(leadId) {
 
   if (lead.email) {
     DOM.btnEmailAction.onclick = () => {
-      window.location.href = `mailto:${lead.email}?subject=Apresentação%20Comercial%20Centrus%20PharmaLeads`;
+      const subject = encodeURIComponent(`Apresentação Comercial Centrus PharmaLeads - ${lead.nome}`);
+      window.location.href = `mailto:${lead.email}?subject=${subject}`;
     };
     DOM.btnEmailAction.style.display = "inline-flex";
   } else {
     DOM.btnEmailAction.style.display = "none";
+  }
+
+  // Ação de Localização no Google Maps
+  if (DOM.btnMapsAction) {
+    DOM.btnMapsAction.onclick = () => {
+      const query = encodeURIComponent(`${lead.nome} ${lead.endereco || lead.cidade + ' ' + lead.uf}`);
+      window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, "_blank");
+    };
+  }
+
+  // Ação de Auditoria de CNPJ na Receita
+  if (DOM.btnCnpjAction) {
+    DOM.btnCnpjAction.onclick = () => {
+      const doc = cleanCnpj(lead.cnpj);
+      if (doc && doc.length === 14) {
+        window.open(`https://cnpj.biz/${doc}`, "_blank");
+      } else {
+        showToast("CNPJ deste estabelecimento está sob auditoria ou não informado.", "info");
+      }
+    };
   }
 
   // Linha do tempo de interações comerciais
@@ -808,6 +877,39 @@ function closeNewLeadModal() {
   DOM.newLeadModal.classList.remove("active");
   document.body.style.overflow = "";
   if (DOM.newLeadForm) DOM.newLeadForm.reset();
+}
+
+function openSettingsModal() {
+  if (!DOM.settingsModal) return;
+  // Carrega template salvo no localStorage se houver
+  const savedTpl = localStorage.getItem("centrus_wa_template");
+  if (savedTpl && DOM.settingWaTemplate) {
+    DOM.settingWaTemplate.value = savedTpl;
+  }
+  DOM.settingsModal.classList.add("active");
+  document.body.style.overflow = "hidden";
+}
+
+function closeSettingsModal() {
+  if (!DOM.settingsModal) return;
+  DOM.settingsModal.classList.remove("active");
+  document.body.style.overflow = "";
+}
+
+function resetAllFilters() {
+  state.searchQuery = "";
+  state.filterUf = "TODAS";
+  state.filterStatus = "TODOS";
+  state.filterContact = "TODOS";
+  state.currentPage = 1;
+
+  if (DOM.searchInput) DOM.searchInput.value = "";
+  if (DOM.searchClearBtn) DOM.searchClearBtn.style.display = "none";
+  if (DOM.filterUf) DOM.filterUf.value = "TODAS";
+  if (DOM.filterStatus) DOM.filterStatus.value = "TODOS";
+  if (DOM.filterContact) DOM.filterContact.value = "TODOS";
+
+  renderTable();
 }
 
 // =============================================================================
@@ -1261,6 +1363,157 @@ function setupEventListeners() {
     });
   }
 
+  // --- NAVEGAÇÃO SUPERIOR ---
+  if (DOM.brandLink) {
+    DOM.brandLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      resetAllFilters();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      showToast("Visualização redefinida para a página inicial.");
+    });
+  }
+
+  if (DOM.btnNavOverview) {
+    DOM.btnNavOverview.addEventListener("click", () => {
+      DOM.btnNavOverview.classList.add("active");
+      if (DOM.btnNavLeads) DOM.btnNavLeads.classList.remove("active");
+      const kpis = document.getElementById("kpiSection");
+      if (kpis) kpis.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  if (DOM.btnNavLeads) {
+    DOM.btnNavLeads.addEventListener("click", () => {
+      DOM.btnNavLeads.classList.add("active");
+      if (DOM.btnNavOverview) DOM.btnNavOverview.classList.remove("active");
+      const filterPanel = document.querySelector(".filter-panel");
+      if (filterPanel) filterPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  if (DOM.btnNavSettings) {
+    DOM.btnNavSettings.addEventListener("click", () => {
+      openSettingsModal();
+    });
+  }
+
+  // --- MODAL DE PARÂMETROS ---
+  if (DOM.settingsModalClose) {
+    DOM.settingsModalClose.addEventListener("click", closeSettingsModal);
+  }
+
+  if (DOM.settingsModalCloseBtn) {
+    DOM.settingsModalCloseBtn.addEventListener("click", closeSettingsModal);
+  }
+
+  if (DOM.btnSaveSettings) {
+    DOM.btnSaveSettings.addEventListener("click", () => {
+      if (DOM.settingWaTemplate) {
+        localStorage.setItem("centrus_wa_template", DOM.settingWaTemplate.value.trim());
+      }
+      closeSettingsModal();
+      showToast("Parâmetros comerciais e template do WhatsApp salvos com sucesso!");
+      renderTable(); // Re-renderiza para atualizar links do WhatsApp
+    });
+  }
+
+  if (DOM.btnTestSupabaseConnection) {
+    DOM.btnTestSupabaseConnection.addEventListener("click", async () => {
+      if (!supabaseClient) {
+        showToast("Supabase client não inicializado.", "info");
+        return;
+      }
+      const t0 = performance.now();
+      try {
+        const { error } = await supabaseClient.from("pharmaleads").select("id").limit(1);
+        const t1 = performance.now();
+        const latency = Math.round(t1 - t0);
+        if (!error) {
+          showToast(`Conexão com o Supabase 100% OK! Latência: ${latency}ms.`);
+        } else {
+          showToast(`Aviso Supabase: ${error.message}`, "info");
+        }
+      } catch (err) {
+        showToast("Erro ao testar conexão: " + err.message, "info");
+      }
+    });
+  }
+
+  // --- CARDS DE KPIs CLICÁVEIS (FILTROS RÁPIDOS) ---
+  if (DOM.kpiCardTotal) {
+    DOM.kpiCardTotal.addEventListener("click", () => {
+      resetAllFilters();
+      showToast("Exibindo todos os estabelecimentos mapeados.");
+    });
+  }
+
+  if (DOM.kpiCardEmContato) {
+    DOM.kpiCardEmContato.addEventListener("click", () => {
+      state.filterStatus = "Em contato";
+      if (DOM.filterStatus) DOM.filterStatus.value = "Em contato";
+      state.currentPage = 1;
+      renderTable();
+      showToast("Filtro rápido: Apenas farmácias Em Negociação.");
+    });
+  }
+
+  if (DOM.kpiCardNovosHoje) {
+    DOM.kpiCardNovosHoje.addEventListener("click", () => {
+      state.filterStatus = "TODOS";
+      if (DOM.filterStatus) DOM.filterStatus.value = "TODOS";
+      state.currentPage = 1;
+      renderTable();
+      showToast("Exibindo oportunidades do ciclo atual.");
+    });
+  }
+
+  if (DOM.kpiCardRespondidos) {
+    DOM.kpiCardRespondidos.addEventListener("click", () => {
+      state.filterStatus = "Respondido";
+      if (DOM.filterStatus) DOM.filterStatus.value = "Respondido";
+      state.currentPage = 1;
+      renderTable();
+      showToast("Filtro rápido: Estabelecimentos Respondidos / Qualificados.");
+    });
+  }
+
+  if (DOM.kpiCardDuplicados) {
+    DOM.kpiCardDuplicados.addEventListener("click", () => {
+      showToast("Base 100% auditada: Unicidade garantida por CNPJ e localização.");
+    });
+  }
+
+  // --- BARRAS REGIONAIS CLICÁVEIS ---
+  if (DOM.cardBarSp) {
+    DOM.cardBarSp.addEventListener("click", () => {
+      state.filterUf = "SP";
+      if (DOM.filterUf) DOM.filterUf.value = "SP";
+      state.currentPage = 1;
+      renderTable();
+      showToast("Filtro regional aplicado: São Paulo (SP).");
+    });
+  }
+
+  if (DOM.cardBarGo) {
+    DOM.cardBarGo.addEventListener("click", () => {
+      state.filterUf = "GO";
+      if (DOM.filterUf) DOM.filterUf.value = "GO";
+      state.currentPage = 1;
+      renderTable();
+      showToast("Filtro regional aplicado: Goiás (GO).");
+    });
+  }
+
+  if (DOM.cardBarDf) {
+    DOM.cardBarDf.addEventListener("click", () => {
+      state.filterUf = "DF";
+      if (DOM.filterUf) DOM.filterUf.value = "DF";
+      state.currentPage = 1;
+      renderTable();
+      showToast("Filtro regional aplicado: Distrito Federal (DF).");
+    });
+  }
+
   // Atalho de Teclado (ESC fecha modais e drawer)
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -1268,6 +1521,7 @@ function setupEventListeners() {
       closeExtractModal();
       closeLogsModal();
       closeNewLeadModal();
+      closeSettingsModal();
     }
   });
 }

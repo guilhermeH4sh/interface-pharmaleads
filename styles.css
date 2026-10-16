@@ -1600,3 +1600,99 @@ th.sort-desc .sort-icon {
     gap: 10px;
   }
 }
+
+/* ==========================================================================
+   ESTILOS ADICIONAIS: INTERATIVIDADE AVANÇADA, LINKS E PARÂMETROS
+   ========================================================================== */
+.kpi-card.clickable {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.kpi-card.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-300);
+}
+
+.mini-bar-row.clickable {
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s ease;
+}
+
+.mini-bar-row.clickable:hover {
+  background-color: var(--slate-100);
+}
+
+.table-contact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.table-contact-link.wa {
+  color: #047857;
+  background-color: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.table-contact-link.wa:hover {
+  background-color: #d1fae5;
+  border-color: #6ee7b7;
+  transform: scale(1.02);
+}
+
+.table-contact-link.mail {
+  color: #2563eb;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  max-width: 170px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table-contact-link.mail:hover {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.status-pill-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background-color: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-dot-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+}
+
+.template-var-badge {
+  display: inline-block;
+  background-color: var(--slate-100);
+  color: var(--slate-700);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: monospace;
+  margin-right: 4px;
+}
