@@ -632,7 +632,6 @@ const DOM = {
   btnCopyCnpj: document.getElementById("btnCopyCnpj"),
   btnWhatsappAction: document.getElementById("btnWhatsappAction"),
   btnEmailAction: document.getElementById("btnEmailAction"),
-  btnMapsAction: document.getElementById("btnMapsAction"),
   btnCnpjAction: document.getElementById("btnCnpjAction"),
 
   // Modais
@@ -1236,14 +1235,6 @@ function openLeadDrawer(leadId) {
     DOM.btnEmailAction.style.display = "inline-flex";
   } else {
     DOM.btnEmailAction.style.display = "none";
-  }
-
-  // Ação de Localização no Google Maps
-  if (DOM.btnMapsAction) {
-    DOM.btnMapsAction.onclick = () => {
-      const query = encodeURIComponent(`${lead.nome} ${lead.endereco || lead.cidade + ' ' + lead.uf}`);
-      window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, "_blank");
-    };
   }
 
   // Ação de Auditoria de CNPJ na Receita
