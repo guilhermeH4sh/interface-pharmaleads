@@ -656,7 +656,24 @@ const DOM = {
   btnExportCsv: document.getElementById("btnExportCsv"),
 
   // Toast
-  toastContainer: document.getElementById("toastContainer")
+  toastContainer: document.getElementById("toastContainer"),
+
+  // Autenticação & Usuário
+  authScreen: document.getElementById("authScreen"),
+  loginForm: document.getElementById("loginForm"),
+  loginEmail: document.getElementById("loginEmail"),
+  loginPassword: document.getElementById("loginPassword"),
+  btnLoginSubmit: document.getElementById("btnLoginSubmit"),
+  btnLoginText: document.getElementById("btnLoginText"),
+  btnLoginSpinner: document.getElementById("btnLoginSpinner"),
+  authErrorMessage: document.getElementById("authErrorMessage"),
+  btnTogglePassword: document.getElementById("btnTogglePassword"),
+  btnForgotPassword: document.getElementById("btnForgotPassword"),
+  btnLogout: document.getElementById("btnLogout"),
+  headerUserName: document.getElementById("headerUserName"),
+  headerUserRole: document.getElementById("headerUserRole"),
+  headerUserAvatar: document.getElementById("headerUserAvatar"),
+  mainDashboard: document.getElementById("mainDashboard")
 };
 
 // =============================================================================
@@ -1970,6 +1987,86 @@ function setupEventListeners() {
     });
   }
 
+  // --- AUTENTICAÇÃO SUPABASE ---
+  if (DOM.loginForm) {
+    DOM.loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = DOM.loginEmail ? DOM.loginEmail.value.trim() : "";
+      const password = DOM.loginPassword ? DOM.loginPassword.value : "";
+
+      if (!email || !password) return;
+
+      if (DOM.btnLoginSubmit) DOM.btnLoginSubmit.disabled = true;
+      if (DOM.btnLoginText) DOM.btnLoginText.textContent = "Verificando credenciais...";
+      if (DOM.btnLoginSpinner) DOM.btnLoginSpinner.style.display = "inline-block";
+      if (DOM.authErrorMessage) DOM.authErrorMessage.style.display = "none";
+
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (error) throw error;
+
+        showToast(`Bem-vindo, ${data.user.email}!`);
+        setAuthenticatedUser(data.user);
+        if (DOM.loginForm) DOM.loginForm.reset();
+      } catch (err) {
+        if (DOM.authErrorMessage) {
+          DOM.authErrorMessage.textContent = (err.message === "Invalid login credentials" || err.status === 400)
+            ? "E-mail ou senha incorretos. Apenas administradores autorizados têm acesso."
+            : `Erro ao autenticar: ${err.message}`;
+          DOM.authErrorMessage.style.display = "block";
+        }
+      } finally {
+        if (DOM.btnLoginSubmit) DOM.btnLoginSubmit.disabled = false;
+        if (DOM.btnLoginText) DOM.btnLoginText.textContent = "Entrar no Sistema";
+        if (DOM.btnLoginSpinner) DOM.btnLoginSpinner.style.display = "none";
+      }
+    });
+  }
+
+  if (DOM.btnTogglePassword && DOM.loginPassword) {
+    DOM.btnTogglePassword.addEventListener("click", () => {
+      const isPass = DOM.loginPassword.type === "password";
+      DOM.loginPassword.type = isPass ? "text" : "password";
+      DOM.btnTogglePassword.textContent = isPass ? "🙈" : "👁️";
+    });
+  }
+
+  if (DOM.btnForgotPassword) {
+    DOM.btnForgotPassword.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const email = DOM.loginEmail ? DOM.loginEmail.value.trim() : "";
+      if (!email) {
+        alert("Digite seu e-mail corporativo no campo de e-mail para solicitar a recuperação.");
+        if (DOM.loginEmail) DOM.loginEmail.focus();
+        return;
+      }
+      try {
+        await supabaseClient.auth.resetPasswordForEmail(email);
+        alert(`Instruções de redefinição de senha enviadas para ${email}!`);
+      } catch (err) {
+        alert(`Não foi possível enviar: ${err.message}`);
+      }
+    });
+  }
+
+  if (DOM.btnLogout) {
+    DOM.btnLogout.addEventListener("click", async () => {
+      if (confirm("Deseja realmente encerrar a sessão segura do Centrus PharmaLeads?")) {
+        await supabaseClient.auth.signOut();
+        currentUser = null;
+        leadsData = [];
+        updateKpiIndicators();
+        renderTable();
+        showAuthScreen();
+        showToast("Sessão corporativa encerrada com segurança.");
+      }
+    });
+  }
+
   // Atalho de Teclado (ESC fecha modais e drawer)
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -1983,7 +2080,81 @@ function setupEventListeners() {
 }
 
 // =============================================================================
-// 13. INICIALIZAÇÃO DA APLICAÇÃO
+// 13. GERENCIAMENTO DE AUTENTICAÇÃO E SESSÃO SEGURA
+// =============================================================================
+
+let currentUser = null;
+
+async function checkAuthSession() {
+  if (!supabaseClient) {
+    console.warn("Cliente Supabase não inicializado.");
+    return;
+  }
+
+  try {
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
+    if (session && session.user) {
+      setAuthenticatedUser(session.user);
+    } else {
+      showAuthScreen();
+    }
+  } catch (err) {
+    console.warn("Erro ao checar sessão:", err);
+    showAuthScreen();
+  }
+
+  // Ouvinte de mudanças na autenticação
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_IN" && session?.user) {
+      setAuthenticatedUser(session.user);
+    } else if (event === "SIGNED_OUT") {
+      currentUser = null;
+      leadsData = [];
+      updateKpiIndicators();
+      renderTable();
+      showAuthScreen();
+    }
+  });
+}
+
+function setAuthenticatedUser(user) {
+  currentUser = user;
+  const email = user.email || "admin@centrusdistribuidora.com.br";
+  const nomeExibicao = email.split("@")[0].replace(/[._-]/g, " ").toUpperCase();
+
+  if (DOM.headerUserName) DOM.headerUserName.textContent = nomeExibicao;
+  if (DOM.headerUserRole) DOM.headerUserRole.textContent = email;
+  if (DOM.headerUserAvatar) DOM.headerUserAvatar.textContent = email.charAt(0).toUpperCase();
+
+  hideAuthScreen();
+  carregarLeadsDoSupabase();
+}
+
+function showAuthScreen() {
+  if (DOM.authScreen) {
+    DOM.authScreen.classList.remove("hidden");
+  }
+  if (DOM.mainDashboard) {
+    DOM.mainDashboard.style.filter = "blur(6px)";
+    DOM.mainDashboard.style.pointerEvents = "none";
+  }
+  setTimeout(() => {
+    if (DOM.loginEmail) DOM.loginEmail.focus();
+  }, 150);
+}
+
+function hideAuthScreen() {
+  if (DOM.authScreen) {
+    DOM.authScreen.classList.add("hidden");
+  }
+  if (DOM.mainDashboard) {
+    DOM.mainDashboard.style.filter = "none";
+    DOM.mainDashboard.style.pointerEvents = "auto";
+  }
+}
+
+// =============================================================================
+// 14. INICIALIZAÇÃO DA APLICAÇÃO
 // =============================================================================
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1991,7 +2162,8 @@ document.addEventListener("DOMContentLoaded", () => {
   renderTable();
   setupEventListeners();
   
-  // Carrega os dados mais recentes do Supabase em segundo plano
-  carregarLeadsDoSupabase();
-  console.log("Centrus PharmaLeads - Plataforma operacional ativa.");
+  // Verifica autenticação ativa no Supabase
+  checkAuthSession();
+  console.log("Centrus PharmaLeads - Plataforma privada corporativa ativa.");
 });
+
