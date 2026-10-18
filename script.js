@@ -448,9 +448,9 @@ async function carregarLeadsDoSupabase() {
     const navCount = document.getElementById("headerNavLeadCount");
     if (navCount) navCount.textContent = leadsData.length;
 
-    console.log(`✅ Base nacional carregada: ${leadsData.length} farmácias ativas (Brasil).`);
+    console.log(`[Centrus PharmaLeads] Base nacional carregada: ${leadsData.length} farmácias ativas (Brasil).`);
   } catch (err) {
-    console.warn("ℹ️ Operando com base nacional local em cache:", err);
+    console.warn("[Centrus PharmaLeads] Operando com base nacional local em cache:", err);
     if (!leadsData || leadsData.length === 0) {
       leadsData = [...BASE_NACIONAL_COMPLEMENTAR];
       updateKpiIndicators();
@@ -2046,7 +2046,10 @@ function setupEventListeners() {
     DOM.btnTogglePassword.addEventListener("click", () => {
       const isPass = DOM.loginPassword.type === "password";
       DOM.loginPassword.type = isPass ? "text" : "password";
-      DOM.btnTogglePassword.textContent = isPass ? "🙈" : "👁️";
+      DOM.btnTogglePassword.setAttribute("title", isPass ? "Ocultar senha" : "Visualizar senha");
+      DOM.btnTogglePassword.innerHTML = isPass
+        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`
+        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
     });
   }
 
@@ -2055,15 +2058,27 @@ function setupEventListeners() {
       e.preventDefault();
       const email = DOM.loginEmail ? DOM.loginEmail.value.trim() : "";
       if (!email) {
-        alert("Digite seu e-mail corporativo no campo de e-mail para solicitar a recuperação.");
+        if (DOM.authErrorMessage) {
+          DOM.authErrorMessage.className = "auth-info-box";
+          DOM.authErrorMessage.textContent = "Informe seu e-mail corporativo no campo de e-mail para solicitar a recuperação de senha.";
+          DOM.authErrorMessage.style.display = "block";
+        }
         if (DOM.loginEmail) DOM.loginEmail.focus();
         return;
       }
       try {
         await supabaseClient.auth.resetPasswordForEmail(email);
-        alert(`Instruções de redefinição de senha enviadas para ${email}!`);
+        if (DOM.authErrorMessage) {
+          DOM.authErrorMessage.className = "auth-success-box";
+          DOM.authErrorMessage.textContent = `Instruções de redefinição de senha enviadas para ${email}. Verifique seu e-mail.`;
+          DOM.authErrorMessage.style.display = "block";
+        }
       } catch (err) {
-        alert(`Não foi possível enviar: ${err.message}`);
+        if (DOM.authErrorMessage) {
+          DOM.authErrorMessage.className = "auth-error-box";
+          DOM.authErrorMessage.textContent = `Não foi possível enviar a solicitação: ${err.message}`;
+          DOM.authErrorMessage.style.display = "block";
+        }
       }
     });
   }

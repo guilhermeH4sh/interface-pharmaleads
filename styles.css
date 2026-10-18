@@ -1924,6 +1924,30 @@ th.sort-desc .sort-icon {
   animation: authErrorShake 0.3s ease;
 }
 
+.auth-info-box {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+
+.auth-success-box {
+  background-color: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+
 @keyframes authErrorShake {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-4px); }

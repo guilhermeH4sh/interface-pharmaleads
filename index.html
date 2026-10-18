@@ -103,7 +103,13 @@
           <span class="auth-brand-product">PharmaLeads</span>
         </div>
         <div class="auth-badge-wrap">
-          <span class="auth-badge-pill">🔒 Acesso Privado • Administradores</span>
+          <span class="auth-badge-pill">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 4px; vertical-align: -1px;">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            Acesso Privado • Administradores
+          </span>
         </div>
       </div>
 
@@ -148,8 +154,11 @@
               required 
               autocomplete="current-password"
             />
-            <button type="button" id="btnTogglePassword" class="auth-pw-toggle" aria-label="Mostrar ou ocultar senha">
-              👁️
+            <button type="button" id="btnTogglePassword" class="auth-pw-toggle" aria-label="Mostrar ou ocultar senha" title="Visualizar senha">
+              <svg id="pwEyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
             </button>
           </div>
         </div>
@@ -359,7 +368,10 @@
               autocomplete="off"
             />
             <button type="button" id="searchClearBtn" class="search-clear-btn" title="Limpar pesquisa" aria-label="Limpar texto da busca">
-              ✕
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
             </button>
           </div>
         </div>
@@ -569,8 +581,11 @@
     <button type="button" class="btn btn-secondary btn-sm" id="btnExportBatch">
       Exportar CSV
     </button>
-    <button type="button" class="btn btn-icon" id="btnDeselectAll" title="Desmarcar todos" style="color: #cbd5e1;">
-      ✕
+    <button type="button" class="btn btn-icon" id="btnDeselectAll" title="Desmarcar todos" style="color: #cbd5e1; display: inline-flex; align-items: center; justify-content: center;" aria-label="Desmarcar todos">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
     </button>
   </aside>
 
@@ -746,7 +761,12 @@
           </svg>
           Sincronização e Captura de Estabelecimentos
         </h3>
-        <button type="button" class="btn-icon" id="extractModalClose" aria-label="Fechar modal">✕</button>
+        <button type="button" class="btn-icon" id="extractModalClose" aria-label="Fechar modal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </header>
 
       <div class="modal-body">
@@ -834,7 +854,12 @@
           </svg>
           Auditoria de Sincronizações Cadastrais
         </h3>
-        <button type="button" class="btn-icon" id="logsModalClose" aria-label="Fechar modal de logs">✕</button>
+        <button type="button" class="btn-icon" id="logsModalClose" aria-label="Fechar modal de logs">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </header>
 
       <div class="modal-body">
@@ -921,7 +946,12 @@
           </svg>
           Cadastrar Nova Farmácia / Drogaria
         </h3>
-        <button type="button" class="btn-icon" id="newLeadModalClose" aria-label="Fechar modal">✕</button>
+        <button type="button" class="btn-icon" id="newLeadModalClose" aria-label="Fechar modal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </header>
 
       <form id="newLeadForm">
@@ -1063,7 +1093,12 @@
           </svg>
           Parâmetros e Configurações da Prospecção
         </h3>
-        <button type="button" class="btn-icon" id="settingsModalClose" aria-label="Fechar modal">✕</button>
+        <button type="button" class="btn-icon" id="settingsModalClose" aria-label="Fechar modal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </header>
 
       <div class="modal-body">
