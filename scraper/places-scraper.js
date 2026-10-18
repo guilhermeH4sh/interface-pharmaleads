@@ -15,14 +15,38 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-// Termos e cidades-chave para prospecção no varejo farmacêutico
+// Termos e cidades-chave para prospecção no varejo farmacêutico em todo o Brasil
 const CONSULTAS_ALVO = [
+  // Sudeste
   { termo: 'farmacia manipulacao sao paulo', uf: 'SP', cidade: 'São Paulo' },
   { termo: 'drogaria campinas sp', uf: 'SP', cidade: 'Campinas' },
+  { termo: 'farmacia manipulacao rio de janeiro', uf: 'RJ', cidade: 'Rio de Janeiro' },
+  { termo: 'drogaria niteroi rj', uf: 'RJ', cidade: 'Niterói' },
+  { termo: 'farmacia manipulacao belo horizonte', uf: 'MG', cidade: 'Belo Horizonte' },
+  { termo: 'drogaria vitoria es', uf: 'ES', cidade: 'Vitória' },
+
+  // Sul
+  { termo: 'farmacia manipulacao curitiba', uf: 'PR', cidade: 'Curitiba' },
+  { termo: 'drogaria porto alegre rs', uf: 'RS', cidade: 'Porto Alegre' },
+  { termo: 'farmacia manipulacao florianopolis', uf: 'SC', cidade: 'Florianópolis' },
+
+  // Centro-Oeste
   { termo: 'farmacia manipulacao goiania', uf: 'GO', cidade: 'Goiânia' },
   { termo: 'drogaria anapolis goias', uf: 'GO', cidade: 'Anápolis' },
   { termo: 'farmacia asa sul brasilia df', uf: 'DF', cidade: 'Brasília' },
-  { termo: 'drogaria ceilandia taguatinga df', uf: 'DF', cidade: 'Taguatinga' }
+  { termo: 'drogaria cuiaba mt', uf: 'MT', cidade: 'Cuiabá' },
+  { termo: 'farmacia manipulacao campo grande ms', uf: 'MS', cidade: 'Campo Grande' },
+
+  // Nordeste
+  { termo: 'farmacia manipulacao salvador', uf: 'BA', cidade: 'Salvador' },
+  { termo: 'drogaria recife pe', uf: 'PE', cidade: 'Recife' },
+  { termo: 'farmacia manipulacao fortaleza ce', uf: 'CE', cidade: 'Fortaleza' },
+  { termo: 'drogaria natal rn', uf: 'RN', cidade: 'Natal' },
+  { termo: 'drogaria joao pessoa pb', uf: 'PB', cidade: 'João Pessoa' },
+
+  // Norte
+  { termo: 'farmacia manipulacao manaus', uf: 'AM', cidade: 'Manaus' },
+  { termo: 'drogaria belem pa', uf: 'PA', cidade: 'Belém' }
 ];
 
 /**
@@ -158,7 +182,7 @@ function limparNomeFarmacia(titulo) {
  */
 export async function rodarProspeccao() {
   console.log('================================================================');
-  console.log('🤖 INICIANDO PROSPECÇÃO DE FARMÁCIAS (SP, GO, DF) COM FOCO EM CONTATO');
+  console.log('🤖 INICIANDO PROSPECÇÃO DE FARMÁCIAS EM TODO O BRASIL (27 UFs)');
   console.log('================================================================');
 
   let totalInseridos = 0;

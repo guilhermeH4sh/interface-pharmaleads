@@ -15,18 +15,49 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-// Cidades estratégicas cobertas pelo Centrus PharmaLeads
+// Cidades e polos estratégicos farmacêuticos cobertos em todo o Brasil
 export const REGIOES_ALVO = [
-  // São Paulo (SP)
+  // 1. Região Sudeste
   { uf: 'SP', cidade: 'São Paulo', lat: -23.5505, lon: -46.6333, raio: 15000 },
   { uf: 'SP', cidade: 'Campinas', lat: -22.9099, lon: -47.0626, raio: 8000 },
   { uf: 'SP', cidade: 'Ribeirão Preto', lat: -21.1775, lon: -47.8103, raio: 7000 },
-  // Goiás (GO)
+  { uf: 'RJ', cidade: 'Rio de Janeiro', lat: -22.9068, lon: -43.1729, raio: 15000 },
+  { uf: 'RJ', cidade: 'Niterói', lat: -22.8833, lon: -43.1034, raio: 7000 },
+  { uf: 'MG', cidade: 'Belo Horizonte', lat: -19.9167, lon: -43.9345, raio: 12000 },
+  { uf: 'MG', cidade: 'Uberlândia', lat: -18.9186, lon: -48.2772, raio: 8000 },
+  { uf: 'ES', cidade: 'Vitória', lat: -20.3155, lon: -40.3128, raio: 7000 },
+
+  // 2. Região Sul
+  { uf: 'PR', cidade: 'Curitiba', lat: -25.4284, lon: -49.2733, raio: 12000 },
+  { uf: 'PR', cidade: 'Londrina', lat: -23.3045, lon: -51.1696, raio: 7000 },
+  { uf: 'RS', cidade: 'Porto Alegre', lat: -30.0346, lon: -51.2177, raio: 12000 },
+  { uf: 'RS', cidade: 'Caxias do Sul', lat: -29.1678, lon: -51.1794, raio: 7000 },
+  { uf: 'SC', cidade: 'Florianópolis', lat: -27.5954, lon: -48.5480, raio: 8000 },
+  { uf: 'SC', cidade: 'Joinville', lat: -26.3045, lon: -48.8487, raio: 7000 },
+
+  // 3. Região Centro-Oeste
   { uf: 'GO', cidade: 'Goiânia', lat: -16.6869, lon: -49.2648, raio: 10000 },
   { uf: 'GO', cidade: 'Anápolis', lat: -16.3267, lon: -48.9534, raio: 6000 },
-  // Distrito Federal (DF)
   { uf: 'DF', cidade: 'Brasília', lat: -15.7975, lon: -47.8919, raio: 10000 },
-  { uf: 'DF', cidade: 'Taguatinga', lat: -15.8336, lon: -48.0567, raio: 6000 }
+  { uf: 'DF', cidade: 'Taguatinga', lat: -15.8336, lon: -48.0567, raio: 6000 },
+  { uf: 'MT', cidade: 'Cuiabá', lat: -15.6014, lon: -56.0979, raio: 9000 },
+  { uf: 'MS', cidade: 'Campo Grande', lat: -20.4697, lon: -54.6201, raio: 9000 },
+
+  // 4. Região Nordeste
+  { uf: 'BA', cidade: 'Salvador', lat: -12.9714, lon: -38.5014, raio: 12000 },
+  { uf: 'BA', cidade: 'Feira de Santana', lat: -12.2664, lon: -38.9663, raio: 7000 },
+  { uf: 'PE', cidade: 'Recife', lat: -8.0476, lon: -34.8770, raio: 10000 },
+  { uf: 'CE', cidade: 'Fortaleza', lat: -3.7172, lon: -38.5433, raio: 12000 },
+  { uf: 'RN', cidade: 'Natal', lat: -5.7945, lon: -35.2110, raio: 8000 },
+  { uf: 'PB', cidade: 'João Pessoa', lat: -7.1195, lon: -34.8450, raio: 7000 },
+  { uf: 'AL', cidade: 'Maceió', lat: -9.6658, lon: -35.7351, raio: 7000 },
+  { uf: 'MA', cidade: 'São Luís', lat: -2.5307, lon: -44.3068, raio: 8000 },
+
+  // 5. Região Norte
+  { uf: 'AM', cidade: 'Manaus', lat: -3.1190, lon: -60.0217, raio: 12000 },
+  { uf: 'PA', cidade: 'Belém', lat: -1.4558, lon: -48.5044, raio: 10000 },
+  { uf: 'TO', cidade: 'Palmas', lat: -10.2491, lon: -48.3243, raio: 7000 },
+  { uf: 'RO', cidade: 'Porto Velho', lat: -8.7619, lon: -63.9039, raio: 7000 }
 ];
 
 /**

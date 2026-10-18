@@ -1,6 +1,6 @@
 # Centrus PharmaLeads
 
-Plataforma corporativa B2B de inteligência comercial, qualificação de leads e gestão de relacionamento com o varejo farmacêutico nos estados de **São Paulo (SP)**, **Goiás (GO)** e **Distrito Federal (DF)**.
+Plataforma corporativa B2B de inteligência comercial, qualificação de leads e gestão de relacionamento com o varejo farmacêutico em todo o **Brasil (26 Estados e Distrito Federal)**.
 
 Desenvolvido para a equipe comercial e de expansão da **Centrus Distribuidora**.
 
@@ -8,9 +8,9 @@ Desenvolvido para a equipe comercial e de expansão da **Centrus Distribuidora**
 
 ## 🚀 Funcionalidades
 
-- **Mapeamento Regional:** 50 estabelecimentos farmacêuticos qualificados (drogarias independentes, redes regionais e farmácias de manipulação).
+- **Mapeamento Nacional:** Estabelecimentos farmacêuticos qualificados em todas as regiões brasileiras (Sudeste, Sul, Centro-Oeste, Nordeste e Norte).
 - **Indicadores Executivos (KPIs):** Total mapeado, contatos em negociação, entradas recentes, leads qualificados e taxa de auditoria com deduplicação por CNPJ.
-- **Filtros e Pesquisa em Tempo Real:** Busca com *debounce* por drogaria, cidade ou CNPJ; filtros por UF (SP, GO, DF), etapa do funil e disponibilidade de canais de contato.
+- **Filtros e Pesquisa em Tempo Real:** Busca com *debounce* por drogaria, cidade ou CNPJ; filtros por UF (27 estados), macro-regiões, etapa do funil e disponibilidade de canais de contato.
 - **Ficha Cadastral e Comercial (Drawer):** Consulta de CNAE fiscal (4771-7/01 e 4771-7/02), dados cadastrais na Receita Federal, cópia de CNPJ em um clique e ações rápidas via WhatsApp e E-mail.
 - **Gestão de Relacionamento (CRM):** Registro de notas comerciais, histórico cronológico de interações (Timeline) e alteração direta de status.
 - **Ações em Lote & Exportação:** Barra flutuante para atualização de status em massa e exportação de relatórios em CSV compatíveis nativamente com Microsoft Excel (UTF-8 com BOM e delimitador `;`).

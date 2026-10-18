@@ -1,12 +1,12 @@
 # Documentação Técnica e Especificação de Requisitos
-## Centrus PharmaLeads — Plataforma de Inteligência Comercial e Prospecção Farmacêutica (SP • GO • DF)
+## Centrus PharmaLeads — Plataforma de Inteligência Comercial e Prospecção Farmacêutica Nacional (Brasil • 27 UFs)
 
 ---
 
 ### Sumário Executivo
-O **Centrus PharmaLeads** é uma plataforma corporativa B2B de inteligência de mercado, qualificação de leads e gestão de relacionamento comercial voltada especificamente para o setor de varejo farmacêutico (drogarias e farmácias independentes, redes associativas e farmácias de manipulação) nos estados de **São Paulo (SP)**, **Goiás (GO)** e **Distrito Federal (DF)**.
+O **Centrus PharmaLeads** é uma plataforma corporativa B2B de inteligência de mercado, qualificação de leads e gestão de relacionamento comercial voltada especificamente para o setor de varejo farmacêutico (drogarias e farmácias independentes, redes associativas e farmácias de manipulação) com **cobertura em todo o território nacional** (26 Estados e Distrito Federal).
 
-A plataforma atua como o ponto central de inteligência para o time comercial e de expansão da **Centrus Distribuidora**, permitindo mapear territórios, auditar dados cadastrais fiscais (CNPJ/CNAE), qualificar compradores e acompanhar o funil de vendas em tempo real.
+A plataforma atua como o ponto central de inteligência para o time comercial e de expansão da **Centrus Distribuidora**, permitindo mapear territórios, auditar dados cadastrais fiscais (CNPJ/CNAE), qualificar compradores e acompanhar o funil de vendas em tempo real em todas as 5 macro-regiões do Brasil (Sudeste, Sul, Centro-Oeste, Nordeste e Norte).
 
 ---
 
@@ -19,7 +19,8 @@ A plataforma atua como o ponto central de inteligência para o time comercial e 
 | **Design System** | Variáveis CSS (Custom Properties) & Paleta Corporativa Centrus | Identidade institucional com cor primária `#5518f0` (Centrus Purple), superfícies navy escuro e contrastes aprovados para legibilidade contínua. |
 | **Tratamento de Dados** | Estado Reativo em Memória (Client-Side) | Filtros instantâneos com *debounce*, paginação dinâmica, ordenação multi-coluna e integridade relacional entre tabela, KPIs e drawer. |
 | **Exportação de Dados** | Blob CSV nativo UTF-8 com BOM (`\uFEFF`) | Compatibilidade imediata com Microsoft Excel e ferramentas de BI (Power BI/Tableau) sem corrupção de acentuação em pt-BR. |
-| **Integração Prevista (Backend)** | Python (FastAPI) + Playwright + PostgreSQL / Supabase | Pipeline assíncrono de varredura geoespacial no Google Places B2B, validação na Receita Federal e deduplicação de CNPJ. |
+| **Banco de Dados & Nuvem** | PostgreSQL 15 / Supabase Cloud | Armazenamento seguro com RLS, integração via Supabase JS SDK em tempo real. |
+| **Pipeline de Coleta (Scraping)** | Node.js (Axios + Cheerio + Overpass API OSM) | Varredura de estabelecimentos em conformidade, georreferenciamento e extração profunda de contatos (wa.me, mailto). |
 
 ---
 
@@ -27,11 +28,11 @@ A plataforma atua como o ponto central de inteligência para o time comercial e 
 
 | ID | Requisito Funcional | Descrição Detalhada |
 | :--- | :--- | :--- |
-| **RF01** | **Mapeamento e Listagem de Leads** | Listagem tabular de estabelecimentos farmacêuticos com exibição de Nome Fantasia, Razão Social, UF, CNPJ, Telefone, E-mail, Cidade, Consultor Centrus Responsável e Status Comercial. |
+| **RF01** | **Mapeamento e Listagem Nacional de Leads** | Listagem tabular de estabelecimentos farmacêuticos em todo o Brasil com Nome Fantasia, Razão Social, UF (27 UFs), CNPJ, Telefone, E-mail, Cidade, Consultor Centrus Responsável e Status Comercial. |
 | **RF02** | **Busca Textual com Debounce** | Campo de pesquisa universal que filtra em tempo real por nome do estabelecimento, município ou CNPJ, aplicando *debounce* de 250ms para poupar ciclos de CPU. |
-| **RF03** | **Filtragem Multicritério** | Filtros independentes e cumulativos por Região (SP, GO, DF), Status da Negociação (5 etapas) e Disponibilidade de Canais de Contato (Telefone/E-mail). |
+| **RF03** | **Filtragem Multicritério Nacional** | Filtros independentes e cumulativos por Região/UF (27 estados agrupados por macro-regiões), Status da Negociação (5 etapas) e Canais de Contato. |
 | **RF04** | **Painel de Indicadores (KPIs Dinâmicos)** | Painel executivo recalculado dinamicamente: Total Mapeado, Em Negociação, Entradas Recentes, Leads Qualificados e Registros Auditados (Deduplicação de CNPJ). |
-| **RF05** | **Distribuição Geográfica Visual** | Gráfico de barras proporcional no topo do dashboard ilustrando a participação de mercado entre SP, GO e DF com valores absolutos e percentuais. |
+| **RF05** | **Distribuição Geográfica Visual por Estado** | Gráfico de barras dinâmico proporcional ilustrando a participação de mercado entre os principais estados do Brasil com valores absolutos, percentuais e clique para filtragem. |
 | **RF06** | **Ficha Cadastral e Comercial (Drawer)** | Painel lateral deslizante (*drawer*) aberto ao clicar no lead ou na ação "Detalhes", contendo dados fiscais (CNAE, CNPJ, Razão Social), endereço completo e consultor responsável. |
 | **RF07** | **Ações Rápidas de Comunicação** | Botões de disparo no Drawer para início de conversa no WhatsApp Corporativo (`wa.me`) com mensagem contextualizada e envio de proposta via cliente de e-mail (`mailto`). |
 | **RF08** | **Edição Inline de Status Comercial** | Alteração direta da etapa do funil diretamente na linha da tabela via *select* estilizado, sincronizando instantaneamente os KPIs e o histórico do lead. |
@@ -143,3 +144,40 @@ Ao apresentar o projeto para diretoria, clientes ou investidores, recomenda-se a
 5. **Edição e Gestão em Tempo Real:** Alterar o status de um lead e salvar uma anotação comercial para mostrar a reatividade imediata do sistema.
 6. **Ações em Lote e Exportação:** Selecionar múltiplos leads na tabela, abrir a barra flutuante de ações em lote e clicar em `Exportar CSV`, abrindo a planilha no Excel para validar a integridade dos dados e da formatação brasileira.
 7. **Sincronização e Auditoria:** Abrir o modal de sincronização e demonstrar a rotina de varredura automatizada e o histórico operacional de auditoria.
+
+---
+
+### 8. Arquitetura de Coleta: De onde vêm os Dados e como funciona o Scraping
+
+A esteira de inteligência comercial do Centrus PharmaLeads opera através de um pipeline multicamadas projetado para garantir dados cadastrais autênticos, conformidade legal e enriquecimento de contatos comerciais (WhatsApp, Telefone e E-mail corporativo).
+
+```mermaid
+flowchart TD
+    A["Polos Geográficos Nacionais (27 UFs)"] --> B["Camada 1: Descoberta Geoespacial\n(Overpass API / OpenStreetMap & DuckDuckGo)"]
+    B --> C["Camada 2: Normalização Cadastral\n(Nome, Endereço, Bairro, UF, CNAE 4771-7)"]
+    C --> D{"Possui Website\nOficial?"}
+    D -- Sim --> E["Camada 3: Deep Web Crawler\n(Varredura Cheerio: wa.me, mailto, tel)"]
+    D -- Não --> F["Normalização de Contatos\nRegex DDD Brasileiro"]
+    E --> G["Enriquecimento do Lead\nWhatsApp Direto + E-mail"]
+    F --> G
+    G --> H["Auditoria e Deduplicação\n(Chave de CNPJ e Nome/Cidade)"]
+    H --> I[("Supabase PostgreSQL\n(Tabela pharmaleads)")]
+    I --> J["Interface Corporativa Centrus\n(Dashboard, Filtros, Drawer & CSV)"]
+```
+
+#### 8.1. Fontes dos Dados
+1. **OpenStreetMap / Overpass API (`amenity=pharmacy`)**:
+   - Fornece geolocalização física precisa (latitude/longitude), endereço de rua, número e bairro dos estabelecimentos farmacêuticos cadastrados em municípios brasileiros.
+2. **Busca Web Pública e Indexada (DuckDuckGo HTML Engine)**:
+   - Identifica a presença digital da farmácia sem bloqueios de captcha, recuperando o nome comercial, site oficial (`.com.br`) e telefones informados nos resultados indexados.
+3. **Sites Oficiais dos Estabelecimentos (Crawling Profundo via Cheerio)**:
+   - O robô acessa o site da farmácia e rastreia links de WhatsApp (`wa.me/55...`, `api.whatsapp.com`), links de envio de proposta (`mailto:`) e rodapés com telefones e horários de atendimento.
+4. **Base da Receita Federal (RFB / CNAE)**:
+   - Validação da atividade econômica principal (CNAE 4771-7/01 para drogarias e 4771-7/02 para farmácias de manipulação) e conferência do padrão de máscara de CNPJ.
+
+#### 8.2. Como é Realizado o Scraping (Passo a Passo Técnico)
+1. **Definição dos Polos**: O arquivo `scraper/engine.js` e `scraper/places-scraper.js` contém os polos econômicos de cada macro-região (Sudeste, Sul, Centro-Oeste, Nordeste e Norte).
+2. **Varredura e Extração de Snippets**: O robô dispara requisições HTTP seguras simulando cabeçalhos de navegador desktop para obter os primeiros estabelecimentos com website comercial ativo.
+3. **Rastreamento de Links de Contato**: Para cada estabelecimento com website, o motor (`extrairContatosProfundos`) realiza o parsing do DOM via Cheerio procurando links com protocolo `mailto:` e padrões `wa.me/` para extrair o número de WhatsApp celular com DDD.
+4. **Higienização e Normalização**: Remoção de caracteres especiais de CNPJ/Telefone, validação de formato de e-mail e padronização da razão social.
+5. **Persistência Relacional com Upsert**: O script se conecta ao Supabase via Service Role Key e realiza um `upsert` (insere se for novo ou atualiza contatos se já existir), prevenindo duplicidades.

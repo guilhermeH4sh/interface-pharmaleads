@@ -559,6 +559,16 @@ body {
 .fill-sp { background-color: #0284c7; }
 .fill-go { background-color: #d97706; }
 .fill-df { background-color: #16a34a; }
+.fill-rj { background-color: #ec4899; }
+.fill-mg { background-color: #8b5cf6; }
+.fill-pr { background-color: #06b6d4; }
+.fill-rs { background-color: #e11d48; }
+.fill-sc { background-color: #14b8a6; }
+.fill-ba { background-color: #f59e0b; }
+.fill-pe { background-color: #6366f1; }
+.fill-ce { background-color: #10b981; }
+.fill-am { background-color: #059669; }
+.fill-outros { background-color: #64748b; }
 
 .mini-bar-count {
   width: 45px;
@@ -863,11 +873,23 @@ th.sort-desc .sort-icon {
   font-size: 0.72rem;
   text-align: center;
   letter-spacing: 0.5px;
+  background-color: #f1f5f9;
+  color: #334155;
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.badge-uf-SP { background-color: var(--badge-sp-bg); color: var(--badge-sp-text); }
-.badge-uf-GO { background-color: var(--badge-go-bg); color: var(--badge-go-text); }
-.badge-uf-DF { background-color: var(--badge-df-bg); color: var(--badge-df-text); }
+.badge-uf-SP { background-color: var(--badge-sp-bg); color: var(--badge-sp-text); border-color: rgba(2, 132, 199, 0.2); }
+.badge-uf-GO { background-color: var(--badge-go-bg); color: var(--badge-go-text); border-color: rgba(217, 119, 6, 0.2); }
+.badge-uf-DF { background-color: var(--badge-df-bg); color: var(--badge-df-text); border-color: rgba(22, 163, 74, 0.2); }
+.badge-uf-RJ { background-color: #fdf2f8; color: #be185d; border-color: #fbcfe8; }
+.badge-uf-MG { background-color: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+.badge-uf-PR { background-color: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
+.badge-uf-RS { background-color: #fff1f2; color: #be123c; border-color: #fecdd3; }
+.badge-uf-SC { background-color: #f0fdfa; color: #0f766e; border-color: #99f6e4; }
+.badge-uf-BA { background-color: #fffbeb; color: #b45309; border-color: #fde68a; }
+.badge-uf-PE { background-color: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+.badge-uf-CE { background-color: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.badge-uf-AM { background-color: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
 
 /* Badges de Status com Select Integrado */
 .status-select-wrap {

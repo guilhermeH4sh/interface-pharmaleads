@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Centrus PharmaLeads - Plataforma B2B de prospecção e inteligência comercial para farmácias e drogarias em SP, GO e DF." />
-  <title>Centrus PharmaLeads</title>
+  <meta name="description" content="Centrus PharmaLeads - Plataforma B2B de prospecção e inteligência comercial para farmácias e drogarias em todo o Brasil (27 UFs)." />
+  <title>Centrus PharmaLeads — Inteligência Farmacêutica Nacional</title>
   
   <!-- Favicon com o logotipo oficial Centrus -->
   <link rel="icon" type="image/png" href="assets/centrus-logo.png" />
@@ -29,7 +29,7 @@
             <span class="brand-name">Centrus</span>
             <span class="brand-product">PharmaLeads</span>
           </div>
-          <span class="brand-subtitle">Inteligência Farmacêutica • B2B</span>
+          <span class="brand-subtitle">Inteligência Farmacêutica • B2B Brasil</span>
         </div>
       </a>
 
@@ -52,7 +52,7 @@
             <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
           </svg>
           Leads
-          <span class="badge-nav" id="headerNavLeadCount">74</span>
+          <span class="badge-nav" id="headerNavLeadCount">--</span>
         </button>
         <button type="button" class="nav-link" id="btnOpenScraperLogs" title="Abrir histórico de auditoria e logs do robô">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -75,7 +75,7 @@
           <div class="user-avatar" title="Operador Comercial Centrus">C</div>
           <div class="user-info">
             <span class="user-name">Comercial Centrus</span>
-            <span class="user-role">SP • GO • DF</span>
+            <span class="user-role">Brasil • 27 UFs</span>
           </div>
         </div>
       </div>
@@ -92,7 +92,8 @@
     <section class="page-title-row">
       <div class="page-title-group">
         <h1>Prospecção e Gestão de Contas Farmacêuticas</h1>
-        <p>Mapeamento estratégico, qualificação de leads e gestão de relacionamento com drogarias e farmácias em São Paulo, Goiás e Distrito Federal.</p>
+        <p>Mapeamento estratégico, qualificação de leads e inteligência comercial para drogarias e farmácias em todo o território nacional (27 Estados e DF).</p>
+      </div>
       </div>
       <div class="header-cta-group">
         <button type="button" class="btn btn-secondary" id="btnExportCsv" title="Exportar leads em formato CSV (compatível com Excel)">
@@ -214,35 +215,33 @@
         </div>
       </article>
 
-      <!-- Gráfico Resumo de Distribuição por Região (SP, GO, DF) -->
+      <!-- Gráfico Resumo de Distribuição por Região / Estados do Brasil -->
       <article class="kpi-card chart-card">
         <div class="kpi-header">
-          <span class="kpi-title">Distribuição Regional</span>
-          <span style="font-size: 0.72rem; color: var(--text-dim); font-weight: 600;">COBERTURA</span>
+          <span class="kpi-title">Distribuição por Estado</span>
+          <span style="font-size: 0.72rem; color: var(--text-dim); font-weight: 600;">COBERTURA BRASIL</span>
         </div>
         
-        <div class="mini-chart-container">
-          <!-- SP -->
+        <div class="mini-chart-container" id="miniChartContainer">
+          <!-- Renderizado dinamicamente via script.js com os estados com mais farmácias -->
           <div class="mini-bar-row clickable" id="cardBarSp" title="Clique para filtrar farmácias de São Paulo (SP)">
             <span class="mini-bar-label">SP</span>
             <div class="mini-bar-track">
-              <div class="mini-bar-fill fill-sp" id="fillSp" style="width: 40%;"></div>
+              <div class="mini-bar-fill fill-sp" id="fillSp" style="width: 35%;"></div>
             </div>
             <span class="mini-bar-count" id="countSp">--</span>
           </div>
-          <!-- GO -->
           <div class="mini-bar-row clickable" id="cardBarGo" title="Clique para filtrar farmácias de Goiás (GO)">
             <span class="mini-bar-label">GO</span>
             <div class="mini-bar-track">
-              <div class="mini-bar-fill fill-go" id="fillGo" style="width: 30%;"></div>
+              <div class="mini-bar-fill fill-go" id="fillGo" style="width: 25%;"></div>
             </div>
             <span class="mini-bar-count" id="countGo">--</span>
           </div>
-          <!-- DF -->
           <div class="mini-bar-row clickable" id="cardBarDf" title="Clique para filtrar farmácias do Distrito Federal (DF)">
             <span class="mini-bar-label">DF</span>
             <div class="mini-bar-track">
-              <div class="mini-bar-fill fill-df" id="fillDf" style="width: 30%;"></div>
+              <div class="mini-bar-fill fill-df" id="fillDf" style="width: 20%;"></div>
             </div>
             <span class="mini-bar-count" id="countDf">--</span>
           </div>
@@ -280,12 +279,46 @@
 
         <!-- Filtro: Região / UF -->
         <div class="filter-item">
-          <label for="filterUf" class="filter-label">Região (UF)</label>
+          <label for="filterUf" class="filter-label">Região / Estado (UF)</label>
           <select id="filterUf" class="filter-select">
-            <option value="TODAS">Todas as Regiões (SP, GO, DF)</option>
-            <option value="SP">São Paulo (SP)</option>
-            <option value="GO">Goiás (GO)</option>
-            <option value="DF">Distrito Federal (DF)</option>
+            <option value="TODAS">Todos os Estados (Brasil - 27 UFs)</option>
+            <optgroup label="Sudeste">
+              <option value="SP">São Paulo (SP)</option>
+              <option value="RJ">Rio de Janeiro (RJ)</option>
+              <option value="MG">Minas Gerais (MG)</option>
+              <option value="ES">Espírito Santo (ES)</option>
+            </optgroup>
+            <optgroup label="Sul">
+              <option value="PR">Paraná (PR)</option>
+              <option value="RS">Rio Grande do Sul (RS)</option>
+              <option value="SC">Santa Catarina (SC)</option>
+            </optgroup>
+            <optgroup label="Centro-Oeste">
+              <option value="DF">Distrito Federal (DF)</option>
+              <option value="GO">Goiás (GO)</option>
+              <option value="MT">Mato Grosso (MT)</option>
+              <option value="MS">Mato Grosso do Sul (MS)</option>
+            </optgroup>
+            <optgroup label="Nordeste">
+              <option value="BA">Bahia (BA)</option>
+              <option value="PE">Pernambuco (PE)</option>
+              <option value="CE">Ceará (CE)</option>
+              <option value="RN">Rio Grande do Norte (RN)</option>
+              <option value="PB">Paraíba (PB)</option>
+              <option value="AL">Alagoas (AL)</option>
+              <option value="SE">Sergipe (SE)</option>
+              <option value="MA">Maranhão (MA)</option>
+              <option value="PI">Piauí (PI)</option>
+            </optgroup>
+            <optgroup label="Norte">
+              <option value="AM">Amazonas (AM)</option>
+              <option value="PA">Pará (PA)</option>
+              <option value="TO">Tocantins (TO)</option>
+              <option value="RO">Rondônia (RO)</option>
+              <option value="AC">Acre (AC)</option>
+              <option value="AP">Amapá (AP)</option>
+              <option value="RR">Roraima (RR)</option>
+            </optgroup>
           </select>
         </div>
 
@@ -638,10 +671,27 @@
           <div>
             <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Região de Varredura:</label>
             <select class="filter-select" id="syncRegionSelect" style="width: 100%;">
-              <option value="TODAS">Todas as Regiões (SP, GO e DF)</option>
-              <option value="SP">São Paulo (Capital, RMC e Interior)</option>
-              <option value="GO">Goiás (Goiânia, Anápolis e Interior)</option>
-              <option value="DF">Distrito Federal (Brasília e Regiões Administrativas)</option>
+              <option value="TODAS">Cobertura Nacional (Todos os Estados - Brasil)</option>
+              <optgroup label="Grandes Regiões">
+                <option value="SUDESTE">Região Sudeste (SP, RJ, MG, ES)</option>
+                <option value="SUL">Região Sul (PR, SC, RS)</option>
+                <option value="CENTRO_OESTE">Região Centro-Oeste (DF, GO, MT, MS)</option>
+                <option value="NORDESTE">Região Nordeste (BA, PE, CE, RN, PB e demais)</option>
+                <option value="NORTE">Região Norte (AM, PA, TO, RO e demais)</option>
+              </optgroup>
+              <optgroup label="Estados Principais">
+                <option value="SP">São Paulo (SP)</option>
+                <option value="RJ">Rio de Janeiro (RJ)</option>
+                <option value="MG">Minas Gerais (MG)</option>
+                <option value="GO">Goiás (GO)</option>
+                <option value="DF">Distrito Federal (DF)</option>
+                <option value="PR">Paraná (PR)</option>
+                <option value="RS">Rio Grande do Sul (RS)</option>
+                <option value="BA">Bahia (BA)</option>
+                <option value="PE">Pernambuco (PE)</option>
+                <option value="CE">Ceará (CE)</option>
+                <option value="AM">Amazonas (AM)</option>
+              </optgroup>
             </select>
           </div>
 
@@ -812,9 +862,43 @@
             <div class="form-group">
               <label class="form-label" for="newLeadUf">Região (UF) *</label>
               <select id="newLeadUf" class="filter-select" style="width: 100%;" required>
-                <option value="SP" selected>São Paulo (SP)</option>
-                <option value="GO">Goiás (GO)</option>
-                <option value="DF">Distrito Federal (DF)</option>
+                <optgroup label="Sudeste">
+                  <option value="SP" selected>São Paulo (SP)</option>
+                  <option value="RJ">Rio de Janeiro (RJ)</option>
+                  <option value="MG">Minas Gerais (MG)</option>
+                  <option value="ES">Espírito Santo (ES)</option>
+                </optgroup>
+                <optgroup label="Sul">
+                  <option value="PR">Paraná (PR)</option>
+                  <option value="RS">Rio Grande do Sul (RS)</option>
+                  <option value="SC">Santa Catarina (SC)</option>
+                </optgroup>
+                <optgroup label="Centro-Oeste">
+                  <option value="DF">Distrito Federal (DF)</option>
+                  <option value="GO">Goiás (GO)</option>
+                  <option value="MT">Mato Grosso (MT)</option>
+                  <option value="MS">Mato Grosso do Sul (MS)</option>
+                </optgroup>
+                <optgroup label="Nordeste">
+                  <option value="BA">Bahia (BA)</option>
+                  <option value="PE">Pernambuco (PE)</option>
+                  <option value="CE">Ceará (CE)</option>
+                  <option value="RN">Rio Grande do Norte (RN)</option>
+                  <option value="PB">Paraíba (PB)</option>
+                  <option value="AL">Alagoas (AL)</option>
+                  <option value="SE">Sergipe (SE)</option>
+                  <option value="MA">Maranhão (MA)</option>
+                  <option value="PI">Piauí (PI)</option>
+                </optgroup>
+                <optgroup label="Norte">
+                  <option value="AM">Amazonas (AM)</option>
+                  <option value="PA">Pará (PA)</option>
+                  <option value="TO">Tocantins (TO)</option>
+                  <option value="RO">Rondônia (RO)</option>
+                  <option value="AC">Acre (AC)</option>
+                  <option value="AP">Amapá (AP)</option>
+                  <option value="RR">Roraima (RR)</option>
+                </optgroup>
               </select>
             </div>
 
@@ -930,16 +1014,22 @@
 
         <!-- Abrangência Regional Padrão -->
         <div style="margin-top: 16px;">
-          <label class="form-label">Regiões Ativas na Prospecção</label>
-          <div style="display: flex; gap: 12px; margin-top: 6px;">
+          <label class="form-label">Macro-Regiões Ativas na Prospecção (Brasil)</label>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px;">
             <label style="display: flex; align-items: center; gap: 6px; font-size: 0.84rem; cursor: pointer;">
-              <input type="checkbox" checked disabled /> São Paulo (SP)
+              <input type="checkbox" checked /> Sudeste (SP, RJ, MG, ES)
             </label>
             <label style="display: flex; align-items: center; gap: 6px; font-size: 0.84rem; cursor: pointer;">
-              <input type="checkbox" checked disabled /> Goiás (GO)
+              <input type="checkbox" checked /> Sul (PR, SC, RS)
             </label>
             <label style="display: flex; align-items: center; gap: 6px; font-size: 0.84rem; cursor: pointer;">
-              <input type="checkbox" checked disabled /> Distrito Federal (DF)
+              <input type="checkbox" checked /> Centro-Oeste (DF, GO, MT, MS)
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.84rem; cursor: pointer;">
+              <input type="checkbox" checked /> Nordeste (BA, PE, CE e demais)
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.84rem; cursor: pointer;">
+              <input type="checkbox" checked /> Norte (AM, PA, TO e demais)
             </label>
           </div>
         </div>
