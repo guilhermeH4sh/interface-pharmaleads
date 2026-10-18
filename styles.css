@@ -1771,11 +1771,11 @@ th.sort-desc .sort-icon {
 
 .auth-card {
   width: 100%;
-  max-width: 430px;
+  max-width: 440px;
   background: #ffffff;
   border-radius: 20px;
-  padding: 40px 34px 30px;
-  box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(85, 24, 240, 0.2);
+  padding: 44px 38px 34px;
+  box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(85, 24, 240, 0.18);
   text-align: center;
   animation: authCardIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1795,14 +1795,14 @@ th.sort-desc .sort-icon {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .auth-logo-img {
-  height: 48px;
+  height: 52px;
   width: auto;
   object-fit: contain;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .auth-brand-row {
@@ -1810,7 +1810,7 @@ th.sort-desc .sort-icon {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 1.55rem;
+  font-size: 1.6rem;
   font-weight: 800;
   letter-spacing: -0.5px;
 }
@@ -1826,32 +1826,25 @@ th.sort-desc .sort-icon {
   -webkit-text-fill-color: transparent;
 }
 
-.auth-badge-wrap {
-  margin-top: 6px;
-}
-
-.auth-badge-pill {
-  display: inline-block;
-  background-color: #f5f3ff;
-  color: #6d28d9;
-  border: 1px solid #ddd6fe;
-  border-radius: 9999px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 3px 10px;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-}
-
 .auth-lead-text {
-  font-size: 0.85rem;
+  font-size: 0.86rem;
   color: #64748b;
   line-height: 1.5;
-  margin: 10px 0 24px;
+  margin: 12px 0 26px;
 }
 
 .auth-form {
   text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.auth-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 0;
 }
 
 .auth-input-group {
@@ -1956,17 +1949,17 @@ th.sort-desc .sort-icon {
 
 .btn-auth-submit {
   width: 100%;
-  height: 46px;
+  height: 48px;
   font-size: 0.95rem;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: linear-gradient(135deg, #5518f0 0%, #6d28d9 100%);
-  box-shadow: 0 6px 18px rgba(85, 24, 240, 0.35);
-  margin-top: 6px;
+  box-shadow: 0 8px 22px rgba(85, 24, 240, 0.35);
+  margin-top: 8px;
   transition: all 0.2s ease;
 }
 
@@ -1998,9 +1991,9 @@ th.sort-desc .sort-icon {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   color: #94a3b8;
-  margin-top: 20px;
+  margin-top: 6px;
   text-align: center;
 }
 
