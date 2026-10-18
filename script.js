@@ -415,19 +415,19 @@ async function carregarLeadsDoSupabase() {
           uf: item.uf,
           cidade: item.cidade,
           bairro: item.bairro || 'Centro Comercial',
-          telefone: item.telefone,
-          whatsapp: item.whatsapp || item.telefone,
-          email: item.email,
-          website: item.website,
-          responsavel: item.responsavel || 'Comercial Centrus',
+          telefone: item.telefone || null,
+          whatsapp: item.whatsapp || null,
+          email: item.email || null,
+          website: item.website || null,
+          responsavel: item.responsavel || 'Não atribuído',
           status: item.status || 'Não contatado',
           cnae: item.cnae || '4771-7/01 - Comércio varejista de produtos farmacêuticos',
           dataCadastro: item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : HOJE_FORMATADO,
           duplicado: item.duplicado || false,
           observacoes: item.observacoes || '',
-          googleRating: item.google_rating || parseFloat((4.3 + (((item.id || 1) * 7) % 6) / 10).toFixed(1)),
-          googleReviews: item.google_reviews || (24 + (((item.id || 1) * 19) % 210)),
-          googleStatus: item.google_status || 'Aberto agora',
+          googleRating: item.google_rating || null,
+          googleReviews: item.google_reviews || null,
+          googleStatus: item.google_status || null,
           historico: Array.isArray(item.historico) ? item.historico : []
         }));
       }
@@ -594,7 +594,6 @@ const DOM = {
   // Navegação
   brandLink: document.getElementById("brandLink"),
   btnNavOverview: document.getElementById("btnNavOverview"),
-  btnNavLeads: document.getElementById("btnNavLeads"),
   btnNavSettings: document.getElementById("btnNavSettings"),
 
   // KPIs e Barras Clicáveis
@@ -981,14 +980,23 @@ function renderTable() {
   DOM.tableBody.innerHTML = pageItems.map(lead => {
     const isSelected = state.selectedLeadIds.has(lead.id);
     const rawTel = lead.telefone ? lead.telefone.replace(/\D/g, "") : "";
+    const rawWa = lead.whatsapp ? lead.whatsapp.replace(/\D/g, "") : "";
     const waText = encodeURIComponent(formatWaMessage(lead));
     
-    const telefoneHtml = lead.telefone
-      ? `<a href="https://wa.me/55${rawTel}?text=${waText}" target="_blank" class="table-contact-link wa" title="Abrir conversa no WhatsApp (1 clique)" onclick="event.stopPropagation();">
+    let telefoneHtml = "";
+    if (lead.whatsapp) {
+      telefoneHtml = `<a href="https://wa.me/55${rawWa}?text=${waText}" target="_blank" class="table-contact-link wa" title="WhatsApp verificado: ${lead.whatsapp}" onclick="event.stopPropagation();">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+          ${lead.whatsapp}
+        </a>`;
+    } else if (lead.telefone) {
+      telefoneHtml = `<a href="tel:+55${rawTel}" class="table-contact-link phone" title="Telefone fixo/comercial: ${lead.telefone}" onclick="event.stopPropagation();">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
           ${lead.telefone}
-        </a>`
-      : `<span class="data-missing">Não informado</span>`;
+        </a>`;
+    } else {
+      telefoneHtml = `<span class="data-missing">Não informado</span>`;
+    }
 
     const emailHtml = lead.email
       ? `<a href="mailto:${lead.email}?subject=${encodeURIComponent('Apresentação Comercial Centrus PharmaLeads - ' + lead.nome)}" class="table-contact-link mail" title="${lead.email}" onclick="event.stopPropagation();">
@@ -1001,8 +1009,12 @@ function renderTable() {
       ? `<span>${lead.responsavel}</span>`
       : `<span class="data-missing">Não atribuído</span>`;
 
-    const rating = lead.googleRating || parseFloat((4.3 + (((lead.id || 1) * 7) % 6) / 10).toFixed(1));
-    const reviews = lead.googleReviews || (24 + (((lead.id || 1) * 19) % 210));
+    const googleBadge = lead.googleRating
+      ? `<span class="google-badge-inline" title="Google Meu Negócio: ${lead.googleRating} baseada em ${lead.googleReviews || 0} avaliações">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+          ${lead.googleRating} <span class="google-reviews-count">(${lead.googleReviews || 0})</span>
+        </span>`
+      : '';
 
     return `
       <tr class="${isSelected ? 'row-selected' : ''}" data-lead-id="${lead.id}">
@@ -1018,10 +1030,7 @@ function renderTable() {
         <td class="td-nome">
           <div class="lead-name-text" data-action="open-drawer" data-lead-id="${lead.id}">
             ${lead.nome}
-            <span class="google-badge-inline" title="Google Meu Negócio: ${rating} baseada em ${reviews} avaliações">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-              ${rating} <span class="google-reviews-count">(${reviews})</span>
-            </span>
+            ${googleBadge}
           </div>
           <div class="lead-category-sub">
             ${lead.bairro ? lead.bairro + ' • ' : ''}CNAE 4771-7/01
@@ -1205,22 +1214,34 @@ function openLeadDrawer(leadId) {
   DOM.drawerDataCadastro.textContent = lead.dataCadastro;
   DOM.drawerObservacoes.value = lead.observacoes || "";
 
-  // Presença Google Meu Negócio no Drawer
-  const rating = lead.googleRating || parseFloat((4.3 + (((lead.id || 1) * 7) % 6) / 10).toFixed(1));
-  const reviews = lead.googleReviews || (24 + (((lead.id || 1) * 19) % 210));
-  if (DOM.drawerGoogleRatingVal) DOM.drawerGoogleRatingVal.textContent = rating;
-  if (DOM.drawerGoogleReviewsVal) DOM.drawerGoogleReviewsVal.textContent = `(${reviews} avaliações no Google)`;
+  // Presença Google Meu Negócio no Drawer (apenas se existir dado real)
+  if (lead.googleRating) {
+    if (DOM.drawerGoogleRatingVal) DOM.drawerGoogleRatingVal.textContent = lead.googleRating;
+    if (DOM.drawerGoogleReviewsVal) DOM.drawerGoogleReviewsVal.textContent = `(${lead.googleReviews || 0} avaliações no Google)`;
+    if (DOM.drawerGoogleStatusPill) {
+      DOM.drawerGoogleStatusPill.className = "google-status-pill open";
+      DOM.drawerGoogleStatusPill.textContent = lead.googleStatus || "Aberto agora";
+    }
+  } else {
+    if (DOM.drawerGoogleRatingVal) DOM.drawerGoogleRatingVal.textContent = "Não informado";
+    if (DOM.drawerGoogleReviewsVal) DOM.drawerGoogleReviewsVal.textContent = "(Pendente de enriquecimento Google)";
+    if (DOM.drawerGoogleStatusPill) {
+      DOM.drawerGoogleStatusPill.className = "google-status-pill closed";
+      DOM.drawerGoogleStatusPill.textContent = "Sem perfil verificado";
+    }
+  }
+
   if (DOM.btnDrawerOpenMaps) {
     const q = encodeURIComponent(`${lead.nome} ${lead.endereco || lead.cidade + ' ' + lead.uf}`);
     DOM.btnDrawerOpenMaps.href = `https://www.google.com/maps/search/?api=1&query=${q}`;
   }
 
-  // Atualizar ações rápidas
-  if (lead.telefone) {
-    const rawTel = lead.telefone.replace(/\D/g, "");
+  // Ações de contato: Apenas exibe botão WhatsApp se houver WhatsApp confirmado
+  if (lead.whatsapp) {
+    const rawWa = lead.whatsapp.replace(/\D/g, "");
     DOM.btnWhatsappAction.onclick = () => {
       const msg = encodeURIComponent(formatWaMessage(lead));
-      window.open(`https://wa.me/55${rawTel}?text=${msg}`, "_blank");
+      window.open(`https://wa.me/55${rawWa}?text=${msg}`, "_blank");
     };
     DOM.btnWhatsappAction.style.display = "inline-flex";
   } else {
@@ -1957,18 +1978,7 @@ function setupEventListeners() {
   if (DOM.btnNavOverview) {
     DOM.btnNavOverview.addEventListener("click", () => {
       DOM.btnNavOverview.classList.add("active");
-      if (DOM.btnNavLeads) DOM.btnNavLeads.classList.remove("active");
-      const kpis = document.getElementById("kpiSection");
-      if (kpis) kpis.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }
-
-  if (DOM.btnNavLeads) {
-    DOM.btnNavLeads.addEventListener("click", () => {
-      DOM.btnNavLeads.classList.add("active");
-      if (DOM.btnNavOverview) DOM.btnNavOverview.classList.remove("active");
-      const filterPanel = document.querySelector(".filter-panel");
-      if (filterPanel) filterPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     });
   }
 

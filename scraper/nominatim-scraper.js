@@ -40,21 +40,9 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function gerarTelefoneConsistente(nome, ddd) {
-  // Gera uma terminação consistente baseada no hash do nome da farmácia para simulação de contato válida
-  let hash = 0;
-  for (let i = 0; i < nome.length; i++) {
-    hash = (hash << 5) - hash + nome.charCodeAt(i);
-    hash |= 0;
-  }
-  const pos1 = Math.abs(hash % 9000) + 1000;
-  const pos2 = Math.abs((hash * 31) % 9000) + 1000;
-  return `(${ddd}) 9${String(pos1).slice(0, 4)}-${String(pos2).slice(0, 4)}`;
-}
-
 async function coletarFarmaciasReais() {
   console.log('================================================================');
-  console.log('🚀 INICIANDO CAPTURA DE FARMÁCIAS E DROGARIAS REAIS (SP, GO, DF)');
+  console.log('CAPTURA DE FARMÁCIAS E DROGARIAS REAIS (SP, GO, DF)');
   console.log('Fonte: Base Geográfica e Cadastral Nominatim / OpenStreetMap');
   console.log('================================================================\n');
 
@@ -63,7 +51,7 @@ async function coletarFarmaciasReais() {
 
   for (const reg of REGIOES) {
     const query = `${reg.termo} em ${reg.cidade} ${reg.uf}`;
-    console.log(`🔎 Mapeando: "${query}"...`);
+    console.log(`Mapeando: "${query}"...`);
 
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&extratags=1&limit=15`;
@@ -76,7 +64,7 @@ async function coletarFarmaciasReais() {
       });
 
       const items = response.data || [];
-      console.log(`   📍 ${items.length} estabelecimentos encontrados.`);
+      console.log(`   ${items.length} estabelecimentos encontrados.`);
 
       for (const item of items) {
         let nomeOriginal = item.name || (item.address && item.address.amenity) || (item.address && item.address.shop);
@@ -95,12 +83,11 @@ async function coletarFarmaciasReais() {
         const cep = addr.postcode || '70000-000';
         const enderecoCompleto = `${rua}, ${num} - ${bairro}, ${reg.cidade} - ${reg.uf}`;
 
-        // Extrai dados das tags extras ou gera padrão comercial regional
+        // Extrai dados reais das tags do OpenStreetMap (sem gerar dados fictícios)
         const extra = item.extratags || {};
-        const telReal = extra.phone || extra['contact:phone'] || extra['contact:mobile'];
-        const telefoneFinal = telReal || gerarTelefoneConsistente(nomeOriginal, reg.ddd);
+        const telReal = extra.phone || extra['contact:phone'] || extra['contact:mobile'] || null;
         const website = extra.website || extra['contact:website'] || null;
-        const email = extra.email || extra['contact:email'] || `contato@${nomeOriginal.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`;
+        const email = extra.email || extra['contact:email'] || null;
 
         const isManipulacao = nomeOriginal.toLowerCase().includes('manipula') || 
                               nomeOriginal.toLowerCase().includes('homeop') ||
@@ -117,15 +104,15 @@ async function coletarFarmaciasReais() {
           cidade: reg.cidade,
           bairro: bairro,
           endereco: enderecoCompleto,
-          telefone: telefoneFinal,
-          whatsapp: telefoneFinal,
+          telefone: telReal,
+          whatsapp: null, // Nunca preenche WhatsApp sem confirmação real
           email: email,
           website: website,
           cnae: cnae,
           status: 'Não contatado',
           responsavel: 'Comercial Centrus',
           duplicado: false,
-          observacoes: `Estabelecimento real mapeado via coordenadas (${item.lat}, ${item.lon}). CEP: ${cep}.`,
+          observacoes: `Estabelecimento real mapeado via coordenadas (${item.lat}, ${item.lon}). CEP: ${cep}.${!telReal ? ' Telefone pendente de enriquecimento.' : ''}`,
           historico: [
             {
               data: new Date().toLocaleString('pt-BR'),

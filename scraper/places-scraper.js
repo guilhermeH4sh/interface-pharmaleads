@@ -200,10 +200,6 @@ export async function rodarProspeccao() {
         process.stdout.write(`[Email: ${f.email || 'N/D'} | Whats: ${f.whatsapp || 'N/D'}]\n`);
       }
 
-      // Inteligência Google Meu Negócio (Rating & Reviews)
-      const googleRating = (4.3 + (Math.floor(Math.random() * 6) / 10)).toFixed(1);
-      const googleReviews = 25 + Math.floor(Math.random() * 220);
-
       // Prepara payload para o Supabase
       const payload = {
         nome: f.nome,
@@ -212,21 +208,21 @@ export async function rodarProspeccao() {
         cidade: f.cidade,
         bairro: f.bairro,
         endereco: f.endereco,
-        telefone: f.telefone,
-        whatsapp: f.whatsapp,
-        email: f.email,
-        website: f.website,
+        telefone: f.telefone || null,
+        whatsapp: f.whatsapp || null,
+        email: f.email || null,
+        website: f.website || null,
         cnae: f.nome.toLowerCase().includes('manipula') 
           ? '4771-7/02 - Comércio varejista de produtos farmacêuticos, com manipulação de fórmulas'
           : '4771-7/01 - Comércio varejista de produtos farmacêuticos, sem manipulação de fórmulas',
         status: 'Não contatado',
         responsavel: 'Comercial Centrus',
         duplicado: false,
-        observacoes: `Perfil Google Meu Negócio verificado: ${googleRating} estrelas (${googleReviews} avaliações). Capturado em ${new Date().toLocaleDateString('pt-BR')}.`,
+        observacoes: `Lead capturado via prospecção web (${new Date().toLocaleDateString('pt-BR')}). ${f.whatsapp ? 'WhatsApp comercial validado.' : 'Telefone pendente de validação no WhatsApp.'}`,
         historico: [
           {
             data: new Date().toLocaleString('pt-BR'),
-            texto: `Estabelecimento qualificado com presença Google Meu Negócio (${googleRating} estrelas com ${googleReviews} avaliações).`
+            texto: 'Lead capturado e inserido na base pelo robô de scraping web.'
           }
         ]
       };
