@@ -1987,14 +1987,29 @@ function setupEventListeners() {
     });
   }
 
-  // --- AUTENTICAÇÃO SUPABASE ---
+  // --- AUTENTICAÇÃO SUPABASE COM LISTA RESTRITA ---
+  const ADMINS_AUTORIZADOS = [
+    "sadekjr@gmail.com",
+    "sadek@centrusai.com",
+    "guilhermefabricio564@gmail.com"
+  ];
+
   if (DOM.loginForm) {
     DOM.loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const email = DOM.loginEmail ? DOM.loginEmail.value.trim() : "";
+      const email = DOM.loginEmail ? DOM.loginEmail.value.trim().toLowerCase() : "";
       const password = DOM.loginPassword ? DOM.loginPassword.value : "";
 
       if (!email || !password) return;
+
+      // Validação imediata de lista autorizada
+      if (!ADMINS_AUTORIZADOS.includes(email)) {
+        if (DOM.authErrorMessage) {
+          DOM.authErrorMessage.textContent = "Acesso negado: Este e-mail não possui permissão de administrador no Centrus PharmaLeads.";
+          DOM.authErrorMessage.style.display = "block";
+        }
+        return;
+      }
 
       if (DOM.btnLoginSubmit) DOM.btnLoginSubmit.disabled = true;
       if (DOM.btnLoginText) DOM.btnLoginText.textContent = "Verificando credenciais...";
@@ -2015,7 +2030,7 @@ function setupEventListeners() {
       } catch (err) {
         if (DOM.authErrorMessage) {
           DOM.authErrorMessage.textContent = (err.message === "Invalid login credentials" || err.status === 400)
-            ? "E-mail ou senha incorretos. Apenas administradores autorizados têm acesso."
+            ? "Senha incorreta ou usuário não encontrado."
             : `Erro ao autenticar: ${err.message}`;
           DOM.authErrorMessage.style.display = "block";
         }
@@ -2118,8 +2133,26 @@ async function checkAuthSession() {
 }
 
 function setAuthenticatedUser(user) {
+  const email = (user && user.email ? user.email.toLowerCase().trim() : "");
+  const ADMINS_AUTORIZADOS = [
+    "sadekjr@gmail.com",
+    "sadek@centrusai.com",
+    "guilhermefabricio564@gmail.com"
+  ];
+
+  if (!ADMINS_AUTORIZADOS.includes(email)) {
+    console.warn("Tentativa de acesso não autorizada:", email);
+    if (supabaseClient) supabaseClient.auth.signOut();
+    currentUser = null;
+    showAuthScreen();
+    if (DOM.authErrorMessage) {
+      DOM.authErrorMessage.textContent = "Acesso negado: Este e-mail não possui permissão de administrador no Centrus PharmaLeads.";
+      DOM.authErrorMessage.style.display = "block";
+    }
+    return;
+  }
+
   currentUser = user;
-  const email = user.email || "admin@centrusdistribuidora.com.br";
   const nomeExibicao = email.split("@")[0].replace(/[._-]/g, " ").toUpperCase();
 
   if (DOM.headerUserName) DOM.headerUserName.textContent = nomeExibicao;
