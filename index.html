@@ -1166,6 +1166,69 @@
     </div>
   </div>
 
+  <!-- =====================================================================
+       MODAL 5: RECUPERAÇÃO DE ACESSO CORPORATIVO (ESQUECI MINHA SENHA)
+       ===================================================================== -->
+  <div class="modal-backdrop recovery-modal-backdrop" id="recoveryModal" role="dialog" aria-modal="true" aria-labelledby="recoveryModalTitle">
+    <div class="modal-dialog recovery-modal-dialog">
+      <header class="modal-header">
+        <h3 class="modal-title" id="recoveryModalTitle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5518f0" stroke-width="2">
+            <circle cx="7.5" cy="15.5" r="5.5"></circle>
+            <path d="m21 2-9.6 9.6"></path>
+            <path d="m15.5 7.5 3 3"></path>
+          </svg>
+          Recuperação de Acesso Corporativo
+        </h3>
+        <button type="button" class="btn-icon" id="recoveryModalClose" aria-label="Fechar modal de recuperação">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
+
+      <form id="recoveryForm">
+        <div class="modal-body">
+          <div class="callout-box" style="border-left: 3px solid #5518f0; background: #f8f6ff;">
+            <strong>Procedimento de Segurança:</strong> Informe seu e-mail corporativo cadastrado na base de administradores do Centrus PharmaLeads. Enviaremos um link de uso único para redefinir suas credenciais com segurança.
+          </div>
+
+          <div class="form-group" style="text-align: left;">
+            <label class="form-label" for="recoveryEmail">E-mail Corporativo Autorizado *</label>
+            <div class="auth-input-group">
+              <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+              <input 
+                type="email" 
+                id="recoveryEmail" 
+                class="form-input auth-input" 
+                placeholder="seu.email@empresa.com" 
+                required 
+                autocomplete="email" 
+              />
+            </div>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 6px;">
+              Apenas administradores homologados na plataforma possuem permissão de acesso ao painel.
+            </p>
+          </div>
+
+          <div id="recoveryMessage" style="display: none;"></div>
+        </div>
+
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="recoveryModalCancelBtn">Voltar ao Login</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitRecovery" style="min-width: 170px;">
+            <span id="btnRecoveryText">Enviar Link Seguro</span>
+            <span id="btnRecoverySpinner" class="spinner-auth" style="display: none; width: 14px; height: 14px; border-width: 2px;"></span>
+          </button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
   <!-- Container de Notificações Toast -->
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 

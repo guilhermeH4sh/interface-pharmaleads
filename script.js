@@ -669,6 +669,15 @@ const DOM = {
   authErrorMessage: document.getElementById("authErrorMessage"),
   btnTogglePassword: document.getElementById("btnTogglePassword"),
   btnForgotPassword: document.getElementById("btnForgotPassword"),
+  recoveryModal: document.getElementById("recoveryModal"),
+  recoveryModalClose: document.getElementById("recoveryModalClose"),
+  recoveryModalCancelBtn: document.getElementById("recoveryModalCancelBtn"),
+  recoveryForm: document.getElementById("recoveryForm"),
+  recoveryEmail: document.getElementById("recoveryEmail"),
+  recoveryMessage: document.getElementById("recoveryMessage"),
+  btnSubmitRecovery: document.getElementById("btnSubmitRecovery"),
+  btnRecoveryText: document.getElementById("btnRecoveryText"),
+  btnRecoverySpinner: document.getElementById("btnRecoverySpinner"),
   btnLogout: document.getElementById("btnLogout"),
   headerUserName: document.getElementById("headerUserName"),
   headerUserRole: document.getElementById("headerUserRole"),
@@ -1369,6 +1378,54 @@ function closeSettingsModal() {
   document.body.style.overflow = "";
 }
 
+function openRecoveryModal() {
+  if (!DOM.recoveryModal) return;
+  if (DOM.recoveryMessage) {
+    DOM.recoveryMessage.style.display = "none";
+    DOM.recoveryMessage.textContent = "";
+    DOM.recoveryMessage.className = "";
+  }
+  if (DOM.btnSubmitRecovery) DOM.btnSubmitRecovery.disabled = false;
+  if (DOM.btnRecoveryText) DOM.btnRecoveryText.style.display = "inline";
+  if (DOM.btnRecoverySpinner) DOM.btnRecoverySpinner.style.display = "none";
+
+  if (DOM.recoveryEmail && DOM.loginEmail && DOM.loginEmail.value.trim()) {
+    DOM.recoveryEmail.value = DOM.loginEmail.value.trim();
+  }
+
+  DOM.recoveryModal.classList.add("active");
+  document.body.style.overflow = "hidden";
+
+  setTimeout(() => {
+    if (DOM.recoveryEmail) DOM.recoveryEmail.focus();
+  }, 100);
+}
+
+function closeRecoveryModal() {
+  if (!DOM.recoveryModal) return;
+  DOM.recoveryModal.classList.remove("active");
+  document.body.style.overflow = "";
+}
+
+function showRecoveryMessage(msg, type = "info") {
+  if (!DOM.recoveryMessage) return;
+  DOM.recoveryMessage.style.display = "block";
+  DOM.recoveryMessage.textContent = msg;
+  if (type === "success") {
+    DOM.recoveryMessage.className = "auth-success-box";
+  } else if (type === "error") {
+    DOM.recoveryMessage.className = "auth-error-box";
+  } else {
+    DOM.recoveryMessage.className = "auth-info-box";
+  }
+}
+
+function setRecoveryLoading(isLoading) {
+  if (DOM.btnSubmitRecovery) DOM.btnSubmitRecovery.disabled = isLoading;
+  if (DOM.btnRecoveryText) DOM.btnRecoveryText.style.display = isLoading ? "none" : "inline";
+  if (DOM.btnRecoverySpinner) DOM.btnRecoverySpinner.style.display = isLoading ? "inline-block" : "none";
+}
+
 function resetAllFilters() {
   state.searchQuery = "";
   state.filterUf = "TODAS";
@@ -2054,31 +2111,53 @@ function setupEventListeners() {
   }
 
   if (DOM.btnForgotPassword) {
-    DOM.btnForgotPassword.addEventListener("click", async (e) => {
+    DOM.btnForgotPassword.addEventListener("click", (e) => {
       e.preventDefault();
-      const email = DOM.loginEmail ? DOM.loginEmail.value.trim() : "";
+      openRecoveryModal();
+    });
+  }
+
+  if (DOM.recoveryModalClose) {
+    DOM.recoveryModalClose.addEventListener("click", closeRecoveryModal);
+  }
+
+  if (DOM.recoveryModalCancelBtn) {
+    DOM.recoveryModalCancelBtn.addEventListener("click", closeRecoveryModal);
+  }
+
+  if (DOM.recoveryModal) {
+    DOM.recoveryModal.addEventListener("click", (e) => {
+      if (e.target === DOM.recoveryModal) closeRecoveryModal();
+    });
+  }
+
+  if (DOM.recoveryForm) {
+    DOM.recoveryForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = DOM.recoveryEmail ? DOM.recoveryEmail.value.trim() : "";
       if (!email) {
-        if (DOM.authErrorMessage) {
-          DOM.authErrorMessage.className = "auth-info-box";
-          DOM.authErrorMessage.textContent = "Informe seu e-mail corporativo no campo de e-mail para solicitar a recuperação de senha.";
-          DOM.authErrorMessage.style.display = "block";
-        }
-        if (DOM.loginEmail) DOM.loginEmail.focus();
+        showRecoveryMessage("Informe seu e-mail corporativo.", "info");
         return;
       }
+
+      setRecoveryLoading(true);
+
       try {
-        await supabaseClient.auth.resetPasswordForEmail(email);
-        if (DOM.authErrorMessage) {
-          DOM.authErrorMessage.className = "auth-success-box";
-          DOM.authErrorMessage.textContent = `Instruções de redefinição de senha enviadas para ${email}. Verifique seu e-mail.`;
-          DOM.authErrorMessage.style.display = "block";
-        }
+        if (!supabaseClient) throw new Error("Serviço de autenticação temporariamente indisponível.");
+        
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin
+        });
+
+        if (error) throw error;
+
+        showRecoveryMessage(`Instruções de redefinição enviadas com sucesso para ${email}! Verifique sua caixa de entrada e siga o link seguro.`, "success");
+        if (DOM.btnSubmitRecovery) DOM.btnSubmitRecovery.disabled = true;
+        showToast(`E-mail de recuperação enviado para ${email}.`);
       } catch (err) {
-        if (DOM.authErrorMessage) {
-          DOM.authErrorMessage.className = "auth-error-box";
-          DOM.authErrorMessage.textContent = `Não foi possível enviar a solicitação: ${err.message}`;
-          DOM.authErrorMessage.style.display = "block";
-        }
+        showRecoveryMessage(`Não foi possível enviar a solicitação: ${err.message || err}`, "error");
+      } finally {
+        setRecoveryLoading(false);
       }
     });
   }
@@ -2105,6 +2184,7 @@ function setupEventListeners() {
       closeLogsModal();
       closeNewLeadModal();
       closeSettingsModal();
+      closeRecoveryModal();
     }
   });
 }

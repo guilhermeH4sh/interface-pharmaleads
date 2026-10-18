@@ -2004,3 +2004,33 @@ th.sort-desc .sort-icon {
   text-align: center;
 }
 
+/* ==========================================================================
+   MODAL DE RECUPERAÇÃO DE ACESSO CORPORATIVO
+   ========================================================================== */
+.recovery-modal-backdrop {
+  z-index: 1000005 !important;
+  background-color: rgba(10, 15, 30, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.recovery-modal-dialog {
+  max-width: 480px;
+  border-radius: 18px;
+  border: 1px solid rgba(85, 24, 240, 0.18);
+  box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(85, 24, 240, 0.15);
+}
+
+.recovery-modal-dialog .modal-header {
+  padding: 20px 24px;
+}
+
+.recovery-modal-dialog .modal-body {
+  padding: 22px 24px 16px;
+  gap: 16px;
+}
+
+.recovery-modal-dialog .modal-footer {
+  padding: 16px 24px;
+}
+
