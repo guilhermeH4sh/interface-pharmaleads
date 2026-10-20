@@ -14,26 +14,37 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-// Regiões e termos de busca para coletar estabelecimentos reais
+// Regiões e termos de busca para expansão nacional (dados 100% reais do OpenStreetMap)
 const REGIOES = [
-  // São Paulo
-  { termo: 'farmacia', cidade: 'São Paulo', uf: 'SP', ddd: '11' },
-  { termo: 'drogaria', cidade: 'São Paulo', uf: 'SP', ddd: '11' },
-  { termo: 'drogaria', cidade: 'Campinas', uf: 'SP', ddd: '19' },
-  { termo: 'farmacia', cidade: 'Campinas', uf: 'SP', ddd: '19' },
-  { termo: 'farmacia', cidade: 'Ribeirão Preto', uf: 'SP', ddd: '16' },
+  // Sudeste (RJ, MG, ES)
+  { termo: 'farmacia', cidade: 'Rio de Janeiro', uf: 'RJ' },
+  { termo: 'drogaria', cidade: 'Rio de Janeiro', uf: 'RJ' },
+  { termo: 'farmacia', cidade: 'Niterói', uf: 'RJ' },
+  { termo: 'farmacia', cidade: 'Belo Horizonte', uf: 'MG' },
+  { termo: 'drogaria', cidade: 'Belo Horizonte', uf: 'MG' },
+  { termo: 'farmacia', cidade: 'Uberlândia', uf: 'MG' },
+  { termo: 'farmacia', cidade: 'Vitória', uf: 'ES' },
 
-  // Goiás
-  { termo: 'farmacia', cidade: 'Goiânia', uf: 'GO', ddd: '62' },
-  { termo: 'drogaria', cidade: 'Goiânia', uf: 'GO', ddd: '62' },
-  { termo: 'farmacia', cidade: 'Anápolis', uf: 'GO', ddd: '62' },
-  { termo: 'drogaria', cidade: 'Rio Verde', uf: 'GO', ddd: '64' },
+  // Sul (PR, RS, SC)
+  { termo: 'farmacia', cidade: 'Curitiba', uf: 'PR' },
+  { termo: 'drogaria', cidade: 'Curitiba', uf: 'PR' },
+  { termo: 'farmacia', cidade: 'Porto Alegre', uf: 'RS' },
+  { termo: 'drogaria', cidade: 'Porto Alegre', uf: 'RS' },
+  { termo: 'farmacia', cidade: 'Florianópolis', uf: 'SC' },
 
-  // Distrito Federal
-  { termo: 'farmacia', cidade: 'Brasília', uf: 'DF', ddd: '61' },
-  { termo: 'drogaria', cidade: 'Brasília', uf: 'DF', ddd: '61' },
-  { termo: 'farmacia', cidade: 'Taguatinga', uf: 'DF', ddd: '61' },
-  { termo: 'drogaria', cidade: 'Ceilândia', uf: 'DF', ddd: '61' }
+  // Nordeste (BA, PE, CE)
+  { termo: 'farmacia', cidade: 'Salvador', uf: 'BA' },
+  { termo: 'drogaria', cidade: 'Salvador', uf: 'BA' },
+  { termo: 'farmacia', cidade: 'Recife', uf: 'PE' },
+  { termo: 'farmacia', cidade: 'Fortaleza', uf: 'CE' },
+
+  // Norte (AM, PA)
+  { termo: 'farmacia', cidade: 'Manaus', uf: 'AM' },
+  { termo: 'farmacia', cidade: 'Belém', uf: 'PA' },
+
+  // Centro-Oeste adicional (MT, MS)
+  { termo: 'farmacia', cidade: 'Cuiabá', uf: 'MT' },
+  { termo: 'farmacia', cidade: 'Campo Grande', uf: 'MS' }
 ];
 
 function sleep(ms) {
@@ -42,12 +53,18 @@ function sleep(ms) {
 
 async function coletarFarmaciasReais() {
   console.log('================================================================');
-  console.log('CAPTURA DE FARMÁCIAS E DROGARIAS REAIS (SP, GO, DF)');
+  console.log('EXPANSÃO NACIONAL DE FARMÁCIAS E DROGARIAS REAIS');
   console.log('Fonte: Base Geográfica e Cadastral Nominatim / OpenStreetMap');
   console.log('================================================================\n');
 
+  // Carrega registros existentes para evitar inserção duplicada
+  const { data: existentes } = await supabase.from('pharmaleads').select('nome, cidade');
+  const nomesProcessados = new Set(
+    (existentes || []).map(e => `${(e.nome || '').toLowerCase().trim()}_${(e.cidade || '').toLowerCase().trim()}`)
+  );
+  console.log(`Leads já existentes no banco para desduplicação: ${nomesProcessados.size}\n`);
+
   let totalInseridos = 0;
-  const nomesProcessados = new Set();
 
   for (const reg of REGIOES) {
     const query = `${reg.termo} em ${reg.cidade} ${reg.uf}`;
