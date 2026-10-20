@@ -29,48 +29,90 @@ const supabaseClient = (typeof window !== "undefined" && window.supabase)
   ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
   : null;
 
+// =============================================================================
+// CAMADA DE PERSISTÊNCIA (SUPABASE = ÚNICA FONTE DA VERDADE)
+// =============================================================================
+
+const PAGE_SIZE_DB = 1000; // Limite máximo por requisição do PostgREST
+let gravacoesPendentes = 0;
+
+/** Converte uma linha do banco para o formato usado na interface */
+function mapRowToLead(item) {
+  return {
+    id: item.id,
+    nome: item.nome,
+    razaoSocial: item.razao_social || null,
+    cnpj: item.cnpj || 'Não informado',
+    uf: item.uf,
+    cidade: item.cidade,
+    bairro: item.bairro || null,
+    endereco: item.endereco || null,
+    telefone: item.telefone || null,
+    whatsapp: item.whatsapp || null,
+    email: item.email || null,
+    website: item.website || null,
+    responsavel: item.responsavel || 'Não atribuído',
+    status: item.status || 'Não contatado',
+    cnae: item.cnae || null,
+    dataCadastro: item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : HOJE_FORMATADO,
+    duplicado: item.duplicado || false,
+    observacoes: item.observacoes || '',
+    googleRating: item.google_rating || null,
+    googleReviews: item.google_reviews || null,
+    googleStatus: item.google_status || null,
+    historico: Array.isArray(item.historico) ? item.historico : []
+  };
+}
+
+/** Entrada de histórico com data/hora atual */
+function novaEntradaHistorico(texto) {
+  const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return { data: `${HOJE_FORMATADO} ${hora}`, texto };
+}
+
+/** Registra gravação em andamento (impede perda ao recarregar a página) */
+async function comGravacaoPendente(promessa) {
+  gravacoesPendentes++;
+  try {
+    return await promessa;
+  } finally {
+    gravacoesPendentes--;
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", (e) => {
+    if (gravacoesPendentes > 0) {
+      e.preventDefault();
+      e.returnValue = "Há alterações sendo salvas no banco de dados.";
+    }
+  });
+}
+
 /**
- * Carrega os leads em tempo real da tabela 'pharmaleads' do Supabase
- * e integra a base complementar nacional cobrindo todas as regiões do Brasil.
+ * Carrega TODOS os leads da tabela 'pharmaleads' (paginado, sem limite de 1000).
  */
 async function carregarLeadsDoSupabase() {
+  if (!supabaseClient) {
+    showToast("Conexão com o banco indisponível.", "info");
+    return;
+  }
+
   try {
-    let cloudLeads = [];
-    if (supabaseClient) {
+    const linhas = [];
+    for (let inicio = 0; ; inicio += PAGE_SIZE_DB) {
       const { data, error } = await supabaseClient
         .from('pharmaleads')
         .select('*')
-        .order('id', { ascending: true });
+        .order('id', { ascending: true })
+        .range(inicio, inicio + PAGE_SIZE_DB - 1);
 
-      if (!error && data && data.length > 0) {
-        cloudLeads = data.map(item => ({
-          id: item.id,
-          nome: item.nome,
-          razaoSocial: item.razao_social || null,
-          cnpj: item.cnpj || 'Não informado',
-          uf: item.uf,
-          cidade: item.cidade,
-          bairro: item.bairro || null,
-          telefone: item.telefone || null,
-          whatsapp: item.whatsapp || null,
-          email: item.email || null,
-          website: item.website || null,
-          responsavel: item.responsavel || 'Não atribuído',
-          status: item.status || 'Não contatado',
-          cnae: item.cnae || null,
-          dataCadastro: item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : HOJE_FORMATADO,
-          duplicado: item.duplicado || false,
-          observacoes: item.observacoes || '',
-          googleRating: item.google_rating || null,
-          googleReviews: item.google_reviews || null,
-          googleStatus: item.google_status || null,
-          historico: Array.isArray(item.historico) ? item.historico : []
-        }));
-      }
+      if (error) throw error;
+      linhas.push(...(data || []));
+      if (!data || data.length < PAGE_SIZE_DB) break;
     }
 
-    // Apenas dados reais vindos do banco (sem bases fictícias locais)
-    leadsData = [...cloudLeads];
+    leadsData = linhas.map(mapRowToLead);
 
     updateKpiIndicators();
     renderTable();
@@ -78,75 +120,90 @@ async function carregarLeadsDoSupabase() {
     const navCount = document.getElementById("headerNavLeadCount");
     if (navCount) navCount.textContent = leadsData.length;
 
-    console.log(`[Centrus PharmaLeads] Base nacional carregada: ${leadsData.length} farmácias ativas (Brasil).`);
+    console.log(`[Centrus PharmaLeads] ${leadsData.length} farmácias carregadas do banco.`);
   } catch (err) {
-    console.warn("[Centrus PharmaLeads] Operando com base nacional local em cache:", err);
-    leadsData = leadsData || [];
+    console.error("[Centrus PharmaLeads] Falha ao carregar dados do banco:", err);
+    showToast("Não foi possível carregar os dados do banco. Tente sincronizar.", "info");
     updateKpiIndicators();
     renderTable();
   }
 }
 
 /**
- * Sincroniza atualizações de status ou notas do lead com o Supabase
+ * Persiste alterações de um lead e CONFIRMA que a linha foi gravada.
+ * Em caso de falha, restaura o estado anterior na interface.
+ * @param {object} lead       Lead já alterado em memória
+ * @param {object} anterior   Snapshot dos campos antes da alteração (para rollback)
+ * @returns {Promise<boolean>}
  */
-async function syncLeadUpdateToSupabase(lead) {
-  if (!supabaseClient || !lead || !lead.id) return;
-  try {
-    const { error } = await supabaseClient
-      .from('pharmaleads')
-      .update({
-        status: lead.status,
-        responsavel: lead.responsavel,
-        observacoes: lead.observacoes,
-        historico: lead.historico,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', lead.id);
+async function syncLeadUpdateToSupabase(lead, anterior = null) {
+  if (!supabaseClient || !lead || !(lead.id > 0)) return false;
 
-    if (error) {
-      console.error("[Centrus PharmaLeads] Erro ao sincronizar com Supabase:", error);
-      showToast("Aviso: Falha ao persistir no banco de dados.", "warning");
-    } else {
-      console.log(`[Centrus PharmaLeads] Lead #${lead.id} (${lead.nome}) sincronizado no Supabase.`);
-    }
+  const payload = {
+    status: lead.status,
+    responsavel: lead.responsavel,
+    observacoes: lead.observacoes,
+    historico: lead.historico,
+    updated_at: new Date().toISOString()
+  };
+
+  try {
+    const { data, error } = await comGravacaoPendente(
+      supabaseClient.from('pharmaleads').update(payload).eq('id', lead.id).select('id, status')
+    );
+
+    if (error) throw error;
+    // Update sem linhas afetadas = bloqueio de permissão (RLS) ou registro inexistente
+    if (!data || data.length === 0) throw new Error(`Nenhuma linha gravada para o lead #${lead.id}.`);
+
+    console.log(`[Centrus PharmaLeads] Lead #${lead.id} gravado (status: ${data[0].status}).`);
+    return true;
   } catch (err) {
-    console.warn("Erro ao sincronizar atualização no Supabase:", err);
+    console.error("[Centrus PharmaLeads] Falha ao gravar no banco:", err);
+    if (anterior) Object.assign(lead, anterior);
+    updateKpiIndicators();
+    renderTable();
+    showToast(`Falha ao salvar "${lead.nome}". Alteração desfeita.`, "info");
+    return false;
   }
 }
 
 /**
- * Sincroniza cadastro de novo lead com o Supabase
+ * Insere novo lead e retorna o registro gravado (com id real do banco).
+ * @returns {Promise<object|null>}
  */
 async function syncNewLeadToSupabase(novoLead) {
-  if (!supabaseClient || !novoLead) return;
+  if (!supabaseClient || !novoLead) return null;
   try {
-    const { data } = await supabaseClient
-      .from('pharmaleads')
-      .insert({
-        nome: novoLead.nome,
-        razao_social: novoLead.razaoSocial,
-        cnpj: novoLead.cnpj,
-        uf: novoLead.uf,
-        cidade: novoLead.cidade,
-        bairro: novoLead.bairro,
-        telefone: novoLead.telefone,
-        whatsapp: novoLead.telefone,
-        email: novoLead.email,
-        responsavel: novoLead.responsavel,
-        status: novoLead.status,
-        cnae: novoLead.cnae,
-        observacoes: novoLead.observacoes,
-        historico: novoLead.historico
-      })
-      .select('id')
-      .single();
+    const { data, error } = await comGravacaoPendente(
+      supabaseClient
+        .from('pharmaleads')
+        .insert({
+          nome: novoLead.nome,
+          razao_social: novoLead.razaoSocial,
+          cnpj: novoLead.cnpj,
+          uf: novoLead.uf,
+          cidade: novoLead.cidade,
+          bairro: novoLead.bairro,
+          telefone: novoLead.telefone,
+          whatsapp: null, // Nunca assumir telefone = WhatsApp
+          email: novoLead.email,
+          responsavel: novoLead.responsavel,
+          status: novoLead.status,
+          cnae: novoLead.cnae,
+          duplicado: novoLead.duplicado,
+          observacoes: novoLead.observacoes,
+          historico: novoLead.historico
+        })
+        .select('*')
+        .single()
+    );
 
-    if (data && data.id) {
-      novoLead.id = data.id;
-    }
+    if (error) throw error;
+    return data;
   } catch (err) {
-    console.warn("Erro ao inserir novo lead no Supabase:", err);
+    console.error("[Centrus PharmaLeads] Falha ao inserir lead:", err);
+    return null;
   }
 }
 
@@ -1285,22 +1342,17 @@ function setupEventListeners() {
       const newStatus = e.target.value;
       const lead = leadsData.find(l => l.id === leadId);
 
-      if (lead) {
+      if (lead && lead.status !== newStatus) {
+        const anterior = { status: lead.status, historico: [...(lead.historico || [])] };
+
         lead.status = newStatus;
+        lead.historico = [novaEntradaHistorico(`Status atualizado para "${newStatus}".`), ...anterior.historico];
         e.target.setAttribute("data-status", newStatus);
-        
-        // Histórico de alteração
-        if (!lead.historico) lead.historico = [];
-        lead.historico.unshift({
-          data: `${HOJE_FORMATADO} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
-          texto: `Status atualizado para "${newStatus}".`
-        });
-
         updateKpiIndicators();
-        showToast(`Status de "${lead.nome}" alterado para ${newStatus}.`);
 
-        // Sincroniza em tempo real com o Supabase
-        syncLeadUpdateToSupabase(lead);
+        syncLeadUpdateToSupabase(lead, anterior).then(ok => {
+          if (ok) showToast(`Status de "${lead.nome}" salvo como ${newStatus}.`);
+        });
       }
     }
   });
@@ -1350,21 +1402,26 @@ function setupEventListeners() {
   });
 
   // Ações em Lote
-  DOM.btnApplyBatchStatus.addEventListener("click", () => {
+  DOM.btnApplyBatchStatus.addEventListener("click", async () => {
     const newStatus = DOM.batchStatusSelect.value;
     if (!newStatus) return;
 
-    let count = 0;
-    leadsData.forEach(l => {
-      if (state.selectedLeadIds.has(l.id)) {
-        l.status = newStatus;
-        count++;
-      }
+    const alvos = leadsData.filter(l => state.selectedLeadIds.has(l.id) && l.status !== newStatus);
+    if (!alvos.length) return;
+
+    const gravacoes = alvos.map(l => {
+      const anterior = { status: l.status, historico: [...(l.historico || [])] };
+      l.status = newStatus;
+      l.historico = [novaEntradaHistorico(`Status atualizado em lote para "${newStatus}".`), ...anterior.historico];
+      return syncLeadUpdateToSupabase(l, anterior);
     });
 
     updateKpiIndicators();
     renderTable();
-    showToast(`Status de ${count} lead(s) alterado para "${newStatus}".`);
+
+    const resultados = await Promise.all(gravacoes);
+    const ok = resultados.filter(Boolean).length;
+    showToast(`${ok} de ${alvos.length} lead(s) salvos como "${newStatus}".`, ok === alvos.length ? "success" : "info");
   });
 
   DOM.btnExportBatch.addEventListener("click", () => {
@@ -1380,27 +1437,40 @@ function setupEventListeners() {
   DOM.drawerCloseBtn.addEventListener("click", closeLeadDrawer);
   DOM.drawerBackdrop.addEventListener("click", closeLeadDrawer);
 
-  DOM.drawerStatusSelect.addEventListener("change", (e) => {
+  DOM.drawerStatusSelect.addEventListener("change", async (e) => {
     if (!state.activeLeadId) return;
     const lead = leadsData.find(l => l.id === state.activeLeadId);
-    if (lead) {
-      lead.status = e.target.value;
-      DOM.drawerStatusSelect.setAttribute("data-status", e.target.value);
-      updateKpiIndicators();
-      renderTable();
-      showToast(`Status atualizado para "${lead.status}".`);
-      syncLeadUpdateToSupabase(lead);
+    const newStatus = e.target.value;
+    if (!lead || lead.status === newStatus) return;
+
+    const anterior = { status: lead.status, historico: [...(lead.historico || [])] };
+    lead.status = newStatus;
+    lead.historico = [novaEntradaHistorico(`Status atualizado para "${newStatus}".`), ...anterior.historico];
+    DOM.drawerStatusSelect.setAttribute("data-status", newStatus);
+    updateKpiIndicators();
+    renderTable();
+
+    const ok = await syncLeadUpdateToSupabase(lead, anterior);
+    if (ok) {
+      showToast(`Status salvo como "${newStatus}".`);
+    } else {
+      DOM.drawerStatusSelect.value = lead.status;
+      DOM.drawerStatusSelect.setAttribute("data-status", lead.status);
     }
   });
 
-  DOM.btnSaveNotes.addEventListener("click", () => {
+  DOM.btnSaveNotes.addEventListener("click", async () => {
     if (!state.activeLeadId) return;
     const lead = leadsData.find(l => l.id === state.activeLeadId);
-    if (lead) {
-      lead.observacoes = DOM.drawerObservacoes.value;
-      showToast("Anotações comerciais atualizadas.");
-      syncLeadUpdateToSupabase(lead);
-    }
+    if (!lead) return;
+
+    const anterior = { observacoes: lead.observacoes };
+    lead.observacoes = DOM.drawerObservacoes.value;
+    DOM.btnSaveNotes.disabled = true;
+
+    const ok = await syncLeadUpdateToSupabase(lead, anterior);
+    DOM.btnSaveNotes.disabled = false;
+    if (ok) showToast("Anotações salvas no banco de dados.");
   });
 
   DOM.btnCopyCnpj.addEventListener("click", () => {
@@ -1529,7 +1599,7 @@ function setupEventListeners() {
 
   // Submissão do Formulário de Cadastro
   if (DOM.newLeadForm) {
-    DOM.newLeadForm.addEventListener("submit", (e) => {
+    DOM.newLeadForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       const nome = document.getElementById("newLeadNome").value.trim();
@@ -1554,11 +1624,10 @@ function setupEventListeners() {
       const limpo = cleanCnpj(cnpj);
       const isDuplicado = leadsData.some(l => cleanCnpj(l.cnpj) === limpo);
 
-      const nextId = leadsData.reduce((max, l) => Math.max(max, l.id), 0) + 1;
       const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
       const novoLead = {
-        id: nextId,
+        id: null, // Definido pelo banco após a gravação
         nome: nome,
         razaoSocial: razao || null,
         uf: uf,
@@ -1578,11 +1647,19 @@ function setupEventListeners() {
         ]
       };
 
-      // Adiciona no topo da lista
-      leadsData.unshift(novoLead);
+      // Grava primeiro no banco; só exibe na lista após confirmação
+      const btnSubmit = DOM.newLeadForm.querySelector('[type="submit"]');
+      if (btnSubmit) btnSubmit.disabled = true;
+      const gravado = await syncNewLeadToSupabase(novoLead);
+      if (btnSubmit) btnSubmit.disabled = false;
 
-      // Sincroniza novo lead com o Supabase
-      syncNewLeadToSupabase(novoLead);
+      if (!gravado) {
+        showToast("Falha ao salvar a farmácia no banco. Nada foi perdido: revise e tente novamente.", "info");
+        return;
+      }
+
+      leadsData.unshift(mapRowToLead(gravado));
+      DOM.newLeadForm.reset();
 
       // Atualiza badge de contagem no cabeçalho
       const navCount = document.getElementById("headerNavLeadCount");
