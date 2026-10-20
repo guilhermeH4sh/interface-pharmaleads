@@ -93,15 +93,23 @@ async function carregarLeadsDoSupabase() {
 async function syncLeadUpdateToSupabase(lead) {
   if (!supabaseClient || !lead || !lead.id) return;
   try {
-    await supabaseClient
+    const { error } = await supabaseClient
       .from('pharmaleads')
       .update({
         status: lead.status,
+        responsavel: lead.responsavel,
         observacoes: lead.observacoes,
         historico: lead.historico,
         updated_at: new Date().toISOString()
       })
       .eq('id', lead.id);
+
+    if (error) {
+      console.error("[Centrus PharmaLeads] Erro ao sincronizar com Supabase:", error);
+      showToast("Aviso: Falha ao persistir no banco de dados.", "warning");
+    } else {
+      console.log(`[Centrus PharmaLeads] Lead #${lead.id} (${lead.nome}) sincronizado no Supabase.`);
+    }
   } catch (err) {
     console.warn("Erro ao sincronizar atualização no Supabase:", err);
   }
