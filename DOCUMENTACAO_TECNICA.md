@@ -10,6 +10,29 @@ A plataforma atua como o ponto central de inteligência para o time comercial e 
 
 ---
 
+### ⚠️ Política Obrigatória de Dados: Somente Dados Reais e Públicos
+
+> **Regra inegociável do projeto:** a plataforma trabalha **exclusivamente com dados reais, verificáveis e de fonte pública**. É proibido gerar, inventar, deduzir ou simular qualquer informação de estabelecimento.
+
+**Regras:**
+1. **Nunca gerar dados fictícios** — telefone, WhatsApp, e-mail, CNPJ, razão social, CNAE, endereço, bairro, CEP, nota/avaliações Google ou qualquer outro campo.
+2. **Campo não encontrado = `null`.** A interface exibe **"Não informado"** (ou "Não encontrado em fonte pública"). Nunca usar placeholders como "Avenida Principal", "S/N", "Centro Comercial", "70000-000" ou "Ltda" concatenado ao nome.
+3. **WhatsApp só é preenchido** se publicado explicitamente pelo estabelecimento (link `wa.me` / `api.whatsapp.com` no site oficial ou tag OSM `contact:whatsapp`). **Telefone celular ≠ WhatsApp confirmado.**
+4. **Razão social, CNPJ e CNAE** só podem vir de consulta oficial (Receita Federal / bases públicas de CNPJ). Não inferir pelo nome fantasia.
+5. **Proibido** o uso de `Math.random`, hash de nome, DDD padrão por UF ou qualquer heurística para preencher dados.
+6. **Proibido** manter bases mock/seed com estabelecimentos fictícios no front-end ou no banco.
+7. Toda nova fonte de dados deve ser **pública, legal e rastreável** (registrar a origem em `observacoes`).
+
+**Fontes autorizadas:** OpenStreetMap (Overpass/Nominatim), sites oficiais das farmácias, Google Business Profile/Places API (dados oficiais), Receita Federal / dados abertos de CNPJ.
+
+**Histórico da auditoria (18/10/2026):**
+- Removidos 18 leads 100% fictícios (seed manual sem origem pública).
+- Nos 72 leads reais do OpenStreetMap, apagados telefone, WhatsApp, e-mail, razão social e CNAE gerados sinteticamente, além dos placeholders de endereço.
+- Removidos `seed.js`, `seed-brasil.js`, a base local `BASE_NACIONAL_COMPLEMENTAR` e os geradores `gerarTelefoneConsistente()` / `extrairOuDeduzirWhatsApp()`.
+- Backup prévio: `npm run backup`. Script de auditoria: `scraper/limpar-ficticios.js`.
+
+---
+
 ### 1. Visão Geral da Arquitetura & Stack Tecnológica
 
 | Componente | Tecnologia / Abordagem | Justificativa Técnica |

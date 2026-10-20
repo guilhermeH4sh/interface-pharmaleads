@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "test:db": "node test-db.js",
-    "seed": "node scraper/seed.js",
-    "scrape": "node scraper/places-scraper.js"
+    "backup": "node scraper/backup-db.js",
+    "scrape": "node scraper/places-scraper.js",
+    "scrape:osm": "node scraper/nominatim-scraper.js",
+    "enrich": "node scraper/enriquecer.js",
+    "audit": "node scraper/auditar-db.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.1",

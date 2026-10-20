@@ -100,21 +100,21 @@ export async function buscarFarmaciasPorRegiao({ uf, cidade, lat, lon, raio }) {
 
       const rua = tags['addr:street'] || '';
       const numero = tags['addr:housenumber'] || '';
-      const bairro = tags['addr:suburb'] || tags['addr:neighbourhood'] || 'Centro Comercial';
-      const enderecoCompleto = rua ? `${rua}${numero ? ', ' + numero : ''}` : `Região Central, ${cidade}`;
+      const bairro = tags['addr:suburb'] || tags['addr:neighbourhood'] || null;
+      const enderecoCompleto = rua ? `${rua}${numero ? ', ' + numero : ''}` : null;
       const telefone = tags.phone || tags['contact:phone'] || tags['contact:mobile'] || null;
       const website = tags.website || tags['contact:website'] || null;
       const email = tags.email || tags['contact:email'] || null;
 
       resultados.push({
         nome: formatarNomeFantasia(nome),
-        razaoSocial: tags.operator || `${formatarNomeFantasia(nome)} Medicamentos e Perfumaria Ltda`,
+        razaoSocial: null, // Razão social só via consulta oficial de CNPJ
         uf,
         cidade,
         bairro,
         endereco: enderecoCompleto,
-        telefone: normalizarTelefone(telefone, uf),
-        whatsapp: extrairOuDeduzirWhatsApp(tags, telefone),
+        telefone: normalizarTelefone(telefone),
+        whatsapp: extrairWhatsAppConfirmado(tags),
         email: email ? email.toLowerCase().trim() : null,
         website: website ? sanitizarUrl(website) : null
       });
@@ -212,7 +212,7 @@ export async function salvarLeadsNoSupabase(leads) {
       whatsapp: lead.whatsapp,
       email: lead.email,
       website: lead.website,
-      cnae: lead.cnae || '4771-7/01 - Comércio varejista de produtos farmacêuticos, sem manipulação de fórmulas',
+      cnae: lead.cnae || null,
       status: 'Não contatado',
       responsavel: 'Comercial Centrus',
       duplicado: false,
@@ -273,43 +273,32 @@ export async function salvarLeadsNoSupabase(leads) {
 // -----------------------------------------------------------------------------
 
 function formatarNomeFantasia(nome) {
-  if (!nome) return 'Drogaria Regional';
-  return nome.trim().replace(/\s+/g, ' ');
+  return nome ? nome.trim().replace(/\s+/g, ' ') : null;
 }
 
-function normalizarTelefone(tel, uf) {
+function normalizarTelefone(tel) {
   if (!tel) return null;
-  const limpo = tel.replace(/\D/g, '');
+  const limpo = tel.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
   if (limpo.length === 11) {
     return `(${limpo.slice(0, 2)}) ${limpo.slice(2, 7)}-${limpo.slice(7)}`;
   }
   if (limpo.length === 10) {
     return `(${limpo.slice(0, 2)}) ${limpo.slice(2, 6)}-${limpo.slice(6)}`;
   }
-  // Se veio sem DDD, atribui o DDD padrão da UF
-  if (limpo.length === 8 || limpo.length === 9) {
-    const ddd = uf === 'SP' ? '11' : uf === 'GO' ? '62' : '61';
-    return `(${ddd}) ${limpo.length === 9 ? limpo.slice(0, 5) + '-' + limpo.slice(5) : limpo.slice(0, 4) + '-' + limpo.slice(4)}`;
-  }
+  // Sem DDD confiável: mantém o valor original publicado, sem supor DDD
   return tel;
 }
 
-function extrairOuDeduzirWhatsApp(tags, telefone) {
+/**
+ * Retorna WhatsApp SOMENTE se publicado explicitamente (tag OSM contact:whatsapp).
+ * Nunca deduz WhatsApp a partir do telefone (celular ≠ WhatsApp confirmado).
+ */
+function extrairWhatsAppConfirmado(tags) {
   const whatsTag = tags['contact:whatsapp'] || tags['whatsapp'];
   if (whatsTag) {
     const digitos = whatsTag.replace(/\D/g, '');
     if (digitos.length >= 10) return formatarNumeroWhatsApp(digitos);
   }
-
-  // Se o telefone informado for celular (9 dígitos começando com 9)
-  if (telefone) {
-    const digitos = telefone.replace(/\D/g, '');
-    const apenasNumero = digitos.length === 11 ? digitos.slice(2) : digitos;
-    if (apenasNumero.length === 9 && apenasNumero.startsWith('9')) {
-      return formatarNumeroWhatsApp(digitos);
-    }
-  }
-
   return null;
 }
 

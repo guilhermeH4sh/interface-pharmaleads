@@ -6,6 +6,8 @@ Desenvolvido para a equipe comercial e de expansão da **Centrus Distribuidora**
 
 ---
 
+> **⚠️ Política de dados:** este projeto trabalha **somente com dados reais e públicos**. Nenhum dado é gerado ou inventado; campos não encontrados ficam como `Não informado`. Ver [DOCUMENTACAO_TECNICA.md](./DOCUMENTACAO_TECNICA.md#️-política-obrigatória-de-dados-somente-dados-reais-e-públicos).
+
 ## 🚀 Funcionalidades
 
 - **Mapeamento Nacional:** Estabelecimentos farmacêuticos qualificados em todas as regiões brasileiras (Sudeste, Sul, Centro-Oeste, Nordeste e Norte).

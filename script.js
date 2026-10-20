@@ -29,370 +29,6 @@ const supabaseClient = (typeof window !== "undefined" && window.supabase)
   ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
   : null;
 
-// Base Nacional Complementar (RJ, MG, ES, PR, RS, SC, BA, PE, CE, RN, PB, MT, MS, AM, PA, TO)
-const BASE_NACIONAL_COMPLEMENTAR = [
-  {
-    id: 101,
-    nome: "Drogaria Venancio Tijuca",
-    razaoSocial: "Drogaria Venancio SA",
-    cnpj: "30.407.245/0012-89",
-    uf: "RJ",
-    cidade: "Rio de Janeiro",
-    bairro: "Tijuca",
-    telefone: "(21) 3095-1000",
-    whatsapp: "(21) 98844-1000",
-    email: "comercial@drogariavenancio.com.br",
-    website: "https://www.drogariavenancio.com.br",
-    cnae: "4771-7/01 - Comércio varejista de produtos farmacêuticos",
-    status: "Qualificado",
-    responsavel: "Mariana Costa",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Grande rede no RJ. Excelente potencial de abastecimento em dermocosméticos e genéricos.",
-    historico: [{ data: `${HOJE_FORMATADO} 09:30`, texto: "Lead qualificado para fornecimento corporativo no Rio de Janeiro." }]
-  },
-  {
-    id: 102,
-    nome: "Farmácia Granado Botafogo",
-    razaoSocial: "Casa Granado Laboratórios SA",
-    cnpj: "33.109.356/0001-25",
-    uf: "RJ",
-    cidade: "Rio de Janeiro",
-    bairro: "Botafogo",
-    telefone: "(21) 3231-6700",
-    whatsapp: "(21) 97120-4500",
-    email: "contato@granado.com.br",
-    website: "https://www.granado.com.br",
-    cnae: "4771-7/02 - Comércio com manipulação de fórmulas",
-    status: "Em contato",
-    responsavel: "Mariana Costa",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Marca tradicional. Interesse em matérias-primas e insumos galênicos de alta pureza.",
-    historico: [{ data: `${HOJE_FORMATADO} 10:15`, texto: "Apresentação de catálogo institucional enviada via WhatsApp." }]
-  },
-  {
-    id: 103,
-    nome: "Drogaria Pacheco Savassi",
-    razaoSocial: "Drogarias Pacheco SA",
-    cnpj: "33.438.250/0245-12",
-    uf: "MG",
-    cidade: "Belo Horizonte",
-    bairro: "Savassi",
-    telefone: "(31) 3281-5500",
-    whatsapp: "(31) 99312-5500",
-    email: "compras.mg@drogariaspacheco.com.br",
-    website: "https://www.drogariaspacheco.com.br",
-    cnae: "4771-7/01 - Comércio varejista de produtos farmacêuticos",
-    status: "Respondido",
-    responsavel: "Lucas Ferreira",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Comprador regional solicitou envio de tabela Centrus com prazo 30/60 dias.",
-    historico: [{ data: `${HOJE_FORMATADO} 11:00`, texto: "Comprador solicitou proposta comercial formal por e-mail." }]
-  },
-  {
-    id: 104,
-    nome: "Farmácia Oficina de Ervas BH",
-    razaoSocial: "Oficina Farmacêutica e Manipulação Ltda",
-    cnpj: "04.582.119/0001-90",
-    uf: "MG",
-    cidade: "Belo Horizonte",
-    bairro: "Funcionários",
-    telefone: "(31) 3225-8899",
-    whatsapp: "(31) 98765-8899",
-    email: "farmaceutico@oficinadeervas.com.br",
-    website: "https://www.oficinadeervas.com.br",
-    cnae: "4771-7/02 - Comércio varejista com manipulação de fórmulas",
-    status: "Não contatado",
-    responsavel: "Lucas Ferreira",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Farmácia magistral com 2 laboratórios ativos. Alto consumo de fitoterápicos e cápsulas.",
-    historico: [{ data: `${HOJE_FORMATADO} 08:40`, texto: "Estabelecimento importado na rotina de prospecção Sudeste." }]
-  },
-  {
-    id: 105,
-    nome: "Farmácia Santa Lúcia Vitória",
-    razaoSocial: "Farmácias Santa Lúcia Ltda",
-    cnpj: "27.351.984/0003-44",
-    uf: "ES",
-    cidade: "Vitória",
-    bairro: "Praia do Canto",
-    telefone: "(27) 3145-9000",
-    whatsapp: "(27) 99877-9000",
-    email: "compras@farmaciasantalucia.com.br",
-    website: "https://www.farmaciasantalucia.com.br",
-    cnae: "4771-7/01 - Comércio varejista de produtos farmacêuticos",
-    status: "Em contato",
-    responsavel: "Mariana Costa",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Principal rede independente do Espírito Santo. Negociação de frete FOB/CIF em andamento.",
-    historico: [{ data: `${HOJE_FORMATADO} 14:10`, texto: "Contato inicial estabelecido com o setor de compras." }]
-  },
-  {
-    id: 106,
-    nome: "Drogaria Nissei Batel",
-    razaoSocial: "Farmácias Nissei SA",
-    cnpj: "79.980.034/0056-78",
-    uf: "PR",
-    cidade: "Curitiba",
-    bairro: "Batel",
-    telefone: "(41) 3213-7000",
-    whatsapp: "(41) 99123-7000",
-    email: "fornecedores@farmaciasnissei.com.br",
-    website: "https://www.farmaciasnissei.com.br",
-    cnae: "4771-7/01 - Comércio varejista de produtos farmacêuticos",
-    status: "Qualificado",
-    responsavel: "Ricardo Mendes",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Faturamento expressivo no Paraná. Aprovado cadastro preliminar junto à Centrus.",
-    historico: [{ data: `${HOJE_FORMATADO} 15:20`, texto: "Cadastro homologado para fornecimento de medicamentos na praça de Curitiba." }]
-  },
-  {
-    id: 107,
-    nome: "Farmácia Panvel Moinhos de Vento",
-    razaoSocial: "Dimed SA Distribuidora de Medicamentos",
-    cnpj: "92.665.611/0088-34",
-    uf: "RS",
-    cidade: "Porto Alegre",
-    bairro: "Moinhos de Vento",
-    telefone: "(51) 3218-9000",
-    whatsapp: "(51) 98455-9000",
-    email: "central.compras@panvel.com.br",
-    website: "https://www.panvel.com.br",
-    cnae: "4771-7/01 - Comércio varejista de produtos farmacêuticos",
-    status: "Respondido",
-    responsavel: "Ricardo Mendes",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Rede líder na Região Sul. Avaliando condições para linha de higiene e medicamentos OTC.",
-    historico: [{ data: `${HOJE_FORMATADO} 16:00`, texto: "Solicitação de tabela de preços e condições de pagamento recebida." }]
-  },
-  {
-    id: 108,
-    nome: "Drogaria Catarinense Centro",
-    razaoSocial: "Cia Latino Americana de Medicamentos - CLAMED",
-    cnpj: "84.683.481/0102-55",
-    uf: "SC",
-    cidade: "Florianópolis",
-    bairro: "Centro",
-    telefone: "(48) 3224-8000",
-    whatsapp: "(48) 99912-8000",
-    email: "suprimentos@clamed.com.br",
-    website: "https://www.drogariacatarinense.com.br",
-    cnae: "4771-7/01 - Comércio varejista de produtos farmacêuticos",
-    status: "Não contatado",
-    responsavel: "Ricardo Mendes",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Grupo CLAMED com centenas de unidades em SC. Lead com alto potencial corporativo.",
-    historico: [{ data: `${HOJE_FORMATADO} 09:00`, texto: "Estabelecimento adicionado ao radar comercial Centrus." }]
-  },
-  {
-    id: 109,
-    nome: "Farmácia Santana Barra",
-    razaoSocial: "Comercial de Medicamentos Santana Ltda",
-    cnpj: "15.123.456/0002-33",
-    uf: "BA",
-    cidade: "Salvador",
-    bairro: "Barra",
-    telefone: "(71) 3264-1100",
-    whatsapp: "(71) 98822-1100",
-    email: "compras@farmaciasantana.com.br",
-    website: "https://www.farmaciasantana.com.br",
-    cnae: "4771-7/01 - Comércio varejista de produtos farmacêuticos",
-    status: "Em contato",
-    responsavel: "Camila Rocha",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Proposta enviada com catálogo de antibióticos e linha dermatológica.",
-    historico: [{ data: `${HOJE_FORMATADO} 10:45`, texto: "Disparo de mensagem de apresentação via WhatsApp corporativo." }]
-  },
-  {
-    id: 110,
-    nome: "Farmácia Roval Boa Viagem",
-    razaoSocial: "Laboratório Roval de Farmácia Magistral Ltda",
-    cnpj: "11.890.342/0001-67",
-    uf: "PE",
-    cidade: "Recife",
-    bairro: "Boa Viagem",
-    telefone: "(81) 3465-4000",
-    whatsapp: "(81) 99180-4000",
-    email: "contato@roval.com.br",
-    website: "https://www.roval.com.br",
-    cnae: "4771-7/02 - Comércio varejista de fórmulas magistrais e manipuladas",
-    status: "Qualificado",
-    responsavel: "Camila Rocha",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Referência no Nordeste em nutrição esportiva e fórmulas dermatológicas individualizadas.",
-    historico: [{ data: `${HOJE_FORMATADO} 11:30`, texto: "Comprador aprovou condições de fornecimento Centrus." }]
-  },
-  {
-    id: 111,
-    nome: "Farmácias Pague Menos Meireles",
-    razaoSocial: "Empreendimentos Pague Menos SA",
-    cnpj: "06.626.253/0001-51",
-    uf: "CE",
-    cidade: "Fortaleza",
-    bairro: "Meireles",
-    telefone: "(85) 3255-5555",
-    whatsapp: "(85) 98777-5555",
-    email: "atendimento.fornecedor@paguemenos.com.br",
-    website: "https://www.paguemenos.com.br",
-    cnae: "4771-7/01 - Comércio varejista de produtos farmacêuticos",
-    status: "Respondido",
-    responsavel: "Camila Rocha",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Matriz nacional da rede Pague Menos. Homologação de novos SKUs da Centrus solicitada.",
-    historico: [{ data: `${HOJE_FORMATADO} 13:00`, texto: "Contato com setor de expansão e novos fornecedores." }]
-  },
-  {
-    id: 112,
-    nome: "Drogaria Globo Tirol",
-    razaoSocial: "Drogarias Globo Ltda",
-    cnpj: "08.765.432/0014-90",
-    uf: "RN",
-    cidade: "Natal",
-    bairro: "Tirol",
-    telefone: "(84) 3211-9900",
-    whatsapp: "(84) 99655-9900",
-    email: "comercial.rn@drogariasglobo.com.br",
-    website: "https://www.drogariasglobo.com.br",
-    cnae: "4771-7/01 - Comércio varejista de produtos farmacêuticos",
-    status: "Não contatado",
-    responsavel: "Camila Rocha",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Excelente capilaridade na região metropolitana de Natal.",
-    historico: [{ data: `${HOJE_FORMATADO} 09:20`, texto: "Cadastrado no radar regional Nordeste." }]
-  },
-  {
-    id: 113,
-    nome: "Redepharma Tambaú",
-    razaoSocial: "Rede Nordeste de Farmácias SA",
-    cnpj: "09.432.187/0008-11",
-    uf: "PB",
-    cidade: "João Pessoa",
-    bairro: "Tambaú",
-    telefone: "(83) 3247-3000",
-    whatsapp: "(83) 98833-3000",
-    email: "suprimentos@redepharma.com.br",
-    website: "https://www.redepharma.com.br",
-    cnae: "4771-7/01 - Comércio varejista de produtos farmacêuticos",
-    status: "Em contato",
-    responsavel: "Camila Rocha",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Contato inicial com o farmacêutico-chefe via WhatsApp com catálogo corporativo.",
-    historico: [{ data: `${HOJE_FORMATADO} 14:40`, texto: "Mensagem de abordagem enviada para o comprador regional." }]
-  },
-  {
-    id: 114,
-    nome: "Drogaria América Jardim Cuiabá",
-    razaoSocial: "Drogaria América Medicamentos Ltda",
-    cnpj: "03.219.876/0001-45",
-    uf: "MT",
-    cidade: "Cuiabá",
-    bairro: "Jardim Cuiabá",
-    telefone: "(65) 3624-1500",
-    whatsapp: "(65) 99981-1500",
-    email: "pedidos@drogariaamerica.com.br",
-    website: "https://www.drogariaamerica.com.br",
-    cnae: "4771-7/01 - Comércio varejista de produtos farmacêuticos",
-    status: "Respondido",
-    responsavel: "Lucas Ferreira",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Farmácia com atendimento hospitalar e home-care no Mato Grosso.",
-    historico: [{ data: `${HOJE_FORMATADO} 15:50`, texto: "Interesse manifestado em cotações de genéricos injetáveis e orais." }]
-  },
-  {
-    id: 115,
-    nome: "Farmácia São Bento Campo Grande",
-    razaoSocial: "Drogaria e Farmácia São Bento Ltda",
-    cnpj: "15.987.654/0005-22",
-    uf: "MS",
-    cidade: "Campo Grande",
-    bairro: "Chácara Cachoeira",
-    telefone: "(67) 3326-8000",
-    whatsapp: "(67) 99244-8000",
-    email: "compras@farmaciasaobento.com.br",
-    website: "https://www.farmaciasaobento.com.br",
-    cnae: "4771-7/01 - Comércio varejista de produtos farmacêuticos",
-    status: "Qualificado",
-    responsavel: "Lucas Ferreira",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Grande volume de vendas em genéricos e MIPs. Pedido teste em formulação.",
-    historico: [{ data: `${HOJE_FORMATADO} 16:30`, texto: "Limite de crédito corporativo pré-aprovado pela Centrus." }]
-  },
-  {
-    id: 116,
-    nome: "Farmácia Santo Remédio Adrianópolis",
-    razaoSocial: "Tapajós Medicamentos e Farmácias SA",
-    cnpj: "04.789.012/0034-77",
-    uf: "AM",
-    cidade: "Manaus",
-    bairro: "Adrianópolis",
-    telefone: "(92) 3642-7000",
-    whatsapp: "(92) 98112-7000",
-    email: "comercial@santoremedio.com.br",
-    website: "https://www.santoremedio.com.br",
-    cnae: "4771-7/01 - Comércio varejista farmacêutico",
-    status: "Qualificado",
-    responsavel: "Ricardo Mendes",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Maior grupo farmacêutico da Região Norte (Grupo Tapajós). Parceria estratégica para polo Manaus.",
-    historico: [{ data: `${HOJE_FORMATADO} 10:00`, texto: "Reunião de alinhamento logístico para entrega em Manaus realizada." }]
-  },
-  {
-    id: 117,
-    nome: "Drogaria Reinafarma Umarizal",
-    razaoSocial: "Reinafarma Produtos Farmacêuticos Ltda",
-    cnpj: "05.432.198/0002-88",
-    uf: "PA",
-    cidade: "Belém",
-    bairro: "Umarizal",
-    telefone: "(91) 3222-4500",
-    whatsapp: "(91) 98411-4500",
-    email: "atendimento@reinafarma.com.br",
-    website: "https://www.reinafarma.com.br",
-    cnae: "4771-7/01 - Comércio varejista de produtos farmacêuticos",
-    status: "Em contato",
-    responsavel: "Ricardo Mendes",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Interesse em entrega fracionada e prazos estendidos de faturamento.",
-    historico: [{ data: `${HOJE_FORMATADO} 11:15`, texto: "Negociação de prazos de entrega para o Pará em andamento." }]
-  },
-  {
-    id: 118,
-    nome: "Farmácia Popular de Palmas",
-    razaoSocial: "Tocantins Drogarias e Manipulação Ltda",
-    cnpj: "18.234.567/0001-10",
-    uf: "TO",
-    cidade: "Palmas",
-    bairro: "Plano Diretor Sul",
-    telefone: "(63) 3215-6000",
-    whatsapp: "(63) 99233-6000",
-    email: "gerencia@farmaciapalmas.com.br",
-    website: "https://www.farmaciapalmas.com.br",
-    cnae: "4771-7/02 - Farmácia com manipulação de fórmulas",
-    status: "Não contatado",
-    responsavel: "Lucas Ferreira",
-    dataCadastro: HOJE_FORMATADO,
-    duplicado: false,
-    observacoes: "Estabelecimento de referência no centro administrativo de Palmas.",
-    historico: [{ data: `${HOJE_FORMATADO} 08:30`, texto: "Registro cadastrado na cobertura Centro-Norte." }]
-  }
-];
-
 /**
  * Carrega os leads em tempo real da tabela 'pharmaleads' do Supabase
  * e integra a base complementar nacional cobrindo todas as regiões do Brasil.
@@ -410,18 +46,18 @@ async function carregarLeadsDoSupabase() {
         cloudLeads = data.map(item => ({
           id: item.id,
           nome: item.nome,
-          razaoSocial: item.razao_social || item.nome,
-          cnpj: item.cnpj || 'Sob auditoria',
+          razaoSocial: item.razao_social || null,
+          cnpj: item.cnpj || 'Não informado',
           uf: item.uf,
           cidade: item.cidade,
-          bairro: item.bairro || 'Centro Comercial',
+          bairro: item.bairro || null,
           telefone: item.telefone || null,
           whatsapp: item.whatsapp || null,
           email: item.email || null,
           website: item.website || null,
           responsavel: item.responsavel || 'Não atribuído',
           status: item.status || 'Não contatado',
-          cnae: item.cnae || '4771-7/01 - Comércio varejista de produtos farmacêuticos',
+          cnae: item.cnae || null,
           dataCadastro: item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : HOJE_FORMATADO,
           duplicado: item.duplicado || false,
           observacoes: item.observacoes || '',
@@ -433,17 +69,8 @@ async function carregarLeadsDoSupabase() {
       }
     }
 
-    // Unifica os dados da nuvem com a cobertura nacional complementar
-    const cnpjSet = new Set(cloudLeads.map(l => cleanCnpj(l.cnpj)));
+    // Apenas dados reais vindos do banco (sem bases fictícias locais)
     leadsData = [...cloudLeads];
-
-    BASE_NACIONAL_COMPLEMENTAR.forEach(nLead => {
-      const limpo = cleanCnpj(nLead.cnpj);
-      if (!cnpjSet.has(limpo)) {
-        leadsData.push(nLead);
-        cnpjSet.add(limpo);
-      }
-    });
 
     updateKpiIndicators();
     renderTable();
@@ -454,11 +81,9 @@ async function carregarLeadsDoSupabase() {
     console.log(`[Centrus PharmaLeads] Base nacional carregada: ${leadsData.length} farmácias ativas (Brasil).`);
   } catch (err) {
     console.warn("[Centrus PharmaLeads] Operando com base nacional local em cache:", err);
-    if (!leadsData || leadsData.length === 0) {
-      leadsData = [...BASE_NACIONAL_COMPLEMENTAR];
-      updateKpiIndicators();
-      renderTable();
-    }
+    leadsData = leadsData || [];
+    updateKpiIndicators();
+    renderTable();
   }
 }
 
@@ -1033,7 +658,7 @@ function renderTable() {
             ${googleBadge}
           </div>
           <div class="lead-category-sub">
-            ${lead.bairro ? lead.bairro + ' • ' : ''}CNAE 4771-7/01
+            ${[lead.bairro, lead.cnae ? 'CNAE ' + lead.cnae.split(' ')[0] : null].filter(Boolean).join(' • ') || lead.cidade}
           </div>
         </td>
         <td>
@@ -1198,14 +823,14 @@ function openLeadDrawer(leadId) {
   state.activeLeadId = leadId;
 
   DOM.drawerTitle.textContent = lead.nome;
-  DOM.drawerSubtitle.textContent = `${lead.razaoSocial} • ${lead.cidade}/${lead.uf}`;
+  DOM.drawerSubtitle.textContent = `${lead.razaoSocial || lead.nome} • ${lead.cidade}/${lead.uf}`;
   
   DOM.drawerStatusSelect.value = lead.status;
   DOM.drawerStatusSelect.setAttribute("data-status", lead.status);
 
   DOM.drawerCnpj.textContent = lead.cnpj;
-  DOM.drawerRazao.textContent = lead.razaoSocial;
-  DOM.drawerCnae.textContent = lead.cnae;
+  DOM.drawerRazao.textContent = lead.razaoSocial || "Não informado (pendente de consulta na Receita)";
+  DOM.drawerCnae.textContent = lead.cnae || "Não informado (pendente de consulta na Receita)";
   DOM.drawerCidadeUf.textContent = `${lead.bairro ? lead.bairro + ', ' : ''}${lead.cidade} - ${lead.uf}`;
   
   DOM.drawerTelefone.textContent = lead.telefone || "Não informado";
@@ -1927,16 +1552,16 @@ function setupEventListeners() {
       const novoLead = {
         id: nextId,
         nome: nome,
-        razaoSocial: razao || `${nome} Medicamentos Ltda`,
+        razaoSocial: razao || null,
         uf: uf,
         cidade: cidade,
-        bairro: bairro || "Centro",
+        bairro: bairro || null,
         cnpj: cnpj,
         telefone: telefone,
         email: email || null,
         responsavel: responsavel,
         status: status,
-        cnae: cnae || "4771-7/01 - Comércio varejista de produtos farmacêuticos",
+        cnae: cnae || null,
         dataCadastro: HOJE_FORMATADO,
         duplicado: isDuplicado,
         observacoes: observacoes || "Estabelecimento incluído manualmente no painel Centrus.",

@@ -93,13 +93,13 @@ async function buscarFarmaciasWeb(termo, uf, cidade) {
 
       farmacias.push({
         nome: limparNomeFarmacia(titulo),
-        razaoSocial: `${limparNomeFarmacia(titulo)} Ltda`,
+        razaoSocial: null, // Só via consulta oficial de CNPJ
         uf,
         cidade,
-        bairro: 'Região Comercial',
-        endereco: `Avenida Comercial, ${cidade} - ${uf}`,
+        bairro: null,
+        endereco: null,
         telefone: tel,
-        whatsapp: tel,
+        whatsapp: null, // Preenchido apenas se houver link wa.me no site oficial
         email: email,
         website: website,
         snippet: snippet
@@ -212,13 +212,11 @@ export async function rodarProspeccao() {
         whatsapp: f.whatsapp || null,
         email: f.email || null,
         website: f.website || null,
-        cnae: f.nome.toLowerCase().includes('manipula') 
-          ? '4771-7/02 - Comércio varejista de produtos farmacêuticos, com manipulação de fórmulas'
-          : '4771-7/01 - Comércio varejista de produtos farmacêuticos, sem manipulação de fórmulas',
+        cnae: null, // Só via consulta oficial de CNPJ
         status: 'Não contatado',
         responsavel: 'Comercial Centrus',
         duplicado: false,
-        observacoes: `Lead capturado via prospecção web (${new Date().toLocaleDateString('pt-BR')}). ${f.whatsapp ? 'WhatsApp comercial validado.' : 'Telefone pendente de validação no WhatsApp.'}`,
+        observacoes: `Lead capturado via prospecção web (${new Date().toLocaleDateString('pt-BR')}). ${f.whatsapp ? 'WhatsApp publicado no site oficial.' : 'WhatsApp não encontrado em fonte pública.'}`,
         historico: [
           {
             data: new Date().toLocaleString('pt-BR'),

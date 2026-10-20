@@ -77,42 +77,37 @@ async function coletarFarmaciasReais() {
         nomesProcessados.add(chaveUnica);
 
         const addr = item.address || {};
-        const rua = addr.road || addr.street || 'Avenida Principal';
-        const num = addr.house_number || 'S/N';
-        const bairro = addr.suburb || addr.neighbourhood || addr.city_district || 'Centro Comercial';
-        const cep = addr.postcode || '70000-000';
-        const enderecoCompleto = `${rua}, ${num} - ${bairro}, ${reg.cidade} - ${reg.uf}`;
+        const rua = addr.road || addr.street || null;
+        const num = addr.house_number || null;
+        const bairro = addr.suburb || addr.neighbourhood || addr.city_district || null;
+        const cep = addr.postcode || null;
+        const enderecoCompleto = rua
+          ? `${rua}${num ? ', ' + num : ''}${bairro ? ' - ' + bairro : ''}, ${reg.cidade} - ${reg.uf}`
+          : null;
 
         // Extrai dados reais das tags do OpenStreetMap (sem gerar dados fictícios)
         const extra = item.extratags || {};
         const telReal = extra.phone || extra['contact:phone'] || extra['contact:mobile'] || null;
         const website = extra.website || extra['contact:website'] || null;
         const email = extra.email || extra['contact:email'] || null;
-
-        const isManipulacao = nomeOriginal.toLowerCase().includes('manipula') || 
-                              nomeOriginal.toLowerCase().includes('homeop') ||
-                              nomeOriginal.toLowerCase().includes('formula');
-
-        const cnae = isManipulacao
-          ? '4771-7/02 - Comércio varejista de produtos farmacêuticos, com manipulação de fórmulas'
-          : '4771-7/01 - Comércio varejista de produtos farmacêuticos, sem manipulação de fórmulas';
+        const whatsReal = extra['contact:whatsapp'] || extra.whatsapp || null;
 
         const payload = {
           nome: nomeOriginal,
-          razao_social: `${nomeOriginal} Comércio de Medicamentos e Perfumaria Ltda`,
+          razao_social: null, // Só via consulta oficial de CNPJ
           uf: reg.uf,
           cidade: reg.cidade,
           bairro: bairro,
           endereco: enderecoCompleto,
           telefone: telReal,
-          whatsapp: null, // Nunca preenche WhatsApp sem confirmação real
+          whatsapp: whatsReal, // Somente se publicado na tag OSM
           email: email,
           website: website,
-          cnae: cnae,
+          cnae: null, // Só via consulta oficial de CNPJ
           status: 'Não contatado',
           responsavel: 'Comercial Centrus',
           duplicado: false,
-          observacoes: `Estabelecimento real mapeado via coordenadas (${item.lat}, ${item.lon}). CEP: ${cep}.${!telReal ? ' Telefone pendente de enriquecimento.' : ''}`,
+          observacoes: `Estabelecimento real mapeado via OpenStreetMap (${item.lat}, ${item.lon}).${cep ? ' CEP: ' + cep + '.' : ''}${!telReal ? ' Telefone não encontrado em fonte pública.' : ''}`,
           historico: [
             {
               data: new Date().toLocaleString('pt-BR'),
