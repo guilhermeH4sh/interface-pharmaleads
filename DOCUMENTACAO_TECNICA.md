@@ -1,5 +1,5 @@
 # Documentação Técnica e Especificação de Requisitos
-## Centrus PharmaLeads — Plataforma de Inteligência Comercial e Prospecção Farmacêutica Nacional (Brasil • 27 UFs)
+## Centrus PharmaLeads — Plataforma de Inteligência Comercial e Prospecção Farmacêutica Nacional (Brasil | 27 UFs)
 
 ---
 

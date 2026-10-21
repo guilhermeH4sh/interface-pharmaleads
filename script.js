@@ -379,6 +379,14 @@ const DOM = {
   headerUserName: document.getElementById("headerUserName"),
   headerUserRole: document.getElementById("headerUserRole"),
   headerUserAvatar: document.getElementById("headerUserAvatar"),
+  topbarAvatar: document.getElementById("topbarAvatar"),
+  btnSidebarToggle: document.getElementById("btnSidebarToggle"),
+  btnSidebarCloseMobile: document.getElementById("btnSidebarCloseMobile"),
+  sidebarOverlay: document.getElementById("sidebarOverlay"),
+  btnSidebarSync: document.getElementById("btnSidebarSync"),
+  btnSidebarExport: document.getElementById("btnSidebarExport"),
+  btnSidebarNewLead: document.getElementById("btnSidebarNewLead"),
+  btnTopbarNotification: document.getElementById("btnTopbarNotification"),
   mainDashboard: document.getElementById("mainDashboard")
 };
 
@@ -723,7 +731,7 @@ function renderTable() {
             ${googleBadge}
           </div>
           <div class="lead-category-sub">
-            ${[lead.bairro, lead.cnae ? 'CNAE ' + lead.cnae.split(' ')[0] : null].filter(Boolean).join(' • ') || lead.cidade}
+            ${[lead.bairro, lead.cnae ? 'CNAE ' + lead.cnae.split(' ')[0] : null].filter(Boolean).join(' | ') || lead.cidade}
           </div>
         </td>
         <td>
@@ -888,7 +896,7 @@ function openLeadDrawer(leadId) {
   state.activeLeadId = leadId;
 
   DOM.drawerTitle.textContent = lead.nome;
-  DOM.drawerSubtitle.textContent = `${lead.razaoSocial || lead.nome} • ${lead.cidade}/${lead.uf}`;
+  DOM.drawerSubtitle.textContent = `${lead.razaoSocial || lead.nome} | ${lead.cidade}/${lead.uf}`;
   
   DOM.drawerStatusSelect.value = lead.status;
   DOM.drawerStatusSelect.setAttribute("data-status", lead.status);
@@ -1486,24 +1494,42 @@ function setupEventListeners() {
   });
 
   // Modais de Extração e Logs
-  DOM.btnExtractLeads.addEventListener("click", openExtractModal);
-  DOM.extractModalClose.addEventListener("click", closeExtractModal);
-  DOM.extractModalCloseBtn2.addEventListener("click", closeExtractModal);
-  DOM.extractModal.addEventListener("click", (e) => {
-    if (e.target === DOM.extractModal) closeExtractModal();
-  });
+  if (DOM.btnExtractLeads) {
+    DOM.btnExtractLeads.addEventListener("click", openExtractModal);
+  }
+  if (DOM.extractModalClose) {
+    DOM.extractModalClose.addEventListener("click", closeExtractModal);
+  }
+  if (DOM.extractModalCloseBtn2) {
+    DOM.extractModalCloseBtn2.addEventListener("click", closeExtractModal);
+  }
+  if (DOM.extractModal) {
+    DOM.extractModal.addEventListener("click", (e) => {
+      if (e.target === DOM.extractModal) closeExtractModal();
+    });
+  }
 
-  DOM.btnOpenScraperLogs.addEventListener("click", openLogsModal);
-  DOM.logsModalClose.addEventListener("click", closeLogsModal);
-  DOM.logsModalCloseBtn2.addEventListener("click", closeLogsModal);
-  DOM.logsModal.addEventListener("click", (e) => {
-    if (e.target === DOM.logsModal) closeLogsModal();
-  });
+  if (DOM.btnOpenScraperLogs) {
+    DOM.btnOpenScraperLogs.addEventListener("click", openLogsModal);
+  }
+  if (DOM.logsModalClose) {
+    DOM.logsModalClose.addEventListener("click", closeLogsModal);
+  }
+  if (DOM.logsModalCloseBtn2) {
+    DOM.logsModalCloseBtn2.addEventListener("click", closeLogsModal);
+  }
+  if (DOM.logsModal) {
+    DOM.logsModal.addEventListener("click", (e) => {
+      if (e.target === DOM.logsModal) closeLogsModal();
+    });
+  }
 
   // Exportação CSV geral
-  DOM.btnExportCsv.addEventListener("click", () => {
-    exportToCsv();
-  });
+  if (DOM.btnExportCsv) {
+    DOM.btnExportCsv.addEventListener("click", () => {
+      exportToCsv();
+    });
+  }
 
 
   // Ação de Sincronização Cadastral no Modal
@@ -1675,12 +1701,13 @@ function setupEventListeners() {
     });
   }
 
-  // --- NAVEGAÇÃO SUPERIOR ---
+  // --- NAVEGAÇÃO LATERAL (ESTILO CRM) ---
   if (DOM.brandLink) {
     DOM.brandLink.addEventListener("click", (e) => {
       e.preventDefault();
       resetAllFilters();
       window.scrollTo({ top: 0, behavior: "smooth" });
+      document.body.classList.remove("sidebar-open");
       showToast("Visualização redefinida para a página inicial.");
     });
   }
@@ -1688,13 +1715,69 @@ function setupEventListeners() {
   if (DOM.btnNavOverview) {
     DOM.btnNavOverview.addEventListener("click", () => {
       DOM.btnNavOverview.classList.add("active");
+      if (DOM.btnOpenScraperLogs) DOM.btnOpenScraperLogs.classList.remove("active");
+      if (DOM.btnNavSettings) DOM.btnNavSettings.classList.remove("active");
+      document.body.classList.remove("sidebar-open");
       window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
+  if (DOM.btnOpenScraperLogs) {
+    DOM.btnOpenScraperLogs.addEventListener("click", () => {
+      document.body.classList.remove("sidebar-open");
     });
   }
 
   if (DOM.btnNavSettings) {
     DOM.btnNavSettings.addEventListener("click", () => {
+      document.body.classList.remove("sidebar-open");
       openSettingsModal();
+    });
+  }
+
+  // Controle da Sidebar Mobile & Ações Rápidas
+  if (DOM.btnSidebarToggle) {
+    DOM.btnSidebarToggle.addEventListener("click", () => {
+      document.body.classList.toggle("sidebar-open");
+    });
+  }
+
+  if (DOM.btnSidebarCloseMobile) {
+    DOM.btnSidebarCloseMobile.addEventListener("click", () => {
+      document.body.classList.remove("sidebar-open");
+    });
+  }
+
+  if (DOM.sidebarOverlay) {
+    DOM.sidebarOverlay.addEventListener("click", () => {
+      document.body.classList.remove("sidebar-open");
+    });
+  }
+
+  if (DOM.btnSidebarSync) {
+    DOM.btnSidebarSync.addEventListener("click", () => {
+      document.body.classList.remove("sidebar-open");
+      openExtractModal();
+    });
+  }
+
+  if (DOM.btnSidebarExport) {
+    DOM.btnSidebarExport.addEventListener("click", () => {
+      document.body.classList.remove("sidebar-open");
+      exportToCsv();
+    });
+  }
+
+  if (DOM.btnSidebarNewLead) {
+    DOM.btnSidebarNewLead.addEventListener("click", () => {
+      document.body.classList.remove("sidebar-open");
+      openNewLeadModal();
+    });
+  }
+
+  if (DOM.btnTopbarNotification) {
+    DOM.btnTopbarNotification.addEventListener("click", () => {
+      showToast("Robô Centrus ativo monitorando drogarias e farmácias em todo o Brasil.");
     });
   }
 
@@ -2024,6 +2107,7 @@ function setAuthenticatedUser(user) {
   if (DOM.headerUserName) DOM.headerUserName.textContent = nomeExibicao;
   if (DOM.headerUserRole) DOM.headerUserRole.textContent = email;
   if (DOM.headerUserAvatar) DOM.headerUserAvatar.textContent = email.charAt(0).toUpperCase();
+  if (DOM.topbarAvatar) DOM.topbarAvatar.textContent = email.charAt(0).toUpperCase();
 
   hideAuthScreen();
   carregarLeadsDoSupabase();
