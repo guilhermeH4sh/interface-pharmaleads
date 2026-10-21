@@ -57,9 +57,10 @@ function mapRowToLead(item) {
     dataCadastro: item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : HOJE_FORMATADO,
     duplicado: item.duplicado || false,
     observacoes: item.observacoes || '',
-    googleRating: item.google_rating || null,
-    googleReviews: item.google_reviews || null,
+    googleRating: item.google_rating ?? null,
+    googleReviews: item.google_reviews ?? null,
     googleStatus: item.google_status || null,
+    googleMapsUrl: item.google_maps_url || null,
     historico: Array.isArray(item.historico) ? item.historico : []
   };
 }
@@ -316,6 +317,8 @@ const DOM = {
   drawerGoogleRatingVal: document.getElementById("drawerGoogleRatingVal"),
   drawerGoogleReviewsVal: document.getElementById("drawerGoogleReviewsVal"),
   drawerGoogleStatusPill: document.getElementById("drawerGoogleStatusPill"),
+  drawerGoogleMaturity: document.getElementById("drawerGoogleMaturity"),
+  drawerGoogleRatingStars: document.getElementById("drawerGoogleRatingStars"),
   btnDrawerOpenMaps: document.getElementById("btnDrawerOpenMaps"),
   btnSaveNotes: document.getElementById("btnSaveNotes"),
   btnCopyCnpj: document.getElementById("btnCopyCnpj"),
@@ -429,8 +432,8 @@ function cleanCnpj(cnpj) {
 function formatWaMessage(lead) {
   const defaultTpl = "Olá, equipe da {nome}! Tudo bem? Sou do time comercial da Centrus Distribuidora Farmacêutica em {cidade} - {uf}. Gostaríamos de apresentar nossas condições exclusivas de fornecimento e prazos faturados para sua farmácia.";
   const tpl = (typeof localStorage !== "undefined" && localStorage.getItem("centrus_wa_template")) || defaultTpl;
-  const ratingStr = lead.googleRating ? `${lead.googleRating}` : "4.8";
-  const reviewsStr = lead.googleReviews ? `${lead.googleReviews}` : "120";
+  const ratingStr = lead.googleRating != null ? String(lead.googleRating) : "Não informado";
+  const reviewsStr = lead.googleReviews != null ? String(lead.googleReviews) : "Não informado";
   return tpl
     .replace(/{nome}/g, lead.nome || "farmácia")
     .replace(/{cidade}/g, lead.cidade || "")
@@ -889,6 +892,54 @@ function updateBatchBar() {
 // 9. PAINEL LATERAL (DRAWER) DE DETALHES DO LEAD
 // =============================================================================
 
+/** Traduz o status oficial da Places API. Status desconhecido não vira "aberto". */
+function rotuloStatusGoogle(status) {
+  if (status === "OPERATIONAL") return { texto: "Em atividade", classe: "open" };
+  if (status === "CLOSED_TEMPORARILY") return { texto: "Fechado temporariamente", classe: "closed" };
+  if (status === "CLOSED_PERMANENTLY") return { texto: "Fechado permanentemente", classe: "closed" };
+  return null;
+}
+
+/** Preenche o bloco do Google só com dado gravado. Sem nota, permanece pendente. */
+function preencherPresencaGoogle(lead) {
+  const temNota = lead.googleRating != null;
+  const status = rotuloStatusGoogle(lead.googleStatus);
+
+  if (DOM.drawerGoogleRatingStars) {
+    DOM.drawerGoogleRatingStars.style.color = temNota ? "#f59e0b" : "#cbd5e1";
+  }
+
+  if (temNota) {
+    if (DOM.drawerGoogleRatingVal) DOM.drawerGoogleRatingVal.textContent = String(lead.googleRating);
+    if (DOM.drawerGoogleReviewsVal) {
+      DOM.drawerGoogleReviewsVal.textContent = lead.googleReviews != null
+        ? `(${lead.googleReviews} avaliações no Google)`
+        : "(avaliações não informadas)";
+    }
+    if (DOM.drawerGoogleMaturity) {
+      DOM.drawerGoogleMaturity.textContent = "Dados oficiais do Google";
+      DOM.drawerGoogleMaturity.className = "google-maturity confirmed";
+    }
+  } else {
+    if (DOM.drawerGoogleRatingVal) DOM.drawerGoogleRatingVal.textContent = "Não informado";
+    if (DOM.drawerGoogleReviewsVal) DOM.drawerGoogleReviewsVal.textContent = "(Pendente de enriquecimento Google)";
+    if (DOM.drawerGoogleMaturity) {
+      DOM.drawerGoogleMaturity.textContent = "Pendente de enriquecimento";
+      DOM.drawerGoogleMaturity.className = "google-maturity pending";
+    }
+  }
+
+  if (DOM.drawerGoogleStatusPill) {
+    if (status) {
+      DOM.drawerGoogleStatusPill.className = `google-status-pill ${status.classe}`;
+      DOM.drawerGoogleStatusPill.textContent = status.texto;
+    } else {
+      DOM.drawerGoogleStatusPill.className = "google-status-pill pending";
+      DOM.drawerGoogleStatusPill.textContent = temNota ? "Status não informado" : "Sem perfil verificado";
+    }
+  }
+}
+
 function openLeadDrawer(leadId) {
   const lead = leadsData.find(l => l.id === leadId);
   if (!lead) return;
@@ -912,26 +963,12 @@ function openLeadDrawer(leadId) {
   DOM.drawerDataCadastro.textContent = lead.dataCadastro;
   DOM.drawerObservacoes.value = lead.observacoes || "";
 
-  // Presença Google Meu Negócio no Drawer (apenas se existir dado real)
-  if (lead.googleRating) {
-    if (DOM.drawerGoogleRatingVal) DOM.drawerGoogleRatingVal.textContent = lead.googleRating;
-    if (DOM.drawerGoogleReviewsVal) DOM.drawerGoogleReviewsVal.textContent = `(${lead.googleReviews || 0} avaliações no Google)`;
-    if (DOM.drawerGoogleStatusPill) {
-      DOM.drawerGoogleStatusPill.className = "google-status-pill open";
-      DOM.drawerGoogleStatusPill.textContent = lead.googleStatus || "Aberto agora";
-    }
-  } else {
-    if (DOM.drawerGoogleRatingVal) DOM.drawerGoogleRatingVal.textContent = "Não informado";
-    if (DOM.drawerGoogleReviewsVal) DOM.drawerGoogleReviewsVal.textContent = "(Pendente de enriquecimento Google)";
-    if (DOM.drawerGoogleStatusPill) {
-      DOM.drawerGoogleStatusPill.className = "google-status-pill closed";
-      DOM.drawerGoogleStatusPill.textContent = "Sem perfil verificado";
-    }
-  }
+  preencherPresencaGoogle(lead);
 
   if (DOM.btnDrawerOpenMaps) {
     const q = encodeURIComponent(`${lead.nome} ${lead.endereco || lead.cidade + ' ' + lead.uf}`);
-    DOM.btnDrawerOpenMaps.href = `https://www.google.com/maps/search/?api=1&query=${q}`;
+    DOM.btnDrawerOpenMaps.href = lead.googleMapsUrl
+      || `https://www.google.com/maps/search/?api=1&query=${q}`;
   }
 
   // Ações de contato: Apenas exibe botão WhatsApp se houver WhatsApp confirmado

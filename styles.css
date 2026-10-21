@@ -2450,3 +2450,21 @@ th.sort-desc .sort-icon {
   border: 1px solid #fecaca;
 }
 
+.google-status-pill.pending {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.google-maturity {
+  font-weight: 600;
+}
+
+.google-maturity.pending {
+  color: #64748b;
+}
+
+.google-maturity.confirmed {
+  color: #15803d;
+}
+

@@ -10,7 +10,7 @@
   <link rel="icon" type="image/png" href="assets/centrus-logo.png" />
   
   <!-- Estilos da Aplicação (CSS Puro) -->
-  <link rel="stylesheet" href="styles.css?v=3.3" />
+  <link rel="stylesheet" href="styles.css?v=3.4" />
 </head>
 <body>
 
@@ -771,17 +771,17 @@
         <div class="google-profile-card">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span id="drawerGoogleRatingStars" style="color: #f59e0b; display: flex; align-items: center;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+              <span id="drawerGoogleRatingStars" style="color: #cbd5e1; display: flex; align-items: center;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
               </span>
-              <strong id="drawerGoogleRatingVal" style="font-size: 1.05rem; color: #0f172a;">4.8</strong>
-              <span id="drawerGoogleReviewsVal" style="font-size: 0.8rem; color: #64748b;">(124 avaliações)</span>
+              <strong id="drawerGoogleRatingVal" style="font-size: 1.05rem; color: #0f172a;">Não informado</strong>
+              <span id="drawerGoogleReviewsVal" style="font-size: 0.8rem; color: #64748b;">(Pendente de enriquecimento Google)</span>
             </div>
-            <span id="drawerGoogleStatusPill" class="google-status-pill open">Aberto agora</span>
+            <span id="drawerGoogleStatusPill" class="google-status-pill pending">Sem perfil verificado</span>
           </div>
 
           <div style="font-size: 0.78rem; color: #475569; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 2px;">
-            <span>Maturidade Comercial: <strong style="color: #15803d; font-weight: 600;">Perfil Verificado</strong></span>
+            <span>Maturidade Comercial: <strong id="drawerGoogleMaturity" class="google-maturity pending">Pendente de enriquecimento</strong></span>
             <a href="#" id="btnDrawerOpenMaps" target="_blank" class="table-contact-link" style="color: #5518f0; font-weight: 600;">
               Ver no Google Maps
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
@@ -1356,6 +1356,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <!-- Script Principal da Aplicação -->
-  <script src="script.js?v=3.0"></script>
+  <script src="script.js?v=3.1"></script>
 </body>
 </html>
