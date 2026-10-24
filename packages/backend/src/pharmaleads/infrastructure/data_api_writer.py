@@ -10,7 +10,7 @@ import json
 import os
 import ssl
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from http.client import HTTPException, HTTPSConnection
 from pathlib import Path
 from typing import Any, Literal
@@ -61,7 +61,9 @@ def read_csv(path: Path, mode: Mode) -> list[dict[str, str]]:
                 or not set(REQUIRED_COLUMNS).issubset(headers)
                 or not set(headers).issubset(ALLOWED_COLUMNS)
             ):
-                raise ImportErrorSafe("Cabeçalho inválido; use somente campos cadastrais permitidos.")
+                raise ImportErrorSafe(
+                    "Cabeçalho inválido; use somente campos cadastrais permitidos."
+                )
             for row_number, row in enumerate(reader, start=2):
                 if row_number > MAX_ROWS + 1:
                     raise ImportErrorSafe("Limite de 100 registros por operação.")
@@ -149,7 +151,9 @@ class PharmaleadsWriter:
                     raise ImportErrorSafe("Consulta de CNPJ inesperada.")
                 matches.append(candidate)
         if len(matches) > 1:
-            raise ImportErrorSafe("CNPJ cadastrado em mais de um formato; revisão manual necessária.")
+            raise ImportErrorSafe(
+                "CNPJ cadastrado em mais de um formato; revisão manual necessária."
+            )
         return matches[0] if matches else None
 
     @staticmethod
@@ -180,7 +184,7 @@ class PharmaleadsWriter:
         if stored_cnpj is None:
             raise ImportErrorSafe("CNPJ não localizado; nenhuma atualização enviada.")
         cadastral_fields = {key: value for key, value in record.items() if key != "cnpj"}
-        cadastral_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+        cadastral_fields["updated_at"] = datetime.now(UTC).isoformat()
         query = urlencode({"select": "id", "cnpj": f"eq.{stored_cnpj}"})
         status, body = self._request(
             "PATCH", f"{TABLE_PATH}?{query}", cadastral_fields, return_rows=True
