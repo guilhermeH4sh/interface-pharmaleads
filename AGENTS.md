@@ -121,3 +121,18 @@ cd apps/web && npm run lint
 - Contexto: `docs/CONTEXTO.md`
 - Regra de sync antes de editar: `.cursor/rules/sync-with-production-before-edits.mdc`
 - M02 detalhe: `docs/M02.md` e `docs/M02_INSPECAO_PHARMALEADS.md`
+
+## Atualização obrigatória do AGENTS.md
+
+**Ao encerrar qualquer módulo ou alterar código**, o agente DEVE atualizar este arquivo antes do commit final. Obrigatório:
+
+1. **Estado atual** — marcar módulo como aceito/em andamento/não iniciado conforme evidência real (código + teste executado); nunca declarar "aceito" sem evidência.
+2. **Rotas** — adicionar/remover rotas da tabela se a API mudou.
+3. **Mapa de pastas** — adicionar linha se novo pacote/diretório relevante foi criado.
+4. **Stack e versões** — atualizar se dependência foi adicionada ou atualizada.
+5. **Variáveis de ambiente** — adicionar nome se nova `PHARMALEADS_*` foi introduzida em `config.py`.
+6. **Testes** — atualizar contagem ou arquivos se novos testes foram adicionados.
+
+Não é necessário atualizar o AGENTS.md para: patches de bug sem impacto na estrutura, alterações internas de função sem mudança de interface pública, ou atualizações de docs que não mudam o estado de módulos.
+
+Ao atualizar, use patch pontual (só as linhas que divergem). Nunca reescreva o arquivo inteiro exceto se >50% estiver desatualizado.
