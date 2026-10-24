@@ -7,7 +7,7 @@ Fonte: contrato canônico v2.0, seções 1–16. IDs Mxx/UC/TC abaixo são os da
 | ID | Escopo | Dependência / gate | Estado / evidência |
 |---|---|---|---|
 | M00 | Contexto, inventário e governança | contrato e inventário | documentação entregue e aceita pelo usuário; evidências em PROGRESSO |
-| M01 | Fundação e shell web | M00 aceito; pedido humano; base preservada após fetch | implementado localmente; testes/evidências em M01.md e PROGRESSO; aceite humano pendente |
+| M01 | Fundação e shell web | M00 aceito; pedido humano; base preservada após fetch | **aceito pelo usuário em 24/10/2026**; evidências em M01.md e PROGRESSO |
 | M02 | Supabase e migrations isoladas | M01; D-06 e aditivo canônico limitam projeto a public.pharmaleads | FastAPI integrada à Data API apenas para diagnóstico. Importador CSV de cadastro implementado localmente com prévia e trava de escrita; nenhuma linha escrita, sem novos testes. RLS segura, integridade demonstrada, integração operacional de dados e aceite pendentes. Migration multischema remota bloqueada |
 | M03 | Supabase Auth e RBAC/ABAC | M02; D-07 para matriz final | não iniciado na v2.0; sem evidência |
 | M04 | Políticas de fonte e contratos | M02/M03 | não iniciado na v2.0; sem evidência |
