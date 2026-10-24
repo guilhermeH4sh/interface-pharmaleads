@@ -12,6 +12,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 
 from pharmaleads.api.errors import ErrorEnvelope, error_response
+from pharmaleads.api.routes.v1 import me_router
 from pharmaleads.config import Settings
 from pharmaleads.infrastructure import data_api
 
@@ -42,6 +43,8 @@ def create_app() -> FastAPI:
         raise RuntimeError("Configuração inválida: verifique o JSON em PHARMALEADS_*. ") from None
 
     app = FastAPI(title="PharmaLeads", version="0.1.0", debug=False)
+    app.state.settings = settings  # injetado nas dependências via request.app.state
+    app.include_router(me_router)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
@@ -73,11 +76,19 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException) -> Response:
-        messages = {
-            404: ("NOT_FOUND", "Recurso não encontrado."),
-            405: ("METHOD_NOT_ALLOWED", "Método não permitido."),
-        }
-        code, message = messages.get(exc.status_code, ("HTTP_ERROR", "Requisição não atendida."))
+        # Dependências de auth passam detail estruturado com code/message.
+        detail = exc.detail
+        if isinstance(detail, dict) and "code" in detail:
+            code = str(detail["code"])
+            message = str(detail.get("message", "Erro na requisição."))
+        else:
+            messages: dict[int, tuple[str, str]] = {
+                404: ("NOT_FOUND", "Recurso não encontrado."),
+                405: ("METHOD_NOT_ALLOWED", "Método não permitido."),
+            }
+            code, message = messages.get(
+                exc.status_code, ("HTTP_ERROR", "Requisição não atendida.")
+            )
         response = error_response(request, exc.status_code, code, message)
         if exc.headers and "Allow" in exc.headers:
             response.headers["Allow"] = exc.headers["Allow"]

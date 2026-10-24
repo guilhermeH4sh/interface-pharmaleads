@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     app_port: int = Field(default=8000, ge=1024, le=65535)
     allowed_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
     data_api_publishable_key: SecretStr | None = None
+    # JWT_SECRET do projeto Supabase (Settings → API → JWT Settings).
+    # Não versionar; manter em variável de processo.
+    supabase_jwt_secret: SecretStr | None = None
 
     @field_validator("allowed_origins")
     @classmethod
