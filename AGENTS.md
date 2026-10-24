@@ -1,5 +1,11 @@
 # PharmaLeads — execução por módulo
 
+> **INSTRUÇÃO OBRIGATÓRIA PARA O AGENTE**
+> Leia este arquivo **inteiro** antes de qualquer outra ação.
+> Ele é a fonte primária de contexto do projeto. Use-o para responder perguntas sobre estado, rotas, pastas, comandos e restrições **sem precisar abrir o código**.
+> Só abra um arquivo de código se a tarefa exigir alterar ou verificar algo que não esteja descrito aqui.
+> Se este arquivo contradizer o código, o código prevalece — e este arquivo deve ser corrigido.
+
 ## Estado atual (verificado em código — 24/10/2026)
 
 - **M00** aceito; **M01** aceito; **M02** aceito; **M03** aceito.
