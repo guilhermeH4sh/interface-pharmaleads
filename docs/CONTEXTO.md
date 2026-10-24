@@ -1,5 +1,7 @@
 # Contexto do PharmaLeads
 
+Em 24/10/2026, M03 aceito: JWT Supabase validado (HS256, issuer, audience, exp); papéis via `app_metadata.role` (`user_metadata` ignorado — TC-007); `GET /v1/me` entregue na FastAPI; RLS atualizada com `auth.uid()` e papel; 15 testes unitários passando em `tests/unit/test_auth.py`. D-07 aberta para M11. Commits `9f40308` e `42b433d`. M04 requer pedido específico.
+
 Em 24/10/2026, o usuário aprovou aditivo ao contrato canônico: nesta fase inicial, o projeto Supabase usará somente public.pharmaleads. Foi preparado no M02 um importador local CSV/Data API com prévia padrão, inserção e atualização cadastral separadas e campos comerciais protegidos. Nenhum registro foi gravado; a aplicação real fica bloqueada até corrigir a RLS da própria tabela. Ver M02.md e TEC-12.
 
 Em 24/10/2026, a FastAPI local foi conectada à Data API do projeto confirmado usando a chave publicável fornecida pelo usuário, somente para HEAD de public.pharmaleads com zero linhas. /health/supabase retornou connected; /ready permanece 503. O usuário pediu para parar os testes após a primeira suíte de 46 casos ter passado. Nenhuma rota de leads, escrita, Auth ou mudança remota foi implementada. Ver M02.md e TEC-11.
@@ -67,9 +69,13 @@ Schemas ingest/core/coleta/comercial/audit/privacy; cadastro mestre Receita por 
 
 Não foram lidos valores de arquivos .env nesta etapa. Credenciais existentes não autorizam uso de produção. Conferência de APIs, licenças e compatibilidade externa ocorrerá nos módulos correspondentes; links do contrato não foram tratados como fontes já verificadas.
 
-## Entradas atuais M01
+## Entradas atuais M03
 
-- API: packages/backend/src/pharmaleads, via ops/windows/Start-Api.ps1; apenas health/readiness e documentação.
-- Web: apps/web, via ops/windows/Start-Web.ps1; páginas informativas.
-- Instalação/testes/versões: docs/M01.md. uv.lock e apps/web/package-lock.json ativos.
-- Scripts npm da raiz e SQL/worker antigos foram removidos; usar somente os comandos M01.
+- API: `packages/backend/src/pharmaleads`, via `ops/windows/Start-Api.ps1`.
+  - `GET /health` — 200; `GET /health/supabase` — probe Data API; `GET /ready` — 503 até M04+; `GET /v1/me` — JWT obrigatório, retorna perfil do usuário autenticado.
+- Web: `apps/web`, via `ops/windows/Start-Web.ps1`; páginas informativas.
+- Auth: `infrastructure/auth/jwt_validator.py`; dependency `get_current_user` em `api/dependencies.py`.
+- Importador CSV: `infrastructure/data_api_writer.py`; `ops/windows/Import-Pharmaleads.ps1`.
+- Domain policies: `domain/source_policy/engine.py` e `models.py` (não integrados às rotas ainda).
+- Instalação/testes/versões: `docs/M01.md`. `uv.lock` e `apps/web/package-lock.json` ativos.
+- Scripts npm na raiz removidos; usar somente os comandos `ops/windows/`.

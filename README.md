@@ -6,7 +6,8 @@ M02 inclui um importador local de cadastro por CSV. Prévia sem chave ou gravaç
 
 Nova versão construída por módulos: Python/FastAPI e React/TypeScript. O sistema legado foi removido localmente por autorização do usuário em 23/10/2026. Histórico Git preservado.
 
-M00 aceito; M01 implementado e testado localmente, com avanço ao M02 autorizado. M02 tem conexão de diagnóstico da FastAPI à Data API Supabase, restrita à tabela public.pharmaleads; acesso operacional e aceite M02 pendentes. M03–M24 não iniciados. Sem autenticação de usuários, CRM, coleta ou publicação.
+M00 aceito; M01 aceito; M02 aceito (tabela resetada, RLS corrigida, importador CSV pronto). M03 aceito: JWT Supabase validado, `GET /v1/me` e RBAC por `app_metadata`. M04–M24 não iniciados. Sem CRM, coleta ou publicação operacionais.
+
 
 ## Executar a fundação M01
 

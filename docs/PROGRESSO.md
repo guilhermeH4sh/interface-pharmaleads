@@ -1,5 +1,9 @@
 # Estado atual — 24/10/2026
 
+## M03 — fechado e aceito — 24/10/2026
+
+M03 encerrado pelo usuário. Entregues e aceitos: validação JWT Supabase (HS256, issuer, audience, exp); papéis via `app_metadata.role` (`user_metadata` ignorado — TC-007); `GET /v1/me` na FastAPI com resposta tipada; RLS atualizada com `auth.uid()` e papel; dependency `get_current_user` em `api/dependencies.py`; `jwt_validator.py` em `infrastructure/auth/`; 15 testes unitários passando em `tests/unit/test_auth.py`. D-07 aberta para M11. Commits: `9f40308` (feat M03) e `42b433d` (aceite). M04 requer pedido específico.
+
 ## M02 — fechado e aceito — 24/10/2026
 
 M02 encerrado pelo usuário. Entregues e aceitos: RLS de `public.pharmaleads` corrigida (políticas permissivas `ALL TO public` removidas; `anon` sem acesso; apenas `authenticated` e `service_role` operam a tabela). Tabela resetada: todas as 218 linhas apagadas por decisão do usuário para iniciar prospecção do zero. Estrutura ajustada: `cnpj NOT NULL`, três índices duplicados removidos, coluna `origem text` adicionada para rastreabilidade de fonte. Probe `/health/supabase` integrado na FastAPI: aceita 401/403 como "conectado com RLS restrita". Importador CSV local (`data_api_writer.py`) pronto com dry-run, allowlist cadastral, insert/update separados e trava de escrita operacional. CI verde: 48 testes unitários passando, ruff e mypy sem erros. Commits: `bb2174e` (probe RLS) e `81c731b` (aceite M01). M03 requer pedido específico.
