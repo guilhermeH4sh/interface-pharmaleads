@@ -1,5 +1,10 @@
 # Estado atual — 24/10/2026
 
+## M02 — fechado e aceito — 24/10/2026
+
+M02 encerrado pelo usuário. Entregues e aceitos: RLS de `public.pharmaleads` corrigida (políticas permissivas `ALL TO public` removidas; `anon` sem acesso; apenas `authenticated` e `service_role` operam a tabela). Tabela resetada: todas as 218 linhas apagadas por decisão do usuário para iniciar prospecção do zero. Estrutura ajustada: `cnpj NOT NULL`, três índices duplicados removidos, coluna `origem text` adicionada para rastreabilidade de fonte. Probe `/health/supabase` integrado na FastAPI: aceita 401/403 como "conectado com RLS restrita". Importador CSV local (`data_api_writer.py`) pronto com dry-run, allowlist cadastral, insert/update separados e trava de escrita operacional. CI verde: 48 testes unitários passando, ruff e mypy sem erros. Commits: `bb2174e` (probe RLS) e `81c731b` (aceite M01). M03 requer pedido específico.
+
+
 ## M02 — importação cadastral preparada, contrato aditado
 
 O usuário pediu o passo 1 de gravação e a regra oficial de uma única tabela Supabase no começo do projeto. Aditivo inserido na especificação canônica. Importador local de CSV implementado para public.pharmaleads, com prévia sem rede, allowlist cadastral, validação de CNPJ/UF, inserção e atualização separadas, sem tocar CRM. Execução real bloqueada por padrão até o passo 2 de RLS e liberação operacional; nenhum dado remoto foi escrito. Contagem agregada read-only: 218 linhas, 216 CNPJs nulos e 2 mascarados. Nenhum teste, lint ou importação real foi executado nesta continuação conforme pedido do usuário de parar testes. M02 segue parcial; detalhes em M02.md.
