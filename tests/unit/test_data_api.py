@@ -50,7 +50,8 @@ def test_failure_output_omits_key(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv(data_api.KEY_ENV, "sb_publishable_fixture")
-    monkeypatch.setattr(data_api, "probe", lambda key: 401)
+    # 500 é falha real; 401/403 são sucesso (RLS restrita)
+    monkeypatch.setattr(data_api, "probe", lambda key: 500)
     assert data_api.main() == 1
     assert "sb_publishable_fixture" not in capsys.readouterr().out
 
@@ -72,7 +73,7 @@ def test_api_health_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
     assert response.json()["error"]["code"] == "SUPABASE_NOT_CONFIGURED"
 
 
-def test_api_health_uses_only_head_and_returns_no_rows(
+def test_api_health_uses_only_head_and_returns_connected(
     connected_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     called_with: list[str] = []
@@ -88,13 +89,29 @@ def test_api_health_uses_only_head_and_returns_no_rows(
         "status": "connected",
         "table": "public.pharmaleads",
         "method": "HEAD",
-        "rows_returned": 0,
+        "rls_restricted": False,
+        "http_status": 200,
     }
     assert called_with == ["sb_publishable_fixture"]
     assert connected_client.get("/ready").status_code == 503
 
 
-@pytest.mark.parametrize("status", [401, 403, 500])
+@pytest.mark.parametrize("status", [401, 403])
+def test_api_health_rls_restricted_is_still_connected(
+    connected_client: TestClient, monkeypatch: pytest.MonkeyPatch, status: int
+) -> None:
+    """401/403 significa servidor respondeu com RLS restrita — conexão confirmada."""
+    monkeypatch.setattr(data_api, "probe", lambda key: status)
+    response = connected_client.get("/health/supabase")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "connected"
+    assert body["rls_restricted"] is True
+    assert body["http_status"] == status
+    assert "sb_publishable_fixture" not in response.text
+
+
+@pytest.mark.parametrize("status", [500, 502, 504])
 def test_api_health_fails_closed_on_upstream_status(
     connected_client: TestClient, monkeypatch: pytest.MonkeyPatch, status: int
 ) -> None:

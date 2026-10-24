@@ -27,7 +27,8 @@ class SupabaseHealth(BaseModel):
     status: str
     table: str
     method: str
-    rows_returned: int
+    rls_restricted: bool
+    http_status: int
 
 
 def create_app() -> FastAPI:
@@ -103,12 +104,16 @@ def create_app() -> FastAPI:
             return error_response(
                 request, 503, "SUPABASE_UNAVAILABLE", "Conexão Supabase indisponível."
             )
-        if status not in {200, 206}:
+        if status not in data_api.CONNECTED_STATUSES:
             return error_response(
                 request, 503, "SUPABASE_UNAVAILABLE", "Conexão Supabase indisponível."
             )
         return SupabaseHealth(
-            status="connected", table="public.pharmaleads", method="HEAD", rows_returned=0
+            status="connected",
+            table="public.pharmaleads",
+            method="HEAD",
+            rls_restricted=status in {401, 403},
+            http_status=status,
         )
 
     @app.get("/ready", status_code=503, response_model=ErrorEnvelope)
