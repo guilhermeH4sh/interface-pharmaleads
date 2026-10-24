@@ -1,0 +1,43 @@
+name: PharmaLeads M01-M02 local
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.6'
+      - run: uv sync --locked --python 3.12
+      - run: uv run --locked ruff check packages/backend/src tests/unit tests/integration database/migrations
+      - run: uv run --locked ruff format --check packages/backend/src tests/unit tests/integration database/migrations
+      - run: uv run --locked mypy
+      - run: uv run --locked pytest tests/unit tests/integration -q
+      - name: Import outside checkout
+        run: cd /tmp && "$GITHUB_WORKSPACE/.venv/bin/python" -c "from pharmaleads.api.main import create_app; assert create_app().title == 'PharmaLeads'"
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

@@ -12,5 +12,23 @@ Thumbs.db
 # Variáveis de ambiente
 .env
 .env.local
+.env.*
+!.env.example
+dist/
+coverage/
+.tmp/
 
 backup-*.json
+
+# Fundação Python / ferramentas locais
+.venv/
+.uv-cache/
+.npm-cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+playwright-report/
+test-results/

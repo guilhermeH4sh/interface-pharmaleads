@@ -1,0 +1,45 @@
+@import "tailwindcss";
+@theme inline {
+  --color-background: var(--background);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+}
+:root { --background: #fff; --primary: #173452; --primary-foreground: #fff; --muted: #eef2f6; --border: #dce3eb; --ring: #3973ad; font-family: Inter, "Segoe UI", sans-serif; color: #243449; background: #f5f7fa; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+a { text-decoration: none; }
+a:focus-visible { outline: 2px solid #3973ad; outline-offset: 4px; }
+.shell { min-height: 100dvh; display: flex; }
+.sidebar { width: 250px; padding: 32px 20px; background: #12253d; color: #fff; display: flex; flex-direction: column; flex-shrink: 0; }
+.brand { display: flex; gap: 12px; align-items: center; color: #fff; font-size: 21px; font-weight: 650; padding: 0 8px; }
+.brand small { display: block; font-size: 9px; letter-spacing: .12em; color: #b2c2d6; margin-top: 5px; }
+nav { margin-top: 52px; display: grid; gap: 8px; }
+nav a { display: flex; gap: 12px; padding: 13px; align-items: center; border-radius: 7px; color: #c5d1df; font-size: 14px; }
+nav a.active, nav a:hover { background: #28425f; color: #fff; }
+.sidebar-note { margin-top: auto; padding: 32px 12px 0; color: #b2c2d6; font-size: 12px; line-height: 1.8; }
+.workspace { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.topbar { background: #fff; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; padding: 22px 40px; font-size: 13px; gap: 16px; }
+.badge { border: 1px solid #cdd9e6; background: #f2f6fa; border-radius: 20px; padding: 5px 11px; font-size: 11px; white-space: nowrap; }
+main { padding: 54px 48px; width: 100%; max-width: 1200px; margin-inline: auto; outline: none; }
+.eyebrow { font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: .14em; color: #4d6783; margin: 0 0 14px; }
+h1 { font-size: clamp(27px, 2.5vw, 38px); line-height: 1.2; font-weight: 650; letter-spacing: -.035em; margin: 0 0 20px; color: #182e47; max-width: 720px; }
+.intro { font-size: 15px; line-height: 1.85; color: #526379; max-width: 740px; margin: 0 0 30px; }
+h2 { font-size: 15px; font-weight: 650; margin: 0 0 9px; }
+.notice { display: flex; gap: 18px; padding: 23px; background: #eaf0f7; border: 1px solid #d6e1ee; border-radius: 10px; margin-bottom: 24px; }
+.notice > svg { flex-shrink: 0; color: #365a82; }
+.notice p, article p, .stages p { font-size: 13px; line-height: 1.8; color: #526379; margin: 0; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+article { border: 1px solid var(--border); border-radius: 10px; background: #fff; padding: 24px; }
+article > svg { margin-bottom: 24px; color: #4d6783; width: 22px; }
+footer { margin-top: auto; padding: 18px 40px; font-size: 11px; color: #64748b; border-top: 1px solid var(--border); }
+.stages { list-style: none; margin: 0 0 32px; padding: 0; border: 1px solid var(--border); border-radius: 10px; background: white; }
+.stages li { padding: 24px; display: flex; gap: 28px; border-bottom: 1px solid var(--border); }
+.stages li:last-child { border-bottom: 0; }
+.stages span { color: #4d6783; font-weight: 600; font-size: 12px; flex: 0 0 80px; padding-top: 3px; }
+.skip { position: fixed; left: 16px; top: -100px; background: white; padding: 12px; z-index: 10; }
+.skip:focus { top: 16px; }
+@media (max-width: 1050px) { .cards { grid-template-columns: 1fr; } main { padding: 36px 28px; } article > svg { margin-bottom: 14px; } }
+@media (max-width: 700px) { .shell { flex-direction: column; } .sidebar { width: 100%; padding: 20px; } nav { display: flex; margin-top: 20px; flex-wrap: wrap; } .sidebar-note { display: none; } .topbar { padding: 16px 20px; } main { padding: 32px 20px; } footer { padding: 20px; } .stages li { gap: 14px; padding: 20px; } .stages span { flex-basis: 65px; } }

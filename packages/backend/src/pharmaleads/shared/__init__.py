@@ -1,0 +1,1 @@
+"""Invariantes compartilhadas pela aplicação."""

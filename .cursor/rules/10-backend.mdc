@@ -1,0 +1,7 @@
+---
+description: Backend Python modular
+globs: "**/*.py"
+alwaysApply: false
+---
+
+Contrato canônico em docs/referencia/PHARMALEADS_ESPECIFICACAO_DEFINITIVA_CURSOR.md, §§2–5/9/10. Python src layout instalável; FastAPI, SQLAlchemy/psycopg e Alembic. Sem backend Node paralelo. Transações curtas; rede fora do lock; coleta sem permissão comercial. Criar somente escopo do módulo pedido.

@@ -1,0 +1,6 @@
+---
+description: Segurança transversal
+alwaysApply: true
+---
+
+Contrato canônico em docs/referencia/PHARMALEADS_ESPECIFICACAO_DEFINITIVA_CURSOR.md, §§7/8/12/14. Negar por padrão fonte/campo/ação; autorização no servidor por recurso/escopo; banco segregado. SSRF inclui redirects/DNS/browser. Sem secrets em logs/frontend/commits. Google não alimenta contatos; produção/coleta massiva/API paga exigem autorização explícita.

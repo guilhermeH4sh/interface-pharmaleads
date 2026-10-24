@@ -1,0 +1,1 @@
+"""Entradas HTTP da fundação."""

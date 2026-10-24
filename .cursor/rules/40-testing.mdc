@@ -1,0 +1,6 @@
+---
+description: Evidências e testes
+alwaysApply: true
+---
+
+Contrato canônico em docs/referencia/PHARMALEADS_ESPECIFICACAO_DEFINITIVA_CURSOR.md, §§13/15/19. Testar escopo alterado e negativos relevantes. Fixtures isoladas; mocks não provam integração. Reportar comandos, ambiente, resultados e omissões. Não usar produção. Nenhum gate aprovado por teste local ou documento recém-criado.
