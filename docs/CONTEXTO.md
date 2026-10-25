@@ -1,5 +1,37 @@
 # Contexto do PharmaLeads
 
+Atualização: artefato M04 validado com Uvicorn/HTTP real, fora do checkout, sem
+armazenamento auxiliar ou acesso Supabase. Configuração publicada carrega e mantém
+revogação após reinício. Hospedagem ainda não definida pelo usuário; nenhuma publicação
+real realizada. Aceite do M04 piloto com histórico declarativo/gestão por publicação
+permanece pendente; M05 ainda não iniciado. Evidências em [M04](M04.md).
+
+Atualização mais recente de 24/10/2026: SQLite removido do catálogo. A aplicação
+carrega o JSON versionado incluído no pacote Python, ou um JSON publicado via
+override somente leitura. API de fontes somente leitura; aprovações/revogações
+exigem nova publicação. Histórico é declarativo, sem auditoria dinâmica de banco.
+M04 ainda em andamento até aceite do piloto e validação da publicação; M05 não iniciado.
+Ver [M04](M04.md). Registros de SQLite e propostas a seguir são históricos.
+
+Diretriz vigente mais recente, 24/10/2026: usar apenas `public.pharmaleads` para leads,
+sem catálogo/linhas técnicas nela nem bancos auxiliares SQLite. Novas colunas para
+leads são permitidas. Para o M04 piloto, configuração versionada sem banco extra é
+a alternativa proposta, ainda não implementada. Gestão/auditoria dinâmica do escopo
+original requer adaptação explícita. Sempre informar o que falta para passar ao
+próximo módulo após uma alteração. Os registros seguintes são históricos.
+
+Diretriz posterior em 24/10/2026: M04 deve persistir no Supabase, exclusivamente
+em `public.pharmaleads`, com adição de colunas autorizada. SQLite não atende e o
+módulo permanece em andamento, sem prontidão de produção. Ver
+[plano de adequação](M04_SUPABASE_PLANO.md); o registro local abaixo é histórico.
+
+Em 24/10/2026, M04 implementado localmente, com aceite humano pendente. Catálogo
+SQLite persistente e auditoria local, aprovação/revogação, políticas versionadas e
+contratos de adaptadores protegendo busca e persistência. Importador exige fonte
+aprovada nas operações remotas. 17 testes M04 passaram fora do sandbox. O catálogo
+é local ao computador da API e não cria objetos Supabase; implantação distribuída
+exige reavaliar esse limite no M06. Evidências e operação em [M04](M04.md).
+
 Em 24/10/2026, M03 aceito: JWT Supabase validado (HS256, issuer, audience, exp); papéis via `app_metadata.role` (`user_metadata` ignorado — TC-007); `GET /v1/me` entregue na FastAPI; RLS atualizada com `auth.uid()` e papel; 15 testes unitários passando em `tests/unit/test_auth.py`. D-07 aberta para M11. Commits `9f40308` e `42b433d`. M04 requer pedido específico.
 
 Em 24/10/2026, o usuário aprovou aditivo ao contrato canônico: nesta fase inicial, o projeto Supabase usará somente public.pharmaleads. Foi preparado no M02 um importador local CSV/Data API com prévia padrão, inserção e atualização cadastral separadas e campos comerciais protegidos. Nenhum registro foi gravado; a aplicação real fica bloqueada até corrigir a RLS da própria tabela. Ver M02.md e TEC-12.

@@ -1,5 +1,46 @@
 # Estado atual — 24/10/2026
 
+## M04 — artefato validado em HTTP real; aceite do piloto pendente — 24/10/2026
+
+Wheel gerado e validado fora do checkout, com API Uvicorn em localhost: autenticação,
+escopos, somente leitura, configuração padrão, override, recarga e reinício passaram.
+Diretório de execução sem armazenamento auxiliar criado. Script reproduzível em
+`ops/validate_m04_package.py`; lint, formatação e tipos passaram. Testes M04 anteriores:
+27; execução conjunta com auth/fundação: 56. Usuário informou hospedagem ainda não
+definida: nenhuma publicação real efetuada. Para avançar ao M05, falta aceite humano
+do piloto com gestão por publicação/histórico declarativo. Ver [M04](M04.md).
+
+## M04 — SQLite removido; configuração versionada implementada — 24/10/2026
+
+Catálogo substituído por JSON somente leitura, incluído no wheel Python e carregado
+independentemente do diretório atual. API de fontes somente leitura; POSTs removidos.
+Configuração inicial vazia, sem fontes aprovadas. Override ausente/inválido bloqueia
+sem fallback; importador revalida a configuração antes de cada requisição remota.
+Nenhum objeto Supabase alterado. Aceite do piloto com histórico declarativo e
+validação de publicação em produção pendentes. Detalhes em [M04.md](M04.md).
+Verificação final: 27 testes M04 e 56 na execução conjunta com auth/fundação passaram;
+Ruff, formatação e mypy passaram; JSON confirmado no wheel.
+As seções anteriores de SQLite/linha técnica abaixo são histórico superado.
+
+## M04 — em andamento, adequação ao Supabase pendente — 24/10/2026
+
+Diretriz mais recente: `public.pharmaleads` guarda somente leads; sem outras tabelas,
+sem SQLite e sem linha técnica de catálogo. Verificação de código confirmou que
+`registry.py` ainda usa SQLite. Para concluir M04, substituir por configuração
+versionada sem banco adicional, adequar gestão/auditoria do piloto e testar as
+fronteiras de permissão com essa configuração. Os 17 testes M04 e 46 testes
+conjuntos anteriores validam o código local, não essa nova adequação. M05 ainda não
+iniciado. Relatar pendências para o próximo módulo após toda alteração.
+
+### Histórico anterior à diretriz de tabela somente de leads
+
+Correção posterior: SQLite local não atende à persistência Supabase exigida pelo
+usuário. Foi autorizado adicionar colunas somente a `public.pharmaleads`.
+Proposta e decisão necessária sobre linha técnica e CNPJ em
+[M04_SUPABASE_PLANO.md](M04_SUPABASE_PLANO.md). O módulo não está pronto para produção.
+
+Catálogo SQLite local persistente, auditoria transacional, aprovação/revogação autenticadas e políticas versionadas implementados. Contratos de adaptadores incluem capacidades, versão, origem, cursor, checkpoint e observações; bloqueios antes de buscar e antes de gravar, incluindo integração no importador CSV existente. 17 testes sintéticos M04 passaram fora do sandbox Windows. TestClient funciona nesse contexto: a afirmação anterior de conflito como causa comprovada do travamento foi excessiva. Detalhes e limite de operação em um computador em [M04.md](M04.md). Nenhum objeto remoto foi alterado; M05 não iniciado; aceite humano pendente.
+
 ## M03 — fechado e aceito — 24/10/2026
 
 M03 encerrado pelo usuário. Entregues e aceitos: validação JWT Supabase (HS256, issuer, audience, exp); papéis via `app_metadata.role` (`user_metadata` ignorado — TC-007); `GET /v1/me` na FastAPI com resposta tipada; RLS atualizada com `auth.uid()` e papel; dependency `get_current_user` em `api/dependencies.py`; `jwt_validator.py` em `infrastructure/auth/`; 15 testes unitários passando em `tests/unit/test_auth.py`. D-07 aberta para M11. Commits: `9f40308` (feat M03) e `42b433d` (aceite). M04 requer pedido específico.

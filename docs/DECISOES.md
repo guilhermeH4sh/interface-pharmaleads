@@ -4,6 +4,10 @@ Data: 23/10/2026. Autor do registro: Codex. Aprovação comercial/homologação:
 
 ## Diretrizes da execução
 
+- Diretriz humana — 24/10/2026, piloto mínimo: usar exclusivamente `public.pharmaleads` para persistir leads. Não criar outras tabelas nem misturar linhas de catálogo com farmácias. Adição de colunas para os leads é permitida. O restante deve funcionar sem banco auxiliar. Isso descarta a solução SQLite M04 e a proposta de linha técnica; manter CNPJ obrigatório para farmácias. Após cada alteração informar testes, estado e pendências para o próximo módulo.
+- Proposta técnica para o M04 piloto: fontes e políticas como configuração versionada distribuída com a aplicação, leitura autenticada, aprovação/revogação por revisão e publicação da configuração. Histórico de configuração por versões/revisões; não equivale a auditoria operacional dinâmica. Gestão mutável via API não pode permanecer gravando dados efêmeros: restringir a leitura e explicitar a adaptação do aceite M04 antes de avançar. Implementação e validação ainda pendentes.
+- Execução posterior autorizada em 24/10/2026: substituído o SQLite por configuração JSON validada e incluída no pacote. Removidas as rotas de mutação do catálogo; API e importador usam o carregador somente leitura. Histórico declarativo é disponibilizado a partir do arquivo. Aceite do M04 piloto e validação da publicação ainda pendentes; ver docs/M04.md.
+
 - EX-01 — Executar somente M00 nesta etapa, conforme pedido humano de trabalho módulo a módulo e contrato fornecido. Alternativa rejeitada: implementar tudo. Impacto: M01–M24 aguardam solicitação específica; nenhum gate aprovado.
 - EX-02 — Preservar código e mudanças anteriores; registrar reuso/migração sem exclusões. Motivo: reinício controlado e inventário exigido em M00. A organização física da nova base será decidida antes de editar código em M01. Não implica aprovação de arquitetura legada.
 - TEC-01 — Contrato v2.0 copiado integralmente em docs/referencia; quatro documentos de acompanhamento em docs/. Escolha de organização documental pelo agente, sem mudança de requisitos. Validação: igualdade da cópia e referências locais.
