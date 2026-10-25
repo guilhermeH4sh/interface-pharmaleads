@@ -1,4 +1,12 @@
-# Estado atual — 24/10/2026
+# Estado atual — 25/10/2026
+
+## Render — configuração de produção validada — 25/10/2026
+
+O backend agora aceita `PHARMALEADS_APP_ENV=production` e host `0.0.0.0`.
+O teste reproduziu as variáveis do Render, inclusive `PHARMALEADS_ALLOWED_ORIGINS`
+como lista JSON, e confirmou a inicialização da FastAPI. Execução conjunta atual:
+57 testes com M04, autenticação e fundação. A publicação real ainda depende do
+cadastro das variáveis privadas e da criação do Web Service no Render.
 
 ## M04 — artefato validado em HTTP real; aceite do piloto pendente — 24/10/2026
 
@@ -6,8 +14,8 @@ Wheel gerado e validado fora do checkout, com API Uvicorn em localhost: autentic
 escopos, somente leitura, configuração padrão, override, recarga e reinício passaram.
 Diretório de execução sem armazenamento auxiliar criado. Script reproduzível em
 `ops/validate_m04_package.py`; lint, formatação e tipos passaram. Testes M04 anteriores:
-27; execução conjunta com auth/fundação: 56. Usuário informou hospedagem ainda não
-definida: nenhuma publicação real efetuada. Para avançar ao M05, falta aceite humano
+27; execução conjunta com auth/fundação: 57. Render foi escolhido, mas nenhuma
+publicação real foi efetuada. Para avançar ao M05, falta aceite humano
 do piloto com gestão por publicação/histórico declarativo. Ver [M04](M04.md).
 
 ## M04 — SQLite removido; configuração versionada implementada — 24/10/2026
@@ -18,7 +26,7 @@ Configuração inicial vazia, sem fontes aprovadas. Override ausente/inválido b
 sem fallback; importador revalida a configuração antes de cada requisição remota.
 Nenhum objeto Supabase alterado. Aceite do piloto com histórico declarativo e
 validação de publicação em produção pendentes. Detalhes em [M04.md](M04.md).
-Verificação final: 27 testes M04 e 56 na execução conjunta com auth/fundação passaram;
+Verificação final: 27 testes M04 e 57 na execução conjunta com auth/fundação passaram;
 Ruff, formatação e mypy passaram; JSON confirmado no wheel.
 As seções anteriores de SQLite/linha técnica abaixo são histórico superado.
 

@@ -6,12 +6,12 @@
 > Só abra um arquivo de código se a tarefa exigir alterar ou verificar algo que não esteja descrito aqui.
 > Se este arquivo contradizer o código, o código prevalece — e este arquivo deve ser corrigido.
 
-## Estado atual (verificado em código — 24/10/2026)
+## Estado atual (verificado em código — 25/10/2026)
 
 - **M00** aceito; **M01** aceito; **M02** aceito; **M03** aceito.
 - M02: RLS corrigida, tabela resetada (0 linhas), `cnpj NOT NULL`, coluna `origem`, importador CSV pronto.
 - M03: JWT Supabase validado (HS256), `GET /v1/me`, RBAC por `app_metadata.role`, 15 testes.
-- M04 implementado e validado para revisão do piloto: catálogo JSON sem SQLite, API somente leitura e importador protegido. 27 testes M04 e 56 com auth/fundação passaram; smoke do wheel isolado com Uvicorn/HTTP real, recarga e reinício passou. Aceite humano do piloto pendente; hospedagem ainda não definida, publicação real não executada. Detalhes em docs/M04.md.
+- M04 implementado e validado para revisão do piloto: catálogo JSON sem SQLite, API somente leitura e importador protegido. 27 testes M04 e 57 com auth/fundação passaram; smoke do wheel isolado com Uvicorn/HTTP real, recarga e reinício passou. Aceite humano do piloto pendente; Render escolhido e configuração `production` validada, publicação real ainda não executada. Detalhes em docs/M04.md.
 - M05–M24: não iniciados. G1/G2/G3: não aprovados.
 - Testes Python: não verificado o total atual da suíte completa (era 48 em M02 + 15 em M03; rodar para confirmar).
 

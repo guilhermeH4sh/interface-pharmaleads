@@ -13,8 +13,8 @@ class Settings(BaseSettings):
         env_prefix="PHARMALEADS_", extra="forbid", hide_input_in_errors=True
     )
 
-    app_env: Literal["development", "test"] = "development"
-    app_host: Literal["127.0.0.1", "localhost", "::1"] = "127.0.0.1"
+    app_env: Literal["development", "test", "production"] = "development"
+    app_host: Literal["127.0.0.1", "localhost", "::1", "0.0.0.0"] = "127.0.0.1"
     app_port: int = Field(default=8000, ge=1024, le=65535)
     allowed_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
     data_api_publishable_key: SecretStr | None = None

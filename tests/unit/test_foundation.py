@@ -92,6 +92,23 @@ def test_legacy_dotenv_is_not_loaded(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert Settings().app_port == 8000
 
 
+def test_render_production_config_is_valid(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PHARMALEADS_APP_ENV", "production")
+    monkeypatch.setenv("PHARMALEADS_APP_HOST", "0.0.0.0")
+    monkeypatch.setenv("PHARMALEADS_APP_PORT", "10000")
+    monkeypatch.setenv(
+        "PHARMALEADS_ALLOWED_ORIGINS", '["https://pharmaleads.example"]'
+    )
+
+    settings = Settings()
+
+    assert settings.app_env == "production"
+    assert settings.app_host == "0.0.0.0"
+    assert settings.app_port == 10000
+    assert settings.allowed_origins == ["https://pharmaleads.example"]
+    assert create_app().state.settings.app_env == "production"
+
+
 def test_invalid_json_config_is_sanitized(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PHARMALEADS_ALLOWED_ORIGINS", "fixture-sensitive-value")
     with pytest.raises(RuntimeError, match="Configuração inválida") as error:
