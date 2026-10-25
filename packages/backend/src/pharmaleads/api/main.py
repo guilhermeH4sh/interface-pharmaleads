@@ -13,7 +13,9 @@ from starlette.exceptions import HTTPException
 
 from pharmaleads.api.errors import ErrorEnvelope, error_response
 from pharmaleads.api.routes.v1 import me_router
+from pharmaleads.api.routes.v1.sources import router as sources_router
 from pharmaleads.config import Settings
+from pharmaleads.domain.source_policy.registry import SourcePolicyRegistry
 from pharmaleads.infrastructure import data_api
 
 logger = logging.getLogger("pharmaleads.api")
@@ -44,12 +46,14 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="PharmaLeads", version="0.1.0", debug=False)
     app.state.settings = settings  # injetado nas dependências via request.app.state
+    app.state.source_policy_registry = SourcePolicyRegistry(settings.source_policy_path)
     app.include_router(me_router)
+    app.include_router(sources_router)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
         allow_methods=["GET"],
-        allow_headers=["X-Request-ID"],
+        allow_headers=["X-Request-ID", "Authorization", "Content-Type"],
         expose_headers=["X-Request-ID"],
     )
 

@@ -34,6 +34,7 @@ ROLE_SCOPES: dict[str, list[str]] = {
         "leads:assign",
         "users:manage",
         "sources:manage",
+        "sources:read",
         "jobs:manage",
         "export:all",
         "privacy:manage",
@@ -57,7 +58,7 @@ class TokenError(Exception):
 
 @dataclass(frozen=True)
 class AuthenticatedUser:
-    user_id: str   # auth.uid() — UUID string do Supabase
+    user_id: str  # auth.uid() — UUID string do Supabase
     email: str
     role: Role
     scopes: tuple[str, ...]

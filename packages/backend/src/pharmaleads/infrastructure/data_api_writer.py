@@ -16,6 +16,13 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlencode
 
+from pharmaleads.config import Settings
+from pharmaleads.domain.source_policy.engine import PolicyViolationError
+from pharmaleads.domain.source_policy.models import PolicyAction
+from pharmaleads.domain.source_policy.registry import (
+    CatalogConfigurationError,
+    SourcePolicyRegistry,
+)
 from pharmaleads.infrastructure.data_api import HOST, KEY_ENV, validate_publishable_key
 from pharmaleads.shared.identifiers import normalize_cnpj
 
@@ -101,11 +108,34 @@ def _masked_cnpj(cnpj: str) -> str:
 
 
 class PharmaleadsWriter:
-    def __init__(self, publishable_key: str) -> None:
+    def __init__(
+        self,
+        publishable_key: str,
+        *,
+        source_id: str | None = None,
+        registry: SourcePolicyRegistry | None = None,
+    ) -> None:
         validate_publishable_key(publishable_key)
         self._key = publishable_key
+        self._source_id = source_id
+        self._registry = registry or SourcePolicyRegistry(Settings().source_policy_path)
 
     def _request(
+        self, method: str, path: str, payload: Any = None, *, return_rows: bool = False
+    ) -> tuple[int, bytes]:
+        if self._source_id is None:
+            raise ImportErrorSafe("Fonte aprovada obrigatória para operações remotas.")
+        records = payload if isinstance(payload, list) else [payload] if payload else []
+        fields = tuple({key for record in records for key in record}) if records else ("id", "cnpj")
+        action = PolicyAction.COLETAR if method == "GET" else PolicyAction.PERSISTIR
+        return self._registry.guarded(
+            self._source_id,
+            fields,
+            action,
+            lambda: self._request_unchecked(method, path, payload, return_rows=return_rows),
+        )
+
+    def _request_unchecked(
         self, method: str, path: str, payload: Any = None, *, return_rows: bool = False
     ) -> tuple[int, bytes]:
         headers = {
@@ -205,6 +235,7 @@ def main() -> int:
     parser.add_argument("--file", required=True, type=Path, help="CSV UTF-8 local")
     parser.add_argument("--mode", required=True, choices=("insert", "update"))
     parser.add_argument("--apply", action="store_true", help="Confirma escrita real após prévia")
+    parser.add_argument("--source", help="Identificador da fonte aprovada no catálogo M04")
     args = parser.parse_args()
     mode: Mode = args.mode
     try:
@@ -242,9 +273,16 @@ def main() -> int:
         print("Importação cancelada.", file=sys.stderr)
         return 1
     try:
-        writer = PharmaleadsWriter(os.environ.get(KEY_ENV, ""))
+        writer = PharmaleadsWriter(os.environ.get(KEY_ENV, ""), source_id=args.source)
         written = writer.insert(records) if mode == "insert" else writer.update(records[0])
-    except (ValueError, ImportErrorSafe, OSError, HTTPException):
+    except (
+        ValueError,
+        ImportErrorSafe,
+        OSError,
+        HTTPException,
+        PolicyViolationError,
+        CatalogConfigurationError,
+    ):
         print("Importação não confirmada; detalhes protegidos.", file=sys.stderr)
         return 1
     print(json.dumps({"table": "public.pharmaleads", "mode": mode, "rows_written": written}))

@@ -15,10 +15,11 @@ dependencies = [
   "sqlalchemy>=2.0,<2.1",
   "psycopg[binary]>=3.2,<4",
   "alembic>=1.16,<2",
+  "pyjwt>=2.9,<3",
 ]
 
 [dependency-groups]
-dev = ["pytest>=8,<10", "httpx>=0.28,<1", "ruff>=0.9,<1", "mypy>=1.15,<2"]
+dev = ["pytest>=8,<10", "httpx2>=2,<3", "ruff>=0.9,<1", "mypy>=1.15,<2"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["packages/backend/src/pharmaleads"]

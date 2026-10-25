@@ -1,5 +1,6 @@
 """Configuração local explícita; nunca carrega o .env do projeto legado."""
 
+from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -20,6 +21,8 @@ class Settings(BaseSettings):
     # JWT_SECRET do projeto Supabase (Settings → API → JWT Settings).
     # Não versionar; manter em variável de processo.
     supabase_jwt_secret: SecretStr | None = None
+    # None carrega o JSON versionado incluído no pacote; override também é somente leitura.
+    source_policy_path: Path | None = None
 
     @field_validator("allowed_origins")
     @classmethod

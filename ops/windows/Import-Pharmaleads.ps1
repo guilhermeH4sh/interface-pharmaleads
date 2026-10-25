@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$File,
     [Parameter(Mandatory = $true)][ValidateSet('insert', 'update')][string]$Mode,
-    [switch]$Apply
+    [switch]$Apply,
+    [string]$Source
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,6 +12,8 @@ if (-not (Test-Path -LiteralPath $python)) { throw 'Execute Setup-M01.ps1 primei
 
 $arguments = @('-m', 'pharmaleads.infrastructure.data_api_writer', '--file', $File, '--mode', $Mode)
 if ($Apply) { $arguments += '--apply' }
+if ($Source) { $arguments += @('--source', $Source) }
+if ($Apply -and -not $Source) { throw 'Informe -Source com a fonte aprovada no catalogo M04.' }
 if ($Apply -and [Environment]::GetEnvironmentVariable('PHARMALEADS_TABLE_WRITE_APPROVED', 'Process') -ne 'public.pharmaleads') {
     throw 'Escrita bloqueada ate revisao da politica da tabela e liberacao operacional.'
 }
