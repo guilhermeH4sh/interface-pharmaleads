@@ -96,9 +96,7 @@ def test_render_production_config_is_valid(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("PHARMALEADS_APP_ENV", "production")
     monkeypatch.setenv("PHARMALEADS_APP_HOST", "0.0.0.0")
     monkeypatch.setenv("PHARMALEADS_APP_PORT", "10000")
-    monkeypatch.setenv(
-        "PHARMALEADS_ALLOWED_ORIGINS", '["https://pharmaleads.example"]'
-    )
+    monkeypatch.setenv("PHARMALEADS_ALLOWED_ORIGINS", '["https://pharmaleads.example"]')
 
     settings = Settings()
 

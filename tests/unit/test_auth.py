@@ -65,6 +65,7 @@ def auth_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
 
 # ── validate_token: casos unitários ───────────────────────────────────────
 
+
 def test_validate_token_admin() -> None:
     token = _make_token(app_metadata={"role": "admin"})
     user = validate_token(token, _SECRET)
@@ -86,12 +87,10 @@ def test_tc007_user_metadata_role_is_ignored() -> None:
     """TC-007: papel em user_metadata não concede acesso — app_metadata é soberano."""
     token = _make_token(
         user_metadata={"role": "admin"},  # editável pelo usuário → ignorado
-        app_metadata={},                  # sem role definido pelo servidor
+        app_metadata={},  # sem role definido pelo servidor
     )
     user = validate_token(token, _SECRET)
-    assert user.role == DEFAULT_ROLE, (
-        "role de user_metadata NÃO deve conceder papel elevado"
-    )
+    assert user.role == DEFAULT_ROLE, "role de user_metadata NÃO deve conceder papel elevado"
     assert "users:manage" not in user.scopes
 
 
@@ -131,6 +130,7 @@ def test_empty_secret_raises_error() -> None:
 
 
 # ── GET /v1/me via HTTP ────────────────────────────────────────────────────
+
 
 def test_me_requires_auth(auth_client: TestClient) -> None:
     response = auth_client.get("/v1/me")
