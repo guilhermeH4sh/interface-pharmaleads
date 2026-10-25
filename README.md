@@ -6,7 +6,7 @@ M02 inclui um importador local de cadastro por CSV. Prévia sem chave ou gravaç
 
 Nova versão construída por módulos: Python/FastAPI e React/TypeScript. O sistema legado foi removido localmente por autorização do usuário em 23/10/2026. Histórico Git preservado.
 
-M00–M03 aceitos. M04 implementado para revisão do piloto: fontes/políticas em configuração JSON versionada, sem banco auxiliar; API somente leitura e importador protegido. 27 testes M04 e validação do wheel com HTTP real passaram. Aceite humano pendente; M05–M24 não iniciados. Hospedagem ainda não definida; sem coleta ou publicação operacionais. Detalhes em [M04](docs/M04.md).
+M00–M04 aceitos. O M04 usa fontes/políticas em configuração JSON versionada, sem banco auxiliar, com API somente leitura e importador protegido. 27 testes M04, validação do wheel e produção no Render passaram; Auth/RBAC e conexão protegida ao Supabase foram confirmados. M05–M24 não iniciados e nenhuma coleta real foi executada. Detalhes em [M04](docs/M04.md).
 
 
 ## Executar a fundação M01

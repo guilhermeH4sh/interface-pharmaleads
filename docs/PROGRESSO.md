@@ -1,12 +1,20 @@
 # Estado atual — 25/10/2026
 
+## M04 — aceito e validado em produção — 25/10/2026
+
+O usuário aceitou formalmente o piloto. A API foi publicada no Render e respondeu
+200 em `/health`; Supabase Auth e RBAC reais foram confirmados em `/v1/me`.
+`/v1/sources` bloqueou o perfil sem escopo com 403 e respondeu 200 com `[]` após
+atribuição autorizada de `app_metadata.role=operador`. `/health/supabase` confirmou
+`public.pharmaleads` por HEAD com RLS restrita (HTTP 401). M05 ainda não iniciado.
+
 ## Render — configuração de produção validada — 25/10/2026
 
 O backend agora aceita `PHARMALEADS_APP_ENV=production` e host `0.0.0.0`.
 O teste reproduziu as variáveis do Render, inclusive `PHARMALEADS_ALLOWED_ORIGINS`
 como lista JSON, e confirmou a inicialização da FastAPI. Execução conjunta atual:
-57 testes com M04, autenticação e fundação. A publicação real ainda depende do
-cadastro das variáveis privadas e da criação do Web Service no Render.
+57 testes com M04, autenticação e fundação. A publicação real foi concluída e
+validada posteriormente, conforme a seção de aceite acima.
 
 ## M04 — artefato validado em HTTP real; aceite do piloto pendente — 24/10/2026
 

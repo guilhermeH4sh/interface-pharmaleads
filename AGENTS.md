@@ -8,10 +8,10 @@
 
 ## Estado atual (verificado em código — 25/10/2026)
 
-- **M00** aceito; **M01** aceito; **M02** aceito; **M03** aceito.
+- **M00** aceito; **M01** aceito; **M02** aceito; **M03** aceito; **M04** aceito em 25/10/2026.
 - M02: RLS corrigida, tabela resetada (0 linhas), `cnpj NOT NULL`, coluna `origem`, importador CSV pronto.
 - M03: JWT Supabase validado (HS256), `GET /v1/me`, RBAC por `app_metadata.role`, 15 testes.
-- M04 implementado e validado para revisão do piloto: catálogo JSON sem SQLite, API somente leitura e importador protegido. 27 testes M04 e 57 com auth/fundação passaram; smoke do wheel isolado com Uvicorn/HTTP real, recarga e reinício passou. Aceite humano do piloto pendente; Render escolhido e configuração `production` validada, publicação real ainda não executada. Detalhes em docs/M04.md.
+- M04: catálogo JSON sem SQLite, API somente leitura e importador protegido. 27 testes M04 e 57 com auth/fundação passaram; smoke do wheel isolado passou. Produção validada no Render: `/health`, Auth/RBAC real, `/v1/sources` com 403 sem escopo e 200 para operador, e `/health/supabase` conectado por HEAD com RLS 401. Detalhes em docs/M04.md.
 - M05–M24: não iniciados. G1/G2/G3: não aprovados.
 - Testes Python: não verificado o total atual da suíte completa (era 48 em M02 + 15 em M03; rodar para confirmar).
 
@@ -62,7 +62,7 @@ Prefixo `PHARMALEADS_*` (pydantic-settings). Relevantes:
 |--------|------|------|
 | GET | `/health` | sempre 200 |
 | GET | `/health/supabase` | probe Data API; aceita 401/403 como conectado |
-| GET | `/ready` | 503 até M04+ |
+| GET | `/ready` | ainda 503; prontidão plena será implementada em módulo posterior |
 | GET | `/v1/me` | JWT obrigatório; retorna perfil do usuário autenticado |
 | GET | `/v1/sources` | M04; catálogo de fontes, escopo `sources:read` |
 | GET | `/v1/sources/{source_id}/policies` | M04; consulta políticas publicadas |
@@ -99,6 +99,7 @@ cd apps/web && npm run lint
 ## Restrições duras (não alterar sem autorização explícita)
 
 - **Supabase `qxsdcrywsjkrpcbfgbxb`**: alterar **somente** `public.pharmaleads`; nenhuma outra tabela ou objeto.
+- Exceção humana pontual em 25/10/2026: adicionar `app_metadata.role=operador` a um usuário existente do Supabase Auth para validar RBAC do M04; não autoriza outras alterações em `auth.users`.
 - `public.pharmaleads` persiste somente dados de leads/filiais: não inserir linhas técnicas de catálogo nem CNPJ fictício; não criar tabelas auxiliares, inclusive SQLite. Novas colunas na própria tabela podem atender necessidades dos leads. Políticas/fontes devem ter solução sem banco adicional.
 - A migration `20261023_0001_m02_base.py` cria schemas/papéis e **não pode** ser aplicada nesse projeto.
 - CLI M02 bloqueia `upgrade/downgrade --apply` em destinos remotos (trava verificada em teste).

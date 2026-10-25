@@ -1,16 +1,17 @@
 # Contexto do PharmaLeads
 
-Atualização: artefato M04 validado com Uvicorn/HTTP real, fora do checkout, sem
-armazenamento auxiliar ou acesso Supabase. Configuração publicada carrega e mantém
-revogação após reinício. Hospedagem ainda não definida pelo usuário; nenhuma publicação
-real realizada. Aceite do M04 piloto com histórico declarativo/gestão por publicação
-permanece pendente; M05 ainda não iniciado. Evidências em [M04](M04.md).
+Atualização de 25/10/2026: M04 aceito pelo usuário e publicado no Render. Produção
+confirmou `/health`, autenticação Supabase, RBAC negativo e positivo, catálogo vazio
+somente leitura e `/health/supabase` conectado a `public.pharmaleads` por HEAD com
+RLS restrita. A exceção autorizada para o teste alterou apenas o `app_metadata.role`
+de um usuário Auth existente para `operador`. M05 ainda não iniciado. Evidências em
+[M04](M04.md).
 
-Atualização mais recente de 24/10/2026: SQLite removido do catálogo. A aplicação
+Registro anterior de 24/10/2026: SQLite removido do catálogo. A aplicação
 carrega o JSON versionado incluído no pacote Python, ou um JSON publicado via
 override somente leitura. API de fontes somente leitura; aprovações/revogações
 exigem nova publicação. Histórico é declarativo, sem auditoria dinâmica de banco.
-M04 ainda em andamento até aceite do piloto e validação da publicação; M05 não iniciado.
+Naquele momento, M04 aguardava aceite e publicação; ambos foram concluídos em 25/10.
 Ver [M04](M04.md). Registros de SQLite e propostas a seguir são históricos.
 
 Diretriz vigente mais recente, 24/10/2026: usar apenas `public.pharmaleads` para leads,

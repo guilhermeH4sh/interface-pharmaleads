@@ -10,7 +10,7 @@ Fonte: contrato canônico v2.0, seções 1–16. IDs Mxx/UC/TC abaixo são os da
 | M01 | Fundação e shell web | M00 aceito; pedido humano; base preservada após fetch | **aceito pelo usuário em 24/10/2026**; evidências em M01.md e PROGRESSO |
 | M02 | Supabase e migrations isoladas | M01; D-06 e aditivo canônico limitam projeto a public.pharmaleads | **aceito pelo usuário em 24/10/2026**. Tabela resetada (0 linhas), `cnpj NOT NULL`, índices duplicados removidos, coluna `origem` adicionada. RLS corrigida: apenas `authenticated` e `service_role` com acesso. Probe `/health/supabase` integrado. Importador CSV local pronto com dry-run e trava de escrita. |
 | M03 | Supabase Auth e RBAC/ABAC | M02; D-07 para matriz final | **aceito pelo usuário em 24/10/2026**. JWT Supabase validado (HS256, issuer, audience, exp). Papéis via `app_metadata.role` (user_metadata ignorado — TC-007). `GET /v1/me` entregue. RLS atualizada com `auth.uid()` e papel. 15 testes passando. D-07 aberta para M11. |
-| M04 | Políticas de fonte e contratos | M02/M03 | piloto implementado; 27 testes M04 e smoke HTTP do wheel passaram; configuração de produção para Render validada; aceite humano da adaptação pendente |
+| M04 | Políticas de fonte e contratos | M02/M03 | **aceito pelo usuário em 25/10/2026**; 27 testes M04, smoke HTTP do wheel e produção no Render passaram; Auth/RBAC e Supabase HEAD com RLS restrita confirmados |
 | M05 | Receita, recorte e G1 | M04; D-01/D-02/D-06 para importação real | não iniciado na v2.0; sem evidência |
 | M06 | Fila PostgreSQL e workers | M05 + G1; D-19 | não iniciado na v2.0; sem evidência |
 | M07 | Descoberta de sites e validação | M04/M06; G1 e fontes autorizadas | não iniciado na v2.0; sem evidência |
