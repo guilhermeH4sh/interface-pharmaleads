@@ -28,8 +28,11 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
+.tmp-pytest-pilot/
 .ruff_cache/
 .mypy_cache/
 playwright-report/
 test-results/
 .local/
+.m05-stage/
+.m05-downloads/

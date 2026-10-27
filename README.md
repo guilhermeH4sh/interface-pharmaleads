@@ -6,7 +6,10 @@ M02 inclui um importador local de cadastro por CSV. Prévia sem chave ou gravaç
 
 Nova versão construída por módulos: Python/FastAPI e React/TypeScript. O sistema legado foi removido localmente por autorização do usuário em 23/10/2026. Histórico Git preservado.
 
-M00–M04 aceitos. O M04 usa fontes/políticas em configuração JSON versionada, sem banco auxiliar, com API somente leitura e importador protegido. 27 testes M04, validação do wheel e produção no Render passaram; Auth/RBAC e conexão protegida ao Supabase foram confirmados. M05–M24 não iniciados e nenhuma coleta real foi executada. Detalhes em [M04](docs/M04.md).
+M00–M06 aceitos e G1 aprovado. O recorte oficial encontrou 128.895 leads elegíveis e
+o piloto de 100 foi gravado no Supabase. M06 entregou a fila reduzida a um trabalho
+corrente por lead, usando somente colunas de `public.pharmaleads`.
+Detalhes em [M05](docs/M05.md) e [M06](docs/M06.md).
 
 
 ## Executar a fundação M01

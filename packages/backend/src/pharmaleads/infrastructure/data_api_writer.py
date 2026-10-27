@@ -32,7 +32,8 @@ MAX_FILE_BYTES = 1_000_000
 MAX_ROWS = 100
 REQUIRED_COLUMNS = ("cnpj", "nome", "uf", "cidade")
 OPTIONAL_COLUMNS = ("razao_social", "bairro", "endereco", "cnae")
-ALLOWED_COLUMNS = set(REQUIRED_COLUMNS + OPTIONAL_COLUMNS)
+M05_OPTIONAL_COLUMNS = ("telefone", "email", "origem")
+ALLOWED_COLUMNS = set(REQUIRED_COLUMNS + OPTIONAL_COLUMNS + M05_OPTIONAL_COLUMNS)
 VALID_UFS = frozenset(
     "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split()
 )
@@ -87,7 +88,7 @@ def read_csv(path: Path, mode: Mode) -> list[dict[str, str]]:
                 record["uf"] = record["uf"].upper()
                 if record["uf"] not in VALID_UFS:
                     raise ImportErrorSafe(f"Linha {row_number}: UF inválida.")
-                for field in OPTIONAL_COLUMNS:
+                for field in OPTIONAL_COLUMNS + M05_OPTIONAL_COLUMNS:
                     if field in row and row[field] is not None and row[field].strip():
                         record[field] = _clean(row[field], row_number=row_number, field=field)
                 if record["cnpj"] in seen_cnpjs:
@@ -107,6 +108,30 @@ def _masked_cnpj(cnpj: str) -> str:
     return f"{cnpj[:2]}.{cnpj[2:5]}.{cnpj[5:8]}/{cnpj[8:12]}-{cnpj[12:]}"
 
 
+def _safe_postgrest_reason(body: bytes) -> str:
+    """Classifica falhas conhecidas sem repetir detalhes retornados pelo servidor."""
+    try:
+        payload = json.loads(body)
+    except (ValueError, UnicodeError):
+        return "motivo não classificado"
+    if not isinstance(payload, dict):
+        return "motivo não classificado"
+    code = payload.get("code")
+    message = payload.get("message")
+    if not isinstance(message, str):
+        return f"código {code}" if isinstance(code, str) else "motivo não classificado"
+    normalized = message.casefold()
+    if "row-level security" in normalized:
+        return "política RLS recusou a linha"
+    if "permission denied for sequence" in normalized:
+        return "sem privilégio na sequência de identidade"
+    if "permission denied for table" in normalized:
+        return "sem privilégio de escrita na tabela"
+    if "jwt" in normalized or "token" in normalized:
+        return "autenticação recusada"
+    return f"código {code}" if isinstance(code, str) else "motivo não classificado"
+
+
 class PharmaleadsWriter:
     def __init__(
         self,
@@ -114,11 +139,15 @@ class PharmaleadsWriter:
         *,
         source_id: str | None = None,
         registry: SourcePolicyRegistry | None = None,
+        access_token: str | None = None,
     ) -> None:
         validate_publishable_key(publishable_key)
         self._key = publishable_key
         self._source_id = source_id
         self._registry = registry or SourcePolicyRegistry(Settings().source_policy_path)
+        if access_token is not None and access_token.count(".") != 2:
+            raise ValueError("Token de acesso inválido.")
+        self._access_token = access_token
 
     def _request(
         self, method: str, path: str, payload: Any = None, *, return_rows: bool = False
@@ -143,17 +172,21 @@ class PharmaleadsWriter:
             "Accept": "application/json",
             "Accept-Profile": "public",
         }
+        if self._access_token is not None:
+            headers["Authorization"] = f"Bearer {self._access_token}"
         body = None
         if payload is not None:
             body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
             headers["Content-Type"] = "application/json"
             headers["Content-Profile"] = "public"
             headers["Prefer"] = "return=representation" if return_rows else "return=minimal"
+            if method == "POST" and "on_conflict=" in path:
+                headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
         connection = HTTPSConnection(HOST, timeout=10, context=ssl.create_default_context())
         try:
             connection.request(method, path, body=body, headers=headers)
             response = connection.getresponse()
-            if return_rows or method == "GET":
+            if return_rows or method == "GET" or response.status >= 400:
                 data = response.read(4097)
                 if len(data) > 4096:
                     raise ImportErrorSafe("Resposta remota acima do limite esperado.")
@@ -228,6 +261,53 @@ class PharmaleadsWriter:
         if not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict):
             raise ImportErrorSafe("Atualização sem confirmação de uma única linha.")
         return 1
+
+    def upsert_cadastral(self, records: list[dict[str, str]]) -> int:
+        """Promove cadastro por CNPJ sem enviar ou apagar qualquer campo comercial."""
+        if not records or len(records) > 500:
+            raise ImportErrorSafe("Quantidade de registros fora do limite.")
+        forbidden = {"status", "responsavel", "observacoes", "historico", "duplicado"}
+        for record in records:
+            if set(record) & forbidden:
+                raise ImportErrorSafe("Campo comercial proibido na promoção cadastral.")
+            self._check_record(record)
+        query = urlencode({"on_conflict": "cnpj"})
+        status, body = self._request(
+            "POST",
+            f"{TABLE_PATH}?{query}",
+            records,
+            return_rows=False,
+        )
+        if status not in {200, 201, 204}:
+            reason = _safe_postgrest_reason(body)
+            raise ImportErrorSafe(
+                f"Promoção recusada pelo Supabase (HTTP {status}; {reason})."
+            )
+        return len(records)
+
+    def verify_cnpjs(self, records: list[dict[str, str]]) -> int:
+        """Confirma por leitura autenticada que um lote inteiro ficou acessível."""
+        expected = {record["cnpj"] for record in records}
+        if not expected or len(expected) > 100:
+            raise ImportErrorSafe("Quantidade de CNPJs fora do limite de verificação.")
+        query = urlencode(
+            {
+                "select": "cnpj",
+                "cnpj": f"in.({','.join(sorted(expected))})",
+                "limit": str(len(expected)),
+            }
+        )
+        status, body = self._request("GET", f"{TABLE_PATH}?{query}")
+        if status not in {200, 206}:
+            raise ImportErrorSafe("Verificação de promoção recusada pelo Supabase.")
+        try:
+            rows = json.loads(body)
+        except (ValueError, UnicodeError) as exc:
+            raise ImportErrorSafe("Resposta inválida na verificação da promoção.") from exc
+        found = {row.get("cnpj") for row in rows if isinstance(row, dict)}
+        if found != expected:
+            raise ImportErrorSafe("Verificação não encontrou todos os CNPJs promovidos.")
+        return len(found)
 
 
 def main() -> int:

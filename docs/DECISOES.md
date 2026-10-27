@@ -20,8 +20,6 @@ Todas as linhas abaixo estão PENDENTES, sem aprovador/data de aprovação. Text
 
 | ID | Decisão necessária | Bloqueio principal |
 |---|---|---|
-| D-01 | CNAEs principais/extra e inclusão de veterinárias | Importação real M05 |
-| D-02 | UF/municípios do piloto | M05 real, G1 e homologação |
 | D-03 | Canais comerciais autorizados | Exportações/uso comercial |
 | D-04 | Orçamento e chave/ativação de APIs pagas | M21 |
 | D-05 | Base legal/finalidade/retenção e procedimento LGPD | Uso/exportação real |
@@ -34,8 +32,56 @@ Todas as linhas abaixo estão PENDENTES, sem aprovador/data de aprovação. Text
 | D-16 | Aprovação de fontes complementares e campos por ação | M16–M20 |
 | D-17 | Canal de registro de contato fornecido pela farmácia | M11 |
 | D-18 | Ordem comercial das fontes complementares | M16–M20 |
-| D-19 | Fórmula de idempotência, janela lógica e normalização | M06 |
 | D-20 | Critério de contato compartilhado e score, calibrados no piloto | M10/M22 |
+
+## M05 — D-01 e D-02 resolvidas (25/10/2026)
+
+Decisão humana: o piloto cobre todas as 27 UFs e todos os municípios. Entram todos
+os CNAEs principais especificamente farmacêuticos de uso humano; atividades
+veterinárias ficam excluídas. A implementação explicita nove CNAEs de fabricação,
+preparação, atacado e varejo humano e exclui `2122000`, `4644302` e `4771704`.
+CNAE secundário não concede elegibilidade nesta primeira carga, evitando incluir
+estabelecimentos de outro setor que apenas mantenham atividade farmacêutica acessória.
+
+## M05 — piloto Supabase executado (25/10/2026)
+
+Decisão humana: promover 100 estabelecimentos para validar todas as conexões. A
+amostra determinística cobre 27 UFs e 9 CNAEs. A Data API usou chave publicável e
+JWT curto de `app_metadata.role=operador`, sem `service_role`. `authenticated`
+manteve `SELECT`; `INSERT` e `UPDATE` foram limitados às colunas cadastrais. Políticas RLS do
+operador foram aplicadas somente em `public.pharmaleads`. Resultado confirmado:
+100 linhas gravadas e 100 relidas. Por decisão humana posterior, os IDs do piloto
+foram renumerados de 1 a 100 e o próximo identity definido como 101 por script
+transacional restrito à tabela.
+
+Impacto: D-01 e D-02 deixam de bloquear o pipeline. D-06 continua exigindo medir o
+recorte real e a capacidade antes de promover para a única tabela permitida.
+
+## M05 aceito e G1 aprovado (25/10/2026)
+
+Decisão humana: após revisar o relatório da competência 2026-10, a cobertura nacional,
+o piloto real de 100 linhas e os recursos medidos, o usuário aceitou o M05 e aprovou
+o G1. A decisão reconhece que telefone e e-mail da Receita são apenas declarados e
+serão verificados nos módulos M07–M10. M06 deixa de ser bloqueado pelo gate; D-19
+continua pendente. A promoção dos outros 128.795 leads não foi autorizada por este aceite.
+
+## M06 — D-19 definida para o piloto (26/10/2026)
+
+Decisão técnica dentro da autorização para continuar: a chave idempotente é SHA-256
+versionado sobre CNPJ canônico, tipo minúsculo e payload JSON canônico. Trabalho ativo
+igual sempre deduplica; após estado terminal, a mesma solicitação deduplica por 15
+minutos e depois pode gerar novo UUID. Lease inicial de 60 segundos, cinco tentativas
+e backoff exponencial limitado a cinco minutos. Mudança de proprietário incrementa o
+fencing token; heartbeat e conclusão exigem worker, fence e lease ainda válidos.
+
+Como somente `public.pharmaleads` pode existir, cada lead guarda um único trabalho
+corrente em colunas `job_*`. O adaptador usa compare-and-set pela Data API em vez de
+`SKIP LOCKED`; não existe histórico relacional completo nem dois tipos simultâneos no
+mesmo lead. Esta redução deve permanecer visível e não equivale ao modelo completo do
+contrato. As 16 colunas `job_*` foram aplicadas pelo usuário em 26/10/2026; RLS/grants
+foram inspecionados. Após confirmação humana do impacto, a política geral de UPDATE
+foi limitada a `admin`, preservando a política específica de `operador`; gestor e
+responsável ficam temporariamente sem UPDATE até M11. Concorrência real aguarda validação.
 
 Cada aprovação futura deve incluir autor, data, motivo, alternativas, impacto/módulos, migrações e testes necessários. Não exigir todas as decisões comerciais para M01 local.
 
@@ -50,7 +96,7 @@ Cada aprovação futura deve incluir autor, data, motivo, alternativas, impacto/
 
 | Gate | Momento | Evidência e aprovação | Estado |
 |---|---|---|---|
-| G1 | após M05, antes M06 | cobertura declarada, denominadores, filiais, recursos/custo e decisão humana de viabilidade | não submetido |
+| G1 | após M05, antes M06 | cobertura declarada, denominadores, filiais, recursos/custo e decisão humana de viabilidade | **aprovado pelo usuário em 25/10/2026** |
 | G2 | após M14, antes M15–M21 | fluxo manual real, contatos elegíveis, qualidade, custo/erros; selecionar evoluções | não submetido |
 | G3 | após M23, antes M24 | matriz, negativos, riscos, infraestrutura/licenças e restore ou pendência com responsável | não submetido |
 
@@ -64,7 +110,7 @@ G3 não autoriza publicação automática. Integração real, coleta massiva, AP
 - TEC-05 — Configuração nova usa PHARMALEADS_* de processo e não carrega .env legado. Rejeita ambiente de produção e bind externo nesta etapa. /ready responde 503 até verificações reais de M02/M03. Isso evita prontidão falsa; não é erro pendente da fundação.
 - TEC-06 — Shell informativo isolado com duas páginas; shadcn/Radix Button por instalação manual. Sem protótipo de CRM, métricas artificiais ou credenciais web. Bibliotecas de consultas/formulários comerciais aguardam seus casos de uso.
 
-Decisões comerciais D-xx e G1/G2/G3 continuam pendentes. Nenhuma licença, integração real ou publicação foi aprovada por estas escolhas técnicas.
+Decisões comerciais D-xx abertas e G2/G3 continuam pendentes. Nenhuma licença, integração real ou publicação adicional foi aprovada por estas escolhas técnicas.
 
 ## EX-04 — Exclusão local do legado (23/10/2026)
 

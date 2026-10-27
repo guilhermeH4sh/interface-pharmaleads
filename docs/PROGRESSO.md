@@ -1,4 +1,49 @@
-# Estado atual — 25/10/2026
+# Estado atual — 26/10/2026
+
+## M06 aceito — fila reduzida por lead — 26/10/2026
+
+Após o aceite do G1, foi implementado o núcleo da fila com idempotência determinística,
+janela de 15 minutos, lease de 60 segundos, fencing, heartbeat, retry com backoff,
+cancelamento e recuperação. Dois workers disputam por compare-and-set e somente um
+vence. Worker separado da FastAPI executa apenas `synthetic_probe`, explicitamente
+sem scraping ou efeito comercial. O adaptador Data API exige JWT autenticado e nunca
+usa `service_role`.
+
+A restrição humana de uma tabela impede a fila PostgreSQL relacional e `SKIP LOCKED`.
+O desenho reduzido mantém um trabalho corrente em colunas `job_*` da própria linha do
+lead. O SQL manual foi aplicado pelo usuário em 26/10/2026: as 16 colunas apareceram
+com os tipos esperados; nenhuma tabela, função, trigger, índice, schema ou papel foi
+criado pelo script. Onze testes M06, Ruff, formatação e mypy passaram. A prova remota
+iniciou dois workers e confirmou exatamente um vencedor, conclusão e limpeza. O
+verificador isola o lead escolhido. A prova final recuperou o lease na segunda
+tentativa, bloqueou o worker obsoleto por fencing e confirmou a limpeza.
+RLS está ativa, `authenticated` recebeu UPDATE nas 16 colunas e `anon` não possui
+grant. A inspeção encontrou sobreposição da política geral: gestor/responsável também
+podiam alterar `job_*`. O usuário confirmou o bloqueio temporário da escrita de CRM
+até M11 e aplicou a correção: as políticas UPDATE agora exigem `admin` ou `operador`.
+M06 foi aceito com as evidências locais e remotas. M07 está liberado. A renovação
+segura do JWT permanece necessária antes de publicar worker contínuo em produção.
+Ver [M06](M06.md).
+
+## M05 aceito; G1 aprovado — 25/10/2026
+
+O usuário definiu cobertura nacional, todos os municípios e todos os CNAEs do setor
+farmacêutico humano, sem veterinária. Foi entregue a CLI de validação, dry-run,
+stage, promoção e relatório G1, com ZIP seguro, streaming, checksum, dicionário
+municipal, CNPJ misto, matriz/filial, duplicações e preservação dos campos comerciais.
+A fonte Receita está aprovada no catálogo versionado M04. A suíte unitária passou
+com 99 testes; Ruff, formatação e mypy passaram em 40 arquivos.
+
+A competência oficial 2026-10 foi baixada em fluxo incremental: 6.803.525.340 bytes
+em 21 ZIPs. Foram analisadas 73.809.379 linhas e consolidados 128.895 estabelecimentos
+elegíveis, com 0 rejeições e 0 duplicações. O stage contém 128.895 linhas e o relatório
+G1 foi gerado em `aguarda_decisao_humana`. Um piloto determinístico de 100 leads,
+cobrindo 27 UFs e 9 CNAEs, foi gravado no Supabase e integralmente confirmado por
+leitura autenticada (`rows_written=100`, `rows_verified=100`). Os IDs do piloto foram
+renumerados para 1–100 e o próximo identity é 101. O usuário aceitou o M05 e aprovou
+o G1 ciente de que telefone/e-mail da Receita ainda não foram verificados externamente.
+Naquele aceite, M06 ficou liberado pelo gate e dependia da D-19, definida depois no
+início do módulo. Detalhes em [M05](M05.md).
 
 ## M04 — aceito e validado em produção — 25/10/2026
 
@@ -6,7 +51,7 @@ O usuário aceitou formalmente o piloto. A API foi publicada no Render e respond
 200 em `/health`; Supabase Auth e RBAC reais foram confirmados em `/v1/me`.
 `/v1/sources` bloqueou o perfil sem escopo com 403 e respondeu 200 com `[]` após
 atribuição autorizada de `app_metadata.role=operador`. `/health/supabase` confirmou
-`public.pharmaleads` por HEAD com RLS restrita (HTTP 401). M05 ainda não iniciado.
+`public.pharmaleads` por HEAD com RLS restrita (HTTP 401). O M05 foi iniciado depois.
 
 ## Render — configuração de produção validada — 25/10/2026
 
@@ -30,7 +75,8 @@ do piloto com gestão por publicação/histórico declarativo. Ver [M04](M04.md)
 
 Catálogo substituído por JSON somente leitura, incluído no wheel Python e carregado
 independentemente do diretório atual. API de fontes somente leitura; POSTs removidos.
-Configuração inicial vazia, sem fontes aprovadas. Override ausente/inválido bloqueia
+Naquela entrega, a configuração inicial estava vazia, sem fontes aprovadas. O M05
+posteriormente publicou a fonte Receita. Override ausente/inválido bloqueia
 sem fallback; importador revalida a configuração antes de cada requisição remota.
 Nenhum objeto Supabase alterado. Aceite do piloto com histórico declarativo e
 validação de publicação em produção pendentes. Detalhes em [M04.md](M04.md).

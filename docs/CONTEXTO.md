@@ -1,10 +1,23 @@
 # Contexto do PharmaLeads
 
-Atualização de 25/10/2026: M04 aceito pelo usuário e publicado no Render. Produção
+Atualização de 26/10/2026: M06 aceito após o M05/G1. A restrição de uma
+única tabela impede a fila relacional e o `SKIP LOCKED` previstos no contrato. O piloto
+usa colunas `job_*` na própria linha do lead e compare-and-set pela Data API, com um
+trabalho corrente por estabelecimento. Colunas e RLS foram aplicadas; a prova remota
+confirmou um vencedor entre dois workers, recuperação de lease, fencing e limpeza.
+M07 está liberado. Ver [M06](M06.md).
+
+Registro anterior de 25/10/2026: M05 aceito e G1 aprovado com recorte nacional, todos os
+municípios e CNAEs farmacêuticos humanos, sem veterinária. A carga oficial gerou
+128.895 leads e o piloto de 100 foi promovido e verificado no Supabase. Contatos da
+Receita permanecem declarados, não verificados. M06 está liberado pelo gate e depende
+da decisão D-19, posteriormente definida no início do M06. Ver [M05](M05.md).
+
+Registro anterior de 25/10/2026: M04 aceito pelo usuário e publicado no Render. Produção
 confirmou `/health`, autenticação Supabase, RBAC negativo e positivo, catálogo vazio
 somente leitura e `/health/supabase` conectado a `public.pharmaleads` por HEAD com
 RLS restrita. A exceção autorizada para o teste alterou apenas o `app_metadata.role`
-de um usuário Auth existente para `operador`. M05 ainda não iniciado. Evidências em
+de um usuário Auth existente para `operador`. Evidências em
 [M04](M04.md).
 
 Registro anterior de 24/10/2026: SQLite removido do catálogo. A aplicação

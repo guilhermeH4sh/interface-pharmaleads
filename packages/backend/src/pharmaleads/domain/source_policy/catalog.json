@@ -1,7 +1,49 @@
 {
   "schema_version": 1,
-  "revision": "bootstrap-1",
-  "sources": [],
-  "policies": [],
-  "history": []
+  "revision": "m05-receita-1",
+  "sources": [
+    {
+      "id": "receita_cnpj",
+      "nome": "Receita Federal — Dados Abertos do CNPJ",
+      "tipo": "arquivo_oficial",
+      "estado": "aprovada",
+      "descricao": "Cadastro oficial usado no recorte nacional farmacêutico humano do piloto.",
+      "licenca": "Dados abertos publicados pela Receita Federal; condições vigentes na competência.",
+      "termos": "https://www.gov.br/receitafederal/dados",
+      "fornecedor": "Receita Federal do Brasil",
+      "finalidade": "Identificar estabelecimentos farmacêuticos por CNPJ completo e dados cadastrais declarados.",
+      "aprovado_por": "usuario-projeto",
+      "aprovado_em": "2026-10-25",
+      "vigencia_ate": null
+    }
+  ],
+  "policies": [
+    {
+      "source_id": "receita_cnpj",
+      "campo": "*",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Campos oficiais necessários ao recorte e ao relatório G1.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "receita_cnpj",
+      "campo": "*",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Somente cadastro elegível em public.pharmaleads; campos comerciais são proibidos pelo importador.",
+      "vigente_ate": null,
+      "versao": 1
+    }
+  ],
+  "history": [
+    {
+      "source_id": "receita_cnpj",
+      "revision": "m05-receita-1",
+      "actor": "usuario-projeto",
+      "at": "2026-10-25T00:00:00-03:00",
+      "reason": "M05 autorizado com cobertura nacional e CNAEs farmacêuticos humanos, sem veterinária."
+    }
+  ]
 }

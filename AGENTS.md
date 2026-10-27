@@ -6,14 +6,16 @@
 > Só abra um arquivo de código se a tarefa exigir alterar ou verificar algo que não esteja descrito aqui.
 > Se este arquivo contradizer o código, o código prevalece — e este arquivo deve ser corrigido.
 
-## Estado atual (verificado em código — 25/10/2026)
+## Estado atual (verificado em código — 26/10/2026)
 
 - **M00** aceito; **M01** aceito; **M02** aceito; **M03** aceito; **M04** aceito em 25/10/2026.
-- M02: RLS corrigida, tabela resetada (0 linhas), `cnpj NOT NULL`, coluna `origem`, importador CSV pronto.
+- M02: RLS corrigida, tabela preparada com `cnpj NOT NULL` e coluna `origem`; importador CSV pronto.
 - M03: JWT Supabase validado (HS256), `GET /v1/me`, RBAC por `app_metadata.role`, 15 testes.
-- M04: catálogo JSON sem SQLite, API somente leitura e importador protegido. 27 testes M04 e 57 com auth/fundação passaram; smoke do wheel isolado passou. Produção validada no Render: `/health`, Auth/RBAC real, `/v1/sources` com 403 sem escopo e 200 para operador, e `/health/supabase` conectado por HEAD com RLS 401. Detalhes em docs/M04.md.
-- M05–M24: não iniciados. G1/G2/G3: não aprovados.
-- Testes Python: não verificado o total atual da suíte completa (era 48 em M02 + 15 em M03; rodar para confirmar).
+- M04: catálogo JSON sem SQLite, API somente leitura e importador protegido. Produção validada no Render: `/health`, Auth/RBAC real e Supabase conectado por HEAD com RLS 401. A revisão `m05-receita-1` agora publica a fonte Receita aprovada para o recorte M05. Detalhes em docs/M04.md.
+- **M05 aceito em 25/10/2026; G1 aprovado**: competência oficial 2026-10 baixada e filtrada em fluxo incremental. Foram analisados 73.809.379 estabelecimentos e gerados 128.895 leads elegíveis, sem rejeições/duplicações. Piloto estratificado de 100 leads (27 UFs, 9 CNAEs) gravado e confirmado no Supabase; IDs renumerados para 1–100 e próximo identity 101. O usuário avaliou a cobertura, os contatos declarados não verificados e os recursos medidos e autorizou avançar. Detalhes em docs/M05.md.
+- **M06 aceito em 26/10/2026**: fila reduzida a um trabalho corrente por lead nas 16 colunas `job_*` de `public.pharmaleads`; CAS substitui `SKIP LOCKED` devido à restrição de uma tabela/nenhum outro objeto. D-19, idempotência, lease, fencing, retry, cancelamento, recuperação e worker sintético entregues; 11 testes passaram. RLS/grants restringem UPDATE a `admin`/`operador`. A prova real confirmou um vencedor entre dois workers, recuperação na segunda tentativa, bloqueio do worker obsoleto e limpeza. Detalhes em docs/M06.md.
+- M07–M24: não iniciados. G2/G3: não aprovados.
+- Testes Python: última suíte completa registrada com 99 testes antes do teste de amostragem; 22 testes afetados de M05/Data API passaram em 25/10/2026 e 11 testes M06 em 26/10/2026. Suíte de integração PostgreSQL não executada.
 
 ## Stack e versões
 
@@ -31,20 +33,28 @@ packages/backend/src/pharmaleads/
   api/          # main.py, dependencies.py, errors.py, routes/v1/me.py
   config.py     # Settings com prefixo PHARMALEADS_*
   domain/source_policy/  # engine.py, models.py, registry.py, adapters.py, catalog.json (M04)
+  domain/receita/        # recorte, coleta oficial incremental, stage e relatório G1 (M05)
+  domain/jobs/           # estado, idempotência, lease e fencing da fila reduzida M06
   infrastructure/
     auth/jwt_validator.py        # validação JWT Supabase
     data_api.py                  # probe HEAD
     data_api_writer.py           # importador CSV (dry-run padrão)
+    receita_cli.py               # inclui coletar-oficial e demais comandos M05
+    job_queue_data_api.py        # CAS autenticado na única tabela permitida
+    worker_cli.py                # processo M06 separado da FastAPI
+    m06_verify_cli.py            # prova controlada de concorrência remota e limpeza
     database/{session,settings,cli}.py
+  worker.py              # executor e handler sintético identificado
   shared/identifiers.py
 database/migrations/versions/20261023_0001_m02_base.py  # bloqueada para Supabase remoto
 apps/web/src/   # React; components/, lib/, test/
-tests/unit/     # test_auth.py, test_database.py, test_data_api.py, test_foundation.py, test_source_policy.py, test_m04_workflow.py
+tests/unit/     # inclui test_m05_receita.py e test_m06_jobs.py
 tests/integration/test_m02_database.py  # requer PostgreSQL local descartável
 ops/validate_m04_package.py  # smoke do wheel em API real somente localhost e dados sintéticos
+ops/sql/          # scripts SQL manuais, transacionais e restritos a public.pharmaleads
 ops/windows/    # Setup-M01.ps1, Start-Api.ps1, Start-Web.ps1, Test-M01.ps1,
-                # Test-M02.ps1, Import-Pharmaleads.ps1, Test-Supabase-*.ps1
-docs/           # CONTEXTO.md, PROGRESSO.md, DECISOES.md, MATRIZ_REQUISITOS.md, M01.md, M02.md
+                # Test-M02.ps1, Import-Pharmaleads.ps1, Invoke-M05.ps1, Start-Worker.ps1, Test-M06-Remote.ps1
+docs/           # acompanhamento e relatórios M01.md, M02.md, M04.md, M05.md, M06.md
 docs/referencia/  # contrato canônico (não editar)
 ```
 
@@ -52,6 +62,8 @@ docs/referencia/  # contrato canônico (não editar)
 
 Prefixo `PHARMALEADS_*` (pydantic-settings). Relevantes:
 - `PHARMALEADS_DATA_API_PUBLISHABLE_KEY` — chave publicável Supabase
+- `PHARMALEADS_DATA_API_ACCESS_TOKEN` — JWT curto autenticado para promoção M05/worker M06; nunca versionar
+- `PHARMALEADS_TABLE_WRITE_APPROVED` — trava operacional; único valor aceito: `public.pharmaleads`
 - `PHARMALEADS_SUPABASE_JWT_SECRET` — segredo JWT (Settings → API → JWT Settings)
 - `PHARMALEADS_SOURCE_POLICY_PATH` — override opcional para JSON somente leitura; padrão usa `catalog.json` do pacote, sem depender do diretório atual
 - `PHARMALEADS_APP_ENV`, `PHARMALEADS_APP_HOST`, `PHARMALEADS_APP_PORT`, `PHARMALEADS_ALLOWED_ORIGINS`
@@ -94,6 +106,18 @@ cd apps/web && npm run lint
 
 # Importador CSV (dry-run padrão — sem escrita)
 .\ops\windows\Import-Pharmaleads.ps1 -File 'C:\caminho\arquivo.csv' -Mode insert
+
+# M05: validar ZIPs oficiais locais (repita caminhos no array)
+.\ops\windows\Invoke-M05.ps1 -Command validar -InputFile @('Empresas0.zip','Estabelecimentos0.zip','Municipios.zip')
+
+# M05: baixar e filtrar a competência oficial com remoção incremental dos ZIPs
+.\.venv\Scripts\python.exe -m pharmaleads.infrastructure.receita_cli coletar-oficial --work .m05-downloads\2026-10 --output .m05-stage --competencia 2026-10-01
+
+# M06: após aplicar/revisar o SQL e definir credenciais somente no processo
+.\ops\windows\Start-Worker.ps1 -WorkerId worker-piloto -Once
+
+# M06: prova controlada com dois workers; solicita chave/token sem exibi-los
+.\ops\windows\Test-M06-Remote.ps1 -LeadId 1
 ```
 
 ## Restrições duras (não alterar sem autorização explícita)
@@ -119,6 +143,7 @@ cd apps/web && npm run lint
 
 ## Como trabalhar com economia de tokens
 
+- Ao iniciar qualquer módulo, abrir a comunicação e a documentação com um título no formato `Mxx — descrição clara do que o módulo faz`, seguido de uma frase curta com seu objetivo.
 - Uma tarefa por sessão; ler somente arquivos citados na tarefa.
 - Usar `Select-String`, `Select-Object -First N`, `git diff --stat` antes de `git diff`.
 - Ignorar: `node_modules`, `.venv`, `dist`, `.uv-cache`, `.npm-cache`, `__pycache__`, `*.lock` (extrair versões com grep).
