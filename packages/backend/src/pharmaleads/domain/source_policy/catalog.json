@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "revision": "m05-receita-1",
+  "revision": "m07-pilot-audit-1",
   "sources": [
     {
       "id": "receita_cnpj",
@@ -14,6 +14,20 @@
       "finalidade": "Identificar estabelecimentos farmacêuticos por CNPJ completo e dados cadastrais declarados.",
       "aprovado_por": "usuario-projeto",
       "aprovado_em": "2026-10-25",
+      "vigencia_ate": null
+    },
+    {
+      "id": "manual_site_candidate",
+      "nome": "Candidato de site informado manualmente",
+      "tipo": "csv_manual",
+      "estado": "aprovada",
+      "descricao": "URL candidata informada por usuário autorizado; não realiza busca nacional externa.",
+      "licenca": "Entrada interna fornecida por usuário autorizado.",
+      "termos": "Fluxo interno M07; a origem declarada permanece registrada.",
+      "fornecedor": "Usuário autorizado do PharmaLeads",
+      "finalidade": "Submeter um domínio candidato à validação SSRF, vínculo por CNPJ e revisão humana.",
+      "aprovado_por": "usuario-projeto",
+      "aprovado_em": "2026-10-26",
       "vigencia_ate": null
     }
   ],
@@ -35,6 +49,78 @@
       "justificativa": "Somente cadastro elegível em public.pharmaleads; campos comerciais são proibidos pelo importador.",
       "vigente_ate": null,
       "versao": 1
+    },
+    {
+      "source_id": "manual_site_candidate",
+      "campo": "website",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Inspecionar somente a URL fornecida explicitamente, sob egress M07.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "manual_site_candidate",
+      "campo": "website",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Persistir o site somente após confirmação forte por CNPJ e revisão.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "manual_site_candidate",
+      "campo": "site_candidate_url",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Auditar a URL candidata dos 100 leads sem expor seu conteúdo.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "manual_site_candidate",
+      "campo": "site_evidence",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Auditar a presença da evidência mínima sem imprimir seus valores.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "manual_site_candidate",
+      "campo": "site_workflow",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Auditar estado e revisão do vínculo sem realizar escrita.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "manual_site_candidate",
+      "campo": "site_candidate_url",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Registrar a URL candidata e sua procedência para revisão.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "manual_site_candidate",
+      "campo": "site_evidence",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Registrar evidência mínima sanitizada de vínculo e egress.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "manual_site_candidate",
+      "campo": "site_workflow",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Persistir estado, versão CAS, classificação e revisão do fluxo M07.",
+      "vigente_ate": null,
+      "versao": 1
     }
   ],
   "history": [
@@ -44,6 +130,20 @@
       "actor": "usuario-projeto",
       "at": "2026-10-25T00:00:00-03:00",
       "reason": "M05 autorizado com cobertura nacional e CNAEs farmacêuticos humanos, sem veterinária."
+    },
+    {
+      "source_id": "manual_site_candidate",
+      "revision": "m07-manual-sites-1",
+      "actor": "usuario-projeto",
+      "at": "2026-10-26T00:00:00-03:00",
+      "reason": "M07 iniciado com entrada manual segura; nenhum provedor nacional externo foi autorizado."
+    },
+    {
+      "source_id": "manual_site_candidate",
+      "revision": "m07-pilot-audit-1",
+      "actor": "usuario-projeto",
+      "at": "2026-10-27T00:00:00-03:00",
+      "reason": "Auditoria somente leitura autorizada para confirmar os 100 leads após a prova M07."
     }
   ]
 }

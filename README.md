@@ -6,10 +6,13 @@ M02 inclui um importador local de cadastro por CSV. Prévia sem chave ou gravaç
 
 Nova versão construída por módulos: Python/FastAPI e React/TypeScript. O sistema legado foi removido localmente por autorização do usuário em 23/10/2026. Histórico Git preservado.
 
-M00–M06 aceitos e G1 aprovado. O recorte oficial encontrou 128.895 leads elegíveis e
+M00–M07 aceitos e G1 aprovado. O recorte oficial encontrou 128.895 leads elegíveis e
 o piloto de 100 foi gravado no Supabase. M06 entregou a fila reduzida a um trabalho
 corrente por lead, usando somente colunas de `public.pharmaleads`.
 Detalhes em [M05](docs/M05.md) e [M06](docs/M06.md).
+
+M07 confirmou `fdc.com.br` no lead 60 por CNPJ exato e provou revisão concorrente com
+um único vencedor. Detalhes em [M07](docs/M07.md).
 
 
 ## Executar a fundação M01

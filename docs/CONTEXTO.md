@@ -1,5 +1,11 @@
 # Contexto do PharmaLeads
 
+Atualização de 27/10/2026: M07 aceito com entrada manual de URLs, sem provedor
+nacional externo. A base bloqueia SSRF/DNS rebinding e exige CNPJ exato da filial.
+SQL/RLS foram inspecionados e a prova real confirmou `fdc.com.br` no lead 60, com um
+único vencedor entre duas revisões concorrentes e persistência de `website`. M08 está
+liberado. Ver [M07](M07.md).
+
 Atualização de 26/10/2026: M06 aceito após o M05/G1. A restrição de uma
 única tabela impede a fila relacional e o `SKIP LOCKED` previstos no contrato. O piloto
 usa colunas `job_*` na própria linha do lead e compare-and-set pela Data API, com um

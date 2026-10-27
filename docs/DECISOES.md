@@ -81,7 +81,22 @@ mesmo lead. Esta redução deve permanecer visível e não equivale ao modelo co
 contrato. As 16 colunas `job_*` foram aplicadas pelo usuário em 26/10/2026; RLS/grants
 foram inspecionados. Após confirmação humana do impacto, a política geral de UPDATE
 foi limitada a `admin`, preservando a política específica de `operador`; gestor e
-responsável ficam temporariamente sem UPDATE até M11. Concorrência real aguarda validação.
+responsável ficam temporariamente sem UPDATE até M11.
+
+Em 26/10/2026, a prova remota confirmou um vencedor entre dois workers, recuperação
+após lease vencido, fencing do worker obsoleto, conclusão na segunda tentativa e limpeza.
+
+## M07 — entrada manual/CSV e vínculo forte (26/10/2026)
+
+O piloto inicia sem inventar buscador nacional: a Receita não fornece sites, nenhum
+provedor externo foi aprovado e Google permanece reservado ao M21. O catálogo autoriza
+somente URL manual ou CSV limitado, com origem registrada. Confirmação de filial exige
+CNPJ exato no HTML; mesma raiz é classificada como rede e permanece sem confirmação.
+O egress fixa um IP público previamente validado e revalida todos os redirecionamentos.
+
+Devido ao único papel PostgreSQL `authenticated`, conceder política ao papel aplicativo
+`revisor` também abriria seus grants de `job_*`. O piloto remoto usa `admin`/`operador`
+para a revisão, sem ampliar RLS; D-07/M11 fará a separação final de papéis.
 
 Cada aprovação futura deve incluir autor, data, motivo, alternativas, impacto/módulos, migrações e testes necessários. Não exigir todas as decisões comerciais para M01 local.
 

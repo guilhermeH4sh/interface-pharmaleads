@@ -14,8 +14,9 @@
 - M04: catálogo JSON sem SQLite, API somente leitura e importador protegido. Produção validada no Render: `/health`, Auth/RBAC real e Supabase conectado por HEAD com RLS 401. A revisão `m05-receita-1` agora publica a fonte Receita aprovada para o recorte M05. Detalhes em docs/M04.md.
 - **M05 aceito em 25/10/2026; G1 aprovado**: competência oficial 2026-10 baixada e filtrada em fluxo incremental. Foram analisados 73.809.379 estabelecimentos e gerados 128.895 leads elegíveis, sem rejeições/duplicações. Piloto estratificado de 100 leads (27 UFs, 9 CNAEs) gravado e confirmado no Supabase; IDs renumerados para 1–100 e próximo identity 101. O usuário avaliou a cobertura, os contatos declarados não verificados e os recursos medidos e autorizou avançar. Detalhes em docs/M05.md.
 - **M06 aceito em 26/10/2026**: fila reduzida a um trabalho corrente por lead nas 16 colunas `job_*` de `public.pharmaleads`; CAS substitui `SKIP LOCKED` devido à restrição de uma tabela/nenhum outro objeto. D-19, idempotência, lease, fencing, retry, cancelamento, recuperação e worker sintético entregues; 11 testes passaram. RLS/grants restringem UPDATE a `admin`/`operador`. A prova real confirmou um vencedor entre dois workers, recuperação na segunda tentativa, bloqueio do worker obsoleto e limpeza. Detalhes em docs/M06.md.
-- M07–M24: não iniciados. G2/G3: não aprovados.
-- Testes Python: última suíte completa registrada com 99 testes antes do teste de amostragem; 22 testes afetados de M05/Data API passaram em 25/10/2026 e 11 testes M06 em 26/10/2026. Suíte de integração PostgreSQL não executada.
+- **M07 aceito em 27/10/2026**: entrada manual/CSV autorizado, validação SSRF/DNS rebinding com IP fixado, vínculo filial/rede por CNPJ, revisão versionada, adaptador CAS e verificador remoto de duas revisões entregues. O limite HTML seguro foi ajustado para 512 KiB após o caso real FDC de 330.572 bytes. As dez colunas `site_*` foram aplicadas e inspecionadas no Supabase; RLS permaneceu ativa, `authenticated` recebeu UPDATE nas dez colunas mais `website` e `anon` não recebeu esse grant. 28 testes M07 e 23 M04 afetados passaram. A prova real no lead 60 confirmou `fdc.com.br`, versão 2 e exatamente um vencedor entre duas revisões; `website` foi persistido. A auditoria read-only confirmou os 100 cadastros idênticos ao piloto original, os outros 99 sem dados M07 inesperados e zero escritas. Catálogo atual: `m07-pilot-audit-1`. Detalhes em docs/M07.md.
+- M08–M24: não iniciados. M08 liberado pelo aceite M07. G2/G3: não aprovados.
+- Testes Python: última suíte completa registrada com 99 testes antes do teste de amostragem; 22 testes afetados de M05/Data API, 11 testes M06 e 51 testes afetados de M07/M04 passaram. Suíte de integração PostgreSQL não executada.
 
 ## Stack e versões
 
@@ -35,6 +36,7 @@ packages/backend/src/pharmaleads/
   domain/source_policy/  # engine.py, models.py, registry.py, adapters.py, catalog.json (M04)
   domain/receita/        # recorte, coleta oficial incremental, stage e relatório G1 (M05)
   domain/jobs/           # estado, idempotência, lease e fencing da fila reduzida M06
+  domain/sites/          # URL segura, vínculo por CNPJ e revisão concorrente M07
   infrastructure/
     auth/jwt_validator.py        # validação JWT Supabase
     data_api.py                  # probe HEAD
@@ -43,6 +45,11 @@ packages/backend/src/pharmaleads/
     job_queue_data_api.py        # CAS autenticado na única tabela permitida
     worker_cli.py                # processo M06 separado da FastAPI
     m06_verify_cli.py            # prova controlada de concorrência remota e limpeza
+    m07_audit_cli.py             # comparação read-only dos 100 leads com o piloto original
+    m07_verify_cli.py            # prova remota de duas revisões CAS e publicação do site
+    site_http.py                  # HTTP com IP fixado, SSRF e redirecionamentos seguros
+    site_data_api.py              # CAS do fluxo de sites em public.pharmaleads
+    site_cli.py                   # validar/propor/revisar candidatos M07
     database/{session,settings,cli}.py
   worker.py              # executor e handler sintético identificado
   shared/identifiers.py
@@ -53,8 +60,9 @@ tests/integration/test_m02_database.py  # requer PostgreSQL local descartável
 ops/validate_m04_package.py  # smoke do wheel em API real somente localhost e dados sintéticos
 ops/sql/          # scripts SQL manuais, transacionais e restritos a public.pharmaleads
 ops/windows/    # Setup-M01.ps1, Start-Api.ps1, Start-Web.ps1, Test-M01.ps1,
-                # Test-M02.ps1, Import-Pharmaleads.ps1, Invoke-M05.ps1, Start-Worker.ps1, Test-M06-Remote.ps1
-docs/           # acompanhamento e relatórios M01.md, M02.md, M04.md, M05.md, M06.md
+                # Test-M02.ps1, Import-Pharmaleads.ps1, Invoke-M05.ps1, Start-Worker.ps1, Test-M06-Remote.ps1,
+                # Invoke-M07.ps1, Test-M07-Remote.ps1, Test-M07-Pilot.ps1
+docs/           # acompanhamento e relatórios M01.md, M02.md, M04.md, M05.md, M06.md, M07.md
 docs/referencia/  # contrato canônico (não editar)
 ```
 
@@ -118,6 +126,15 @@ cd apps/web && npm run lint
 
 # M06: prova controlada com dois workers; solicita chave/token sem exibi-los
 .\ops\windows\Test-M06-Remote.ps1 -LeadId 1
+
+# M07: validação sem escrita de URL candidata manual
+.\ops\windows\Invoke-M07.ps1 -Command validar --cnpj CNPJ --url https://exemplo.com.br
+
+# M07: confirmar site real e provar duas revisões CAS; solicita chave/token sem exibi-los
+.\ops\windows\Test-M07-Remote.ps1 -LeadId ID -Cnpj CNPJ -Url https://site-oficial.example
+
+# M07: auditar os 100 leads sem escrever; solicita chave/token sem exibi-los
+.\ops\windows\Test-M07-Pilot.ps1
 ```
 
 ## Restrições duras (não alterar sem autorização explícita)

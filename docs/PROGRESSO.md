@@ -1,4 +1,28 @@
-# Estado atual — 26/10/2026
+# Estado atual — 27/10/2026
+
+## M07 aceito — descoberta e validação de sites — 27/10/2026
+
+Implementadas entrada manual autorizada, normalização de URL, bloqueio SSRF para
+IPv4/IPv6, DNS misto, IP fixado contra rebinding, redirecionamentos revalidados,
+limites de rede/HTML, vínculo por CNPJ e revisão versionada. O catálogo não autoriza
+provedor nacional externo nem Google. Persistência CAS e SQL restritos à tabela
+`public.pharmaleads` foram preparados. Entrada CSV limitada e validada também foi
+entregue. Passaram 26 testes M07 e 23 testes M04 afetados, além de Ruff, formatação,
+mypy e sintaxe PowerShell. O SQL foi aplicado pelo usuário: RLS ativa, onze campos de
+site atualizáveis por `authenticated` e nenhum grant equivalente para `anon`. O
+verificador remoto seguro de duas revisões CAS está pronto. O candidato `fdc.com.br`
+do lead 60 publicou o CNPJ exato; após ampliar o teto HTML de 256 para 512 KiB, a
+validação real retornou `branch_exact`. A prova remota persistiu `review_required` na
+versão 1; duas revisões disputaram o CAS, exatamente uma venceu e o resultado final
+foi `confirmed`, versão 2, com `website` confirmado. M07 aceito e M08 liberado. Ver
+[M07](M07.md).
+
+Após o aceite, foi preparada uma auditoria complementar read-only dos 100 leads. Ela
+compara os 11 campos cadastrais de cada linha com o arquivo original do piloto e
+confirma que apenas o lead 60 possui dados M07. Dois testes novos elevaram a evidência
+afetada para 28 testes M07 e 23 M04, total 51. A execução remota confirmou os 100
+cadastros idênticos ao piloto original, zero divergências, somente o lead 60 com site,
+os outros 99 intocados e zero escritas. Auditoria complementar encerrada.
 
 ## M06 aceito — fila reduzida por lead — 26/10/2026
 

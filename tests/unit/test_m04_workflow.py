@@ -128,8 +128,11 @@ def test_default_packaged_config_is_versioned_without_creating_storage(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     registry = SourcePolicyRegistry()
-    assert registry.configuration().revision == "m05-receita-1"
-    assert [source.id for source in registry.list_sources()] == ["receita_cnpj"]
+    assert registry.configuration().revision == "m07-pilot-audit-1"
+    assert [source.id for source in registry.list_sources()] == [
+        "receita_cnpj",
+        "manual_site_candidate",
+    ]
     with pytest.raises(PolicyViolationError):
         registry.guarded("unknown", ("nome",), PolicyAction.COLETAR, Mock())
     assert list(tmp_path.iterdir()) == []
