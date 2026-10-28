@@ -23,19 +23,59 @@ foreach ($name in $managedNames) {
     }
 }
 
-function Convert-SecureValue([Security.SecureString]$secure) {
-    $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-    try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer) }
-    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
+function Read-M20Credentials {
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = 'PharmaLeads M20 — credenciais temporárias'
+    $form.Width = 520
+    $form.Height = 245
+    $form.StartPosition = 'CenterScreen'
+    $form.FormBorderStyle = 'FixedDialog'
+    $form.MaximizeBox = $false
+
+    $keyLabel = New-Object System.Windows.Forms.Label
+    $keyLabel.Text = 'Chave publicável do Supabase'
+    $keyLabel.Left = 18; $keyLabel.Top = 20; $keyLabel.Width = 460
+    $form.Controls.Add($keyLabel)
+    $keyBox = New-Object System.Windows.Forms.TextBox
+    $keyBox.Left = 18; $keyBox.Top = 43; $keyBox.Width = 465
+    $form.Controls.Add($keyBox)
+
+    $tokenLabel = New-Object System.Windows.Forms.Label
+    $tokenLabel.Text = 'JWT atualizado do operador (campo protegido)'
+    $tokenLabel.Left = 18; $tokenLabel.Top = 78; $tokenLabel.Width = 460
+    $form.Controls.Add($tokenLabel)
+    $tokenBox = New-Object System.Windows.Forms.TextBox
+    $tokenBox.Left = 18; $tokenBox.Top = 101; $tokenBox.Width = 465
+    $tokenBox.UseSystemPasswordChar = $true
+    $form.Controls.Add($tokenBox)
+
+    $confirm = New-Object System.Windows.Forms.Button
+    $confirm.Text = 'Continuar'
+    $confirm.Left = 300; $confirm.Top = 145; $confirm.Width = 88
+    $confirm.DialogResult = [System.Windows.Forms.DialogResult]::OK
+    $form.Controls.Add($confirm)
+    $cancel = New-Object System.Windows.Forms.Button
+    $cancel.Text = 'Cancelar'
+    $cancel.Left = 395; $cancel.Top = 145; $cancel.Width = 88
+    $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $form.Controls.Add($cancel)
+    $form.AcceptButton = $confirm
+    $form.CancelButton = $cancel
+
+    if ($form.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) {
+        throw 'Credenciais não informadas.'
+    }
+    return [pscustomobject]@{ Key = $keyBox.Text.Trim(); Token = $tokenBox.Text.Trim() }
 }
 
 try {
     Write-Host 'Abrindo a janela de credenciais do M20...'
-    $credential = Get-Credential -Message 'Usuario: chave sb_publishable_... | Senha: JWT atualizado do operador' -UserName 'sb_publishable_'
-    if ($null -eq $credential) { throw 'Credenciais não informadas.' }
-    $key = $credential.UserName
+    $credential = Read-M20Credentials
+    $key = $credential.Key
     if ($key -notmatch '^sb_publishable_[A-Za-z0-9_-]+$') { throw 'Chave publicavel inválida.' }
-    $token = Convert-SecureValue $credential.Password
+    $token = $credential.Token
     if (($token -split '\.').Count -ne 3) { throw 'Access token JWT invalido.' }
     [Environment]::SetEnvironmentVariable($managedNames[0], $key, 'Process')
     [Environment]::SetEnvironmentVariable($managedNames[1], $token, 'Process')
