@@ -59,7 +59,7 @@ packages/backend/src/pharmaleads/
     m08_{cli,runner,worker_cli}.py # enfileiramento, reactor único e worker M08
     m09_browser.py               # contexto Playwright isolado e limitado M09
     m09_{cli,runner,worker_cli}.py # enfileiramento explícito e worker dedicado M09
-    contact_data_api.py, m10_{cli,review_cli}.py # promoção e revisão CAS de contatos M10
+    contact_data_api.py, m10_{cli,review_cli,verify_cli}.py # promoção, revisão e prova CAS M10
     scrapy_{egress,retry}.py      # IP fixado e Retry-After M08
     database/{session,settings,cli}.py
   worker.py              # executor e handler sintético identificado
@@ -73,7 +73,7 @@ ops/sql/          # scripts SQL manuais, transacionais e restritos a public.phar
 ops/windows/    # Setup-M01.ps1, Start-Api.ps1, Start-Web.ps1, Test-M01.ps1,
                 # Test-M02.ps1, Import-Pharmaleads.ps1, Invoke-M05.ps1, Start-Worker.ps1, Test-M06-Remote.ps1,
                 # Invoke-M07.ps1, Test-M07-Remote.ps1, Test-M07-Pilot.ps1, Test-M08-Remote.ps1,
-                # Test-M10-Remote.ps1, Test-M10-Review-Remote.ps1
+                # Test-M10-Remote.ps1, Test-M10-Review-Remote.ps1, Test-M10-Cas-Remote.ps1
 docs/           # acompanhamento e relatórios M01.md, M02.md, M04.md, M05.md, M06.md, M07.md, M08.md, M09.md
 docs/referencia/  # contrato canônico (não editar)
 ```
@@ -163,6 +163,9 @@ cd apps/web && npm run lint
 
 # M10: revisar contato; o script solicita ID e decisão se não forem informados
 .\ops\windows\Test-M10-Review-Remote.ps1 -LeadId 60
+
+# M10: provar dois revisores concorrentes; o script solicita o ID já revisado
+.\ops\windows\Test-M10-Cas-Remote.ps1 -LeadId 60
 ```
 
 ## Restrições duras (não alterar sem autorização explícita)

@@ -17,6 +17,9 @@ A revisão humana M10 foi adicionada localmente: identificador estável por cont
 origem (`minimal_only`), sem conteúdo bruto armazenado. A revisão remota foi confirmada; faltam
 prova CAS concorrente e calibração D-20.
 
+O verificador CAS concorrente foi entregue localmente: duas revisões reutilizam a mesma versão e
+o teste confirma exatamente um vencedor. Falta sua execução remota no lead 60 e a calibração D-20.
+
 ## M09 aceito — navegador seletivo — 27/10/2026
 
 O browser será aplicado somente a páginas efetivamente dinâmicas que não tenham sido atendidas

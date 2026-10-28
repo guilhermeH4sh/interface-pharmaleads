@@ -1,6 +1,7 @@
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Lock
 
 import pytest
 
@@ -17,7 +18,9 @@ from pharmaleads.domain.contacts.service import (
 from pharmaleads.domain.crawling.models import ContactKind, ObservationCandidate
 from pharmaleads.domain.source_policy.engine import PolicyViolationError
 from pharmaleads.domain.source_policy.registry import SourcePolicyRegistry
+from pharmaleads.infrastructure.contact_data_api import ContactDataApiError, ContactRow
 from pharmaleads.infrastructure.m10_cli import guarded_persist
+from pharmaleads.infrastructure.m10_verify_cli import verify
 
 
 def observation(lead_id: int, source: str, evidence: str) -> ObservationCandidate:
@@ -102,6 +105,54 @@ def test_review_rejects_unknown_contact_identifier() -> None:
     records = checkpoint_records((observation(1, "confirmed_site_http", "a"),))
     with pytest.raises(ValueError, match="não localizado"):
         review_records(records, {"missing"}, "rejected", "reviewer-1", "now")
+
+
+class InMemoryContactRepository:
+    def __init__(self, row: ContactRow) -> None:
+        self._row = row
+        self._lock = Lock()
+
+    def get(self, lead_id: int) -> ContactRow | None:
+        return self._row if lead_id == self._row.lead_id else None
+
+    def save(
+        self,
+        row: ContactRow,
+        records: tuple[dict[str, object], ...],
+        evidence: tuple[dict[str, object], ...],
+        *,
+        actor: str,
+    ) -> ContactRow:
+        with self._lock:
+            if row.review_version != self._row.review_version:
+                raise ContactDataApiError("Gravação de contato perdeu a concorrência.")
+            self._row = ContactRow(
+                row.lead_id,
+                row.cnpj,
+                row.checkpoint,
+                records,
+                evidence,
+                row.review_version + 1,
+            )
+            return self._row
+
+
+def test_concurrent_review_has_exactly_one_cas_winner() -> None:
+    records = checkpoint_records((observation(1, "confirmed_site_http", "a"),))
+    identifier = str(records[0]["id"])
+    reviewed = review_records(
+        records, {identifier}, "approved", "reviewer-1", "2026-10-28T00:00:00+00:00"
+    )
+    repository = InMemoryContactRepository(ContactRow(1, "123", {}, reviewed, (), 4))
+    result = verify(
+        repository,
+        SourcePolicyRegistry(),
+        1,
+        identifier,
+        "reviewer-1",
+    )
+    assert result["reviews_won"] == 1
+    assert result["final_version"] == 5
 
 
 def test_revoked_source_blocks_promotion_before_operation(tmp_path: Path) -> None:
