@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "revision": "m10-contact-consolidation-1",
+  "revision": "m20-osm-sp-pilot-1",
   "sources": [
     {
       "id": "receita_cnpj",
@@ -56,6 +56,20 @@
       "finalidade": "Observar contatos institucionais explicitamente renderizados, sem promoção comercial automática.",
       "aprovado_por": "usuario-projeto",
       "aprovado_em": "2026-10-27",
+      "vigencia_ate": null
+    },
+    {
+      "id": "osm_site_candidate",
+      "nome": "OpenStreetMap — candidato regional de site",
+      "tipo": "localizador_rede",
+      "estado": "aprovada",
+      "descricao": "Piloto antecipado M20 em São Paulo: consulta limitada para URLs etiquetadas por colaboradores OSM; nunca confirma vínculo por si só.",
+      "licenca": "Open Database License (ODbL); atribuição OpenStreetMap obrigatória e obrigações de compartilhamento aplicáveis a bases derivadas.",
+      "termos": "https://www.openstreetmap.org/copyright; https://dev.overpass-api.de/overpass-doc/en/preface/commons.html",
+      "fornecedor": "OpenStreetMap contributors via Overpass API",
+      "finalidade": "Descobrir URL candidata de estabelecimentos farmacêuticos do piloto regional; M07 valida URL e CNPJ antes de qualquer confirmação.",
+      "aprovado_por": "usuario-projeto",
+      "aprovado_em": "2026-10-28",
       "vigencia_ate": null
     }
   ],
@@ -120,6 +134,42 @@
       "acao": "coletar",
       "decisao": "permitido",
       "justificativa": "Auditar estado e revisão do vínculo sem realizar escrita.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "osm_site_candidate",
+      "campo": "website",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Consultar no máximo 20 leads da UF SP de modo serial para obter URL candidata; M07 continua soberano para validar o vínculo.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "osm_site_candidate",
+      "campo": "site_candidate_url",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Registrar somente URL candidata OSM que passe pela inspeção M07 e revisão humana.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "osm_site_candidate",
+      "campo": "site_evidence",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Registrar metadados mínimos do elemento OSM como procedência do candidato revisável.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "osm_site_candidate",
+      "campo": "site_workflow",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Registrar estado e versão CAS do candidato, sem confirmar website automaticamente.",
       "vigente_ate": null,
       "versao": 1
     },
@@ -326,6 +376,13 @@
       "actor": "usuario-projeto",
       "at": "2026-10-28T00:00:00-03:00",
       "reason": "M10 autorizado para consolidar observações M08/M09 em registros revisáveis e evidência mínima, sem atualização comercial."
+    },
+    {
+      "source_id": "osm_site_candidate",
+      "revision": "m20-osm-sp-pilot-1",
+      "actor": "usuario-projeto",
+      "at": "2026-10-28T00:00:00-03:00",
+      "reason": "Exceção antecipada: piloto OSM limitado a até 20 leads de São Paulo para descobrir URLs candidatas, sem confirmação automática e sem armazenar dados brutos."
     }
   ]
 }

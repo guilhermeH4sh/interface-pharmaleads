@@ -128,12 +128,13 @@ def test_default_packaged_config_is_versioned_without_creating_storage(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     registry = SourcePolicyRegistry()
-    assert registry.configuration().revision == "m10-contact-consolidation-1"
+    assert registry.configuration().revision == "m20-osm-sp-pilot-1"
     assert [source.id for source in registry.list_sources()] == [
         "receita_cnpj",
         "manual_site_candidate",
         "confirmed_site_http",
         "confirmed_site_browser",
+        "osm_site_candidate",
     ]
     with pytest.raises(PolicyViolationError):
         registry.guarded("unknown", ("nome",), PolicyAction.COLETAR, Mock())

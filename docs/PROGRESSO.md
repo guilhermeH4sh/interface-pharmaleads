@@ -1,5 +1,13 @@
 # Estado atual — 27/10/2026
 
+## M20 antecipado em andamento — descoberta regional OSM — 28/10/2026
+
+Por exceção humana antes de G2, foi autorizada uma fonte OpenStreetMap para descobrir somente URLs
+candidatas de até 20 leads existentes da UF SP. A implementação usa consultas seriais ao Overpass,
+atribuição ODbL, sem Nominatim, sem dados brutos persistidos e sem confirmação automática: todo
+candidato ainda precisa passar pelo M07 com CNPJ forte e revisão. Passaram os testes locais de
+normalização, escopo SP, URL segura e catálogo; falta a prova remota com leads SP reais.
+
 ## M10 em andamento — consolidação, revisão e evidências — 28/10/2026
 
 Iniciado após M09. O núcleo normaliza e deduplica observações por tipo/valor, preserva fontes
