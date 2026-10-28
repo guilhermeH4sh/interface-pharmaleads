@@ -64,8 +64,10 @@ def _request(key: str, token: str, lead_ids: list[int]) -> list[dict[str, Any]]:
         raw = response.read(262_145)
     finally:
         connection.close()
-    if len(raw) > 262_144 or response.status not in {200, 206}:
-        raise M20DataApiError("Leitura do piloto OSM recusada.")
+    if len(raw) > 262_144:
+        raise M20DataApiError("Leitura do piloto OSM excedeu o limite.")
+    if response.status not in {200, 206}:
+        raise M20DataApiError(f"Leitura do piloto OSM recusada (HTTP {response.status}).")
     try:
         rows = json.loads(raw)
     except (UnicodeError, ValueError) as exc:

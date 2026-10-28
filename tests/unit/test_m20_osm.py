@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from pharmaleads.infrastructure import m20_cli
 from pharmaleads.infrastructure.osm_overpass import OsmLead, candidates, name_matches, query_for
 from pharmaleads.infrastructure.osm_pbf import discover_from_pbf
 
@@ -84,3 +85,25 @@ def test_pbf_reader_keeps_only_matching_safe_candidate(
             "url": "https://example.test",
         },
     )
+
+
+def test_data_api_error_includes_only_http_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Response:
+        status = 401
+
+        def read(self, _limit: int) -> bytes:
+            return b'{"message":"sensitive fixture"}'
+
+    class Connection:
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> Response:
+            return Response()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(m20_cli, "HTTPSConnection", lambda *_args, **_kwargs: Connection())
+    with pytest.raises(m20_cli.M20DataApiError, match=r"HTTP 401"):
+        m20_cli._request("sb_publishable_fixture", "jwt", [1])

@@ -6,8 +6,9 @@ Por exceção humana antes de G2, foi autorizada uma fonte OpenStreetMap para de
 candidatas de até 20 leads existentes da UF SP. A implementação usa consultas seriais ao Overpass
 ou extrato Geofabrik Sudeste temporário, atribuição ODbL, sem Nominatim, sem dados brutos
 persistidos e sem confirmação automática: todo candidato ainda precisa passar pelo M07 com CNPJ
-forte e revisão. O extrato é limitado a 900 MiB e removido ao fim do processo. Passaram quatro
-testes locais de normalização, escopo SP, URL segura, catálogo e leitura PBF simulada; falta a
+forte e revisão. O extrato é limitado a 900 MiB e removido ao fim do processo. Passaram cinco
+testes locais de normalização, escopo SP, URL segura, catálogo, leitura PBF simulada e diagnóstico
+HTTP sanitizado; falta a
 prova remota com leads SP reais. Timeout do Overpass é tratado por lead e não interrompe os demais
 candidatos.
 
