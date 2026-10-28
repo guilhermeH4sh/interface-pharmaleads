@@ -73,7 +73,7 @@ function Read-M20Credentials {
 try {
     Write-Host 'Abrindo a janela de credenciais do M20...'
     $credential = Read-M20Credentials
-    $key = $credential.Key
+    $key = [regex]::Replace([string]$credential.Key, '[^A-Za-z0-9_-]', '')
     if ($key -notmatch '^sb_publishable_[A-Za-z0-9_-]+$') { throw 'Chave publicavel inválida.' }
     $token = $credential.Token
     if (($token -split '\.').Count -ne 3) { throw 'Access token JWT invalido.' }
