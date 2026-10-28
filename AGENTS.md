@@ -161,8 +161,8 @@ cd apps/web && npm run lint
 # M10: dry-run remoto; acrescente -Apply somente após conferir a contagem
 .\ops\windows\Test-M10-Remote.ps1 -LeadId 60
 
-# M10: revisar contatos por IDs mostrados no dry-run
-.\ops\windows\Test-M10-Review-Remote.ps1 -LeadId 60 -ContactId ID -Decision approved
+# M10: revisar contato; o script solicita ID e decisão se não forem informados
+.\ops\windows\Test-M10-Review-Remote.ps1 -LeadId 60
 ```
 
 ## Restrições duras (não alterar sem autorização explícita)

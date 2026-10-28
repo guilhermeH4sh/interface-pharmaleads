@@ -1,8 +1,6 @@
 param(
     [int]$LeadId = 60,
-    [Parameter(Mandatory = $true)]
-    [string[]]$ContactId,
-    [Parameter(Mandatory = $true)]
+    [string[]]$ContactId = @(),
     [ValidateSet('approved', 'rejected')]
     [string]$Decision
 )
@@ -13,7 +11,7 @@ $python = Join-Path $repoRoot '.venv/Scripts/python.exe'
 if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
     throw 'Execute Setup-M01.ps1 primeiro.'
 }
-if ($LeadId -lt 1 -or $ContactId.Count -eq 0) { throw 'Revisão M10 inválida.' }
+if ($LeadId -lt 1) { throw 'LeadId deve ser positivo.' }
 
 $managedNames = @(
     'PHARMALEADS_DATA_API_PUBLISHABLE_KEY',
@@ -38,6 +36,15 @@ try {
     if ($key -notmatch '^sb_publishable_[A-Za-z0-9_-]+$') { throw 'Chave publicavel inválida.' }
     $token = Read-SecretValue 'Access token JWT atualizado do usuario operador'
     if (($token -split '\.').Count -ne 3) { throw 'Access token JWT invalido.' }
+    if ($ContactId.Count -eq 0) {
+        $ContactId = (Read-Host 'ID do contato a revisar').Split(',', [StringSplitOptions]::RemoveEmptyEntries)
+    }
+    if (-not $Decision) {
+        $Decision = Read-Host 'Decisão (approved ou rejected)'
+    }
+    if ($ContactId.Count -eq 0 -or $Decision -notin @('approved', 'rejected')) {
+        throw 'Revisão M10 inválida.'
+    }
     [Environment]::SetEnvironmentVariable($managedNames[0], $key, 'Process')
     [Environment]::SetEnvironmentVariable($managedNames[1], $token, 'Process')
     [Environment]::SetEnvironmentVariable($managedNames[2], 'public.pharmaleads', 'Process')
