@@ -17,14 +17,14 @@
 - **M07 aceito em 27/10/2026**: entrada manual/CSV autorizado, validação SSRF/DNS rebinding com IP fixado, vínculo filial/rede por CNPJ, revisão versionada, adaptador CAS e verificador remoto de duas revisões entregues. O limite HTML seguro foi ajustado para 512 KiB após o caso real FDC de 330.572 bytes. As dez colunas `site_*` foram aplicadas e inspecionadas no Supabase; RLS permaneceu ativa, `authenticated` recebeu UPDATE nas dez colunas mais `website` e `anon` não recebeu esse grant. 28 testes M07 e 23 M04 afetados passaram. A prova real no lead 60 confirmou `fdc.com.br`, versão 2 e exatamente um vencedor entre duas revisões; `website` foi persistido. A auditoria read-only confirmou os 100 cadastros idênticos ao piloto original, os outros 99 sem dados M07 inesperados e zero escritas. Detalhes em docs/M07.md.
 - **M08 aceito em 27/10/2026**: Scrapy institucional restrito ao site confirmado, robots/limites, SSRF com IP fixado, parsing explícito de e-mail/telefone/WhatsApp/JSON-LD, checkpoint retomável e worker com um reactor por processo foram implementados. Catálogo `m08-confirmed-http-1`; resultados ficam somente em `job_checkpoint`, sem promoção comercial. A prova real no lead 60 terminou `succeeded`, processou duas páginas e observou um contato de cada tipo; o erro residual da primeira tentativa foi removido por CAS e o estado final foi confirmado limpo. Detalhes em docs/M08.md.
 - **M09 aceito em 27/10/2026**: Playwright seletivo com contexto não persistente, limites, timeout/cancelamento, egress por subrequisição, CLI/worker dedicado e comparação HTTP × browser. Prova local Chromium confirmou JavaScript, popup, timeout, subrequisição bloqueada e fechamento sem leak; nenhum site externo/Supabase foi usado. Detalhes em docs/M09.md.
-- **M10 em andamento**: normalização/dedup de observações, limiar compartilhado provisório N=3 e score `m10-v1`; as seis colunas `contact_*` foram aplicadas. O adaptador CAS lê M08/M09 e grava somente esses campos, revalidando fonte antes do PATCH; teste de revogação passou. A prova remota do lead 60 gravou 3 contatos/3 evidências (0→1), a revisão humana aprovou um contato (versão 4) e a prova CAS concorrente teve um vencedor entre duas revisões (versão 5). A revisão usa identificador estável, `sub` do JWT, CAS e bloqueio por fonte revogada; evidência é `minimal_only`, sem conteúdo bruto. Pendente: calibração D-20. **M20 antecipado em andamento**: piloto OSM autorizado para no máximo 20 leads de SP, sem dados brutos e sem confirmação automática; detalhes em docs/M20.md. M11–M19/M21–M24: não iniciados. G2/G3: não aprovados.
+- **M10 em andamento**: normalização/dedup de observações, limiar compartilhado provisório N=3 e score `m10-v1`; as seis colunas `contact_*` foram aplicadas. O adaptador CAS lê M08/M09 e grava somente esses campos, revalidando fonte antes do PATCH; teste de revogação passou. A prova remota do lead 60 gravou 3 contatos/3 evidências (0→1), a revisão humana aprovou um contato (versão 4) e a prova CAS concorrente teve um vencedor entre duas revisões (versão 5). A revisão usa identificador estável, `sub` do JWT, CAS e bloqueio por fonte revogada; evidência é `minimal_only`, sem conteúdo bruto. Pendente: calibração D-20. **M20 antecipado em andamento**: piloto OSM autorizado para no máximo 20 leads de SP, sem dados brutos e sem confirmação automática; oferece Overpass serial e extrato Geofabrik Sudeste temporário limitado a 900 MiB. Detalhes em docs/M20.md. M11–M19/M21–M24: não iniciados. G2/G3: não aprovados.
 - Testes Python: última suíte completa registrada com 99 testes antes do teste de amostragem; 22 testes afetados de M05/Data API, 11 testes M06, 51 testes afetados de M07/M04 e 84 testes afetados de M08/M07/M06/M04 passaram. M09: teste unitário de egress, Ruff/mypy e prova Chromium controlada de JS/popup/timeout/subrequisição passaram. Suíte de integração PostgreSQL não executada.
 
 ## Stack e versões
 
 - Python 3.12 / FastAPI ≥0.115 / Uvicorn ≥0.34 / Pydantic ≥2.10 / pydantic-settings ≥2.7
 - SQLAlchemy ≥2.0 / Alembic ≥1.16 / psycopg (binary)
-- Scrapy ≥2.19,<3 (M08)
+- Scrapy ≥2.19,<3 (M08); osmium ≥4.3,<5 (leitura efêmera do extrato OSM M20)
 - M04: configuração JSON versionada incluída no pacote Python; nenhum banco auxiliar.
 - Dev: pytest ≥8, httpx2 ≥2, ruff ≥0.9, mypy ≥1.15; Playwright ≥1.64,<2 (M09; Chromium só para prova controlada)
 - Frontend: React 19.3.1 / TypeScript 6.0.3 / Vite 8.3.5 (`apps/web`)
@@ -60,7 +60,7 @@ packages/backend/src/pharmaleads/
     m09_browser.py               # contexto Playwright isolado e limitado M09
     m09_{cli,runner,worker_cli}.py # enfileiramento explícito e worker dedicado M09
     contact_data_api.py, m10_{cli,review_cli,verify_cli}.py # promoção, revisão e prova CAS M10
-    osm_overpass.py, m20_cli.py # descoberta OSM limitada ao piloto SP M20
+    osm_{overpass,pbf}.py, m20_cli.py # descoberta OSM limitada ao piloto SP M20
     scrapy_{egress,retry}.py      # IP fixado e Retry-After M08
     database/{session,settings,cli}.py
   worker.py              # executor e handler sintético identificado
@@ -169,8 +169,8 @@ cd apps/web && npm run lint
 # M10: provar dois revisores concorrentes; o script solicita o ID já revisado
 .\ops\windows\Test-M10-Cas-Remote.ps1 -LeadId 60
 
-# M20: no máximo 20 IDs existentes da UF SP; retorna apenas URLs candidatas OSM
-.\ops\windows\Invoke-M20-OsmPilot.ps1 -LeadId 1,2
+# M20: no máximo 20 IDs existentes da UF SP; extrato temporário e URLs somente candidatas
+.\ops\windows\Invoke-M20-OsmPilot.ps1 -LeadId 1,2 -DownloadPbf
 ```
 
 ## Restrições duras (não alterar sem autorização explícita)

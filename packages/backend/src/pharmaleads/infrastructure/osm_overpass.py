@@ -17,6 +17,7 @@ MAX_RESPONSE_BYTES = 1_048_576
 SOURCE_ID = "osm_site_candidate"
 LEGAL_SUFFIXES = {"LTDA", "ME", "EPP", "SA", "S", "A", "EIRELI"}
 SP_BBOX = "-25.36,-53.11,-19.78,-44.16"
+GEFABRIK_SUDESTE_URL = "https://download.geofabrik.de/south-america/brazil/sudeste-latest.osm.pbf"
 
 
 class OsmDiscoveryError(RuntimeError):
@@ -108,6 +109,24 @@ def candidates(lead: OsmLead, document: object) -> tuple[dict[str, object], ...]
             }
         )
     return tuple(sorted(result, key=lambda item: str(item["url"])))
+
+
+def candidate_from_tags(
+    lead: OsmLead, *, element: str, tags: dict[str, object]
+) -> dict[str, object] | None:
+    """Converte um elemento OSM local em candidato sem conservar o elemento bruto."""
+    name = tags.get("name")
+    url = _website(tags)
+    if not isinstance(name, str) or url is None or not name_matches(lead.name, name):
+        return None
+    return {
+        "cnpj": lead.cnpj,
+        "lead_id": lead.lead_id,
+        "osm_element": element,
+        "osm_name": name,
+        "source_id": SOURCE_ID,
+        "url": url,
+    }
 
 
 class OverpassClient:

@@ -1,6 +1,11 @@
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
 import pytest
 
 from pharmaleads.infrastructure.osm_overpass import OsmLead, candidates, name_matches, query_for
+from pharmaleads.infrastructure.osm_pbf import discover_from_pbf
 
 
 def lead() -> OsmLead:
@@ -51,3 +56,31 @@ def test_candidates_accept_only_same_name_and_safe_website() -> None:
 def test_name_match_requires_substantial_overlap() -> None:
     assert name_matches("Farmácia Exemplo Ltda", "Farmácia Exemplo Ltda")
     assert not name_matches("Farmácia Exemplo Ltda", "Farmácia Central")
+
+
+def test_pbf_reader_keeps_only_matching_safe_candidate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class Handler:
+        def apply_file(self, _path: str, *, locations: bool) -> None:
+            assert not locations
+            self.node(
+                SimpleNamespace(
+                    id=22,
+                    tags={"name": "Farmacia Exemplo", "website": "https://example.test"},
+                )
+            )
+
+    monkeypatch.setitem(sys.modules, "osmium", SimpleNamespace(SimpleHandler=Handler))
+    pbf = tmp_path / "sudeste.osm.pbf"
+    pbf.write_bytes(b"fixture")
+    assert discover_from_pbf(pbf, [lead()]) == (
+        {
+            "cnpj": "12345678000190",
+            "lead_id": 7,
+            "osm_element": "node/22",
+            "osm_name": "Farmacia Exemplo",
+            "source_id": "osm_site_candidate",
+            "url": "https://example.test",
+        },
+    )

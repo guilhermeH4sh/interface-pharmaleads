@@ -7,8 +7,10 @@ import json
 import os
 import ssl
 import sys
+import tempfile
 import time
 from http.client import HTTPSConnection
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
@@ -22,6 +24,7 @@ from pharmaleads.infrastructure.osm_overpass import (
     OsmLead,
     OverpassClient,
 )
+from pharmaleads.infrastructure.osm_pbf import OsmPbfError, discover_from_pbf, download_sudeste_pbf
 
 TABLE_PATH = "/rest/v1/pharmaleads"
 SELECT_FIELDS = "id,cnpj,nome,razao_social,uf,cidade"
@@ -36,6 +39,9 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description="Descobre candidatos OSM para o piloto SP.")
     root.add_argument("--lead-id", action="append", type=int, required=True)
     root.add_argument("--apply", action="store_true")
+    source = root.add_mutually_exclusive_group()
+    source.add_argument("--pbf-file", type=Path)
+    source.add_argument("--download-pbf", action="store_true")
     return root
 
 
@@ -77,6 +83,12 @@ def _lead(row: dict[str, Any]) -> OsmLead:
         raise M20DataApiError("Lead do piloto OSM inválido.") from exc
 
 
+def _discover_from_local_extract(
+    leads: tuple[OsmLead, ...], pbf_file: Path
+) -> tuple[dict[str, object], ...]:
+    return discover_from_pbf(pbf_file, leads)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     lead_ids = sorted(set(args.lead_id))
@@ -98,20 +110,31 @@ def main(argv: list[str] | None = None) -> int:
         leads = tuple(_lead(row) for row in _request(key, token, lead_ids))
         if len(leads) != len(lead_ids) or any(lead.uf != "SP" for lead in leads):
             raise M20DataApiError("Piloto OSM requer leads existentes da UF SP.")
-        client = OverpassClient()
-        discovered: list[dict[str, object]] = []
+        backend = "overpass"
         failed_leads: list[int] = []
-        for index, lead in enumerate(leads):
-            try:
-                discovered.extend(client.discover(lead))
-            except OsmDiscoveryError:
-                failed_leads.append(lead.lead_id)
-            if index + 1 < len(leads):
-                time.sleep(2)
+        if args.download_pbf:
+            backend = "geofabrik_pbf_ephemeral"
+            with tempfile.TemporaryDirectory(prefix="pharmaleads-m20-") as temporary:
+                extract = download_sudeste_pbf(Path(temporary) / "sudeste-latest.osm.pbf")
+                discovered = list(_discover_from_local_extract(leads, extract))
+        elif args.pbf_file is not None:
+            backend = "geofabrik_pbf_local"
+            discovered = list(_discover_from_local_extract(leads, args.pbf_file))
+        else:
+            client = OverpassClient()
+            discovered = []
+            for index, lead in enumerate(leads):
+                try:
+                    discovered.extend(client.discover(lead))
+                except OsmDiscoveryError:
+                    failed_leads.append(lead.lead_id)
+                if index + 1 < len(leads):
+                    time.sleep(2)
         print(
             json.dumps(
                 {
                     "attribution": "© OpenStreetMap contributors, ODbL",
+                    "backend": backend,
                     "candidates": discovered,
                     "failed_lead_ids": failed_leads,
                     "leads_queried": len(leads),
@@ -123,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
-    except (M20DataApiError, OsmDiscoveryError, ValueError) as exc:
+    except (M20DataApiError, OsmDiscoveryError, OsmPbfError, ValueError) as exc:
         print(f"M20 bloqueado: {exc}", file=sys.stderr)
         return 1
 

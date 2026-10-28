@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
-    [int[]]$LeadId
+    [int[]]$LeadId,
+    [string]$PbfFile,
+    [switch]$DownloadPbf
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,6 +14,7 @@ if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
 if ($LeadId.Count -lt 1 -or $LeadId.Count -gt 20 -or ($LeadId | Where-Object { $_ -lt 1 })) {
     throw 'Informe de 1 a 20 IDs positivos da UF SP.'
 }
+if ($PbfFile -and $DownloadPbf) { throw 'Use PbfFile ou DownloadPbf, não os dois.' }
 
 $managedNames = @('PHARMALEADS_DATA_API_PUBLISHABLE_KEY', 'PHARMALEADS_DATA_API_ACCESS_TOKEN')
 foreach ($name in $managedNames) {
@@ -39,6 +42,8 @@ try {
 
     $arguments = @('-m', 'pharmaleads.infrastructure.m20_cli')
     foreach ($id in $LeadId) { $arguments += '--lead-id'; $arguments += $id }
+    if ($PbfFile) { $arguments += '--pbf-file'; $arguments += $PbfFile }
+    if ($DownloadPbf) { $arguments += '--download-pbf' }
     $arguments += '--apply'
     Push-Location $repoRoot
     try {
