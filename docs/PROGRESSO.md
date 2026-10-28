@@ -9,16 +9,16 @@ inspecionadas no Supabase. O adaptador CAS lê exclusivamente o checkpoint M08/M
 essas colunas; as políticas das fontes são revalidadas antes do PATCH e o teste confirma que uma
 fonte revogada interrompe a operação. A prova remota do lead 60 promoveu três contatos e três
 evidências, levando a revisão CAS de 0 para 1. A revisão humana remota aprovou um contato e levou
-a versão a 4. Passaram 30 testes locais M10/M04, Ruff e mypy. Faltam provar uma disputa CAS
-remota entre revisões e calibrar score/limiar com o piloto (D-20).
+a versão a 4; a prova concorrente iniciou duas revisões, teve um vencedor e terminou na versão 5.
+Passaram 31 testes locais M10/M04, Ruff e mypy. Falta calibrar score/limiar com o piloto (D-20).
 
 A revisão humana M10 foi adicionada localmente: identificador estável por contato, decisão
 `approved`/`rejected`, autoria vinda do `sub` do JWT e CAS. A evidência é minimalista desde a
-origem (`minimal_only`), sem conteúdo bruto armazenado. A revisão remota foi confirmada; faltam
-prova CAS concorrente e calibração D-20.
+origem (`minimal_only`), sem conteúdo bruto armazenado. A revisão remota e a prova CAS
+concorrente foram confirmadas; falta calibração D-20.
 
-O verificador CAS concorrente foi entregue localmente: duas revisões reutilizam a mesma versão e
-o teste confirma exatamente um vencedor. Falta sua execução remota no lead 60 e a calibração D-20.
+O verificador CAS concorrente reutiliza a mesma versão em duas revisões e confirmou exatamente um
+vencedor no lead 60. Falta a calibração D-20.
 
 ## M09 aceito — navegador seletivo — 27/10/2026
 
