@@ -13,7 +13,16 @@ from urllib.parse import urlencode
 from pharmaleads.infrastructure.data_api import HOST, validate_publishable_key
 
 TABLE_PATH = "/rest/v1/pharmaleads"
-SELECT_FIELDS = ",".join(("id", "cnpj", "job_checkpoint", "contact_review_version"))
+SELECT_FIELDS = ",".join(
+    (
+        "id",
+        "cnpj",
+        "job_checkpoint",
+        "contact_records",
+        "contact_evidence",
+        "contact_review_version",
+    )
+)
 
 
 class ContactDataApiError(RuntimeError):
@@ -25,6 +34,8 @@ class ContactRow:
     lead_id: int
     cnpj: str
     checkpoint: dict[str, object]
+    records: tuple[dict[str, object], ...]
+    evidence: tuple[dict[str, object], ...]
     review_version: int
 
 
@@ -34,6 +45,14 @@ def _row(value: object) -> ContactRow:
     checkpoint = value.get("job_checkpoint") or {}
     if not isinstance(checkpoint, dict):
         raise ContactDataApiError("Checkpoint de contato inválido.")
+    records = value.get("contact_records") or []
+    evidence = value.get("contact_evidence") or []
+    if (
+        not isinstance(records, list)
+        or not isinstance(evidence, list)
+        or not all(isinstance(item, dict) for item in records + evidence)
+    ):
+        raise ContactDataApiError("Registros de contato inválidos.")
     try:
         lead_id = int(value["id"])
         cnpj = str(value["cnpj"])
@@ -42,7 +61,7 @@ def _row(value: object) -> ContactRow:
         raise ContactDataApiError("Resposta de contato inválida.") from exc
     if lead_id < 1 or not cnpj or version < 0:
         raise ContactDataApiError("Resposta de contato inválida.")
-    return ContactRow(lead_id, cnpj, checkpoint, version)
+    return ContactRow(lead_id, cnpj, checkpoint, tuple(records), tuple(evidence), version)
 
 
 class ContactDataApiRepository:
@@ -106,7 +125,7 @@ class ContactDataApiRepository:
         self,
         row: ContactRow,
         records: tuple[dict[str, object], ...],
-        evidence: tuple[dict[str, str], ...],
+        evidence: tuple[dict[str, object], ...],
         *,
         actor: str,
     ) -> ContactRow:

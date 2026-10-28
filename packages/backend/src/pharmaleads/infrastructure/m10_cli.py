@@ -8,7 +8,11 @@ import os
 import sys
 from collections.abc import Callable
 
-from pharmaleads.domain.contacts.service import checkpoint_records, evidence_records
+from pharmaleads.domain.contacts.service import (
+    checkpoint_records,
+    evidence_records,
+    preserve_reviews,
+)
 from pharmaleads.domain.crawling.models import ObservationCandidate
 from pharmaleads.domain.source_policy.models import PolicyAction
 from pharmaleads.domain.source_policy.registry import SourcePolicyRegistry
@@ -79,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         if row is None:
             raise ValueError("Lead não localizado.")
         found = observations(row.checkpoint, row.lead_id)
-        records = checkpoint_records(found)
+        records = preserve_reviews(checkpoint_records(found), row.records)
         evidence = evidence_records(found)
         source_ids = tuple(sorted({value.source_id for value in found}))
         if args.apply:
@@ -96,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "applied": args.apply,
                     "contact_records": len(records),
+                    "contact_ids": [record["id"] for record in records],
                     "evidence_records": len(evidence),
                     "lead_id": row.lead_id,
                     "review_version": version,

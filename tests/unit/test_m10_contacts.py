@@ -8,8 +8,11 @@ from pharmaleads.domain.contacts.service import (
     SHARED_THRESHOLD,
     checkpoint_records,
     consolidate,
+    contact_id,
     evidence_records,
     normalize_url,
+    preserve_reviews,
+    review_records,
 )
 from pharmaleads.domain.crawling.models import ContactKind, ObservationCandidate
 from pharmaleads.domain.source_policy.engine import PolicyViolationError
@@ -55,12 +58,14 @@ def test_checkpoint_records_do_not_contain_lead_commercial_fields() -> None:
     record = checkpoint_records((observation(1, "confirmed_site_http", "a"),))[0]
     assert set(record) == {
         "kind",
+        "id",
         "value",
         "shared",
         "score",
         "score_version",
         "sources",
         "evidence_hashes",
+        "review_state",
     }
 
 
@@ -72,8 +77,31 @@ def test_evidence_records_do_not_repeat_raw_contact_value() -> None:
         "source_url",
         "observed_at",
         "extractor_version",
+        "content_state",
     }
     assert "Comercial@Exemplo.COM" not in evidence.values()
+    assert evidence["content_state"] == "minimal_only"
+
+
+def test_review_is_bound_to_stable_contact_identifier_and_is_preserved() -> None:
+    records = checkpoint_records((observation(1, "confirmed_site_http", "a"),))
+    identifier = contact_id(ContactKind.EMAIL, "Comercial@Exemplo.COM")
+    reviewed = review_records(
+        records,
+        {identifier},
+        "approved",
+        "reviewer-1",
+        "2026-10-28T00:00:00+00:00",
+    )
+    assert reviewed[0]["review_state"] == "approved"
+    refreshed = checkpoint_records((observation(1, "confirmed_site_http", "a"),))
+    assert preserve_reviews(refreshed, reviewed)[0]["reviewed_by"] == "reviewer-1"
+
+
+def test_review_rejects_unknown_contact_identifier() -> None:
+    records = checkpoint_records((observation(1, "confirmed_site_http", "a"),))
+    with pytest.raises(ValueError, match="não localizado"):
+        review_records(records, {"missing"}, "rejected", "reviewer-1", "now")
 
 
 def test_revoked_source_blocks_promotion_before_operation(tmp_path: Path) -> None:

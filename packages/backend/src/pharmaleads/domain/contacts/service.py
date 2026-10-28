@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections import defaultdict
 from collections.abc import Iterable
@@ -12,6 +13,7 @@ from pharmaleads.domain.crawling.models import ContactKind, ObservationCandidate
 
 SCORE_VERSION = "m10-v1"
 SHARED_THRESHOLD = 3
+REVIEW_STATES = {"pending", "approved", "rejected"}
 
 
 def normalize(kind: ContactKind, value: str) -> str:
@@ -31,6 +33,12 @@ def normalize_url(value: str) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise ValueError("URL de evidência inválida.")
     return urlunsplit((parsed.scheme, parsed.netloc.casefold(), parsed.path or "/", "", ""))
+
+
+def contact_id(kind: ContactKind, value: str) -> str:
+    """Identificador estável para revisão sem expor outro dado do lead."""
+    normalized = normalize(kind, value)
+    return hashlib.sha256(f"{kind.value}\x00{normalized}".encode()).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -69,6 +77,7 @@ def checkpoint_records(
     """Formato persistível sem reutilizar campos comerciais do lead."""
     return tuple(
         {
+            "id": contact_id(contact.kind, contact.value),
             "kind": contact.kind.value,
             "value": contact.value,
             "shared": contact.shared,
@@ -76,6 +85,7 @@ def checkpoint_records(
             "score_version": contact.score_version,
             "sources": list(contact.source_ids),
             "evidence_hashes": list(contact.evidence_hashes),
+            "review_state": "pending",
         }
         for contact in consolidate(observations)
     )
@@ -83,7 +93,7 @@ def checkpoint_records(
 
 def evidence_records(
     observations: Iterable[ObservationCandidate],
-) -> tuple[dict[str, str], ...]:
+) -> tuple[dict[str, object], ...]:
     """Evidência mínima auditável, sem repetir o valor bruto do contato."""
     records = {
         (
@@ -102,6 +112,60 @@ def evidence_records(
             "source_url": source_url,
             "observed_at": observed_at,
             "extractor_version": extractor_version,
+            "content_state": "minimal_only",
         }
         for evidence_hash, source_id, source_url, observed_at, extractor_version in sorted(records)
     )
+
+
+def preserve_reviews(
+    records: Iterable[dict[str, object]],
+    existing: Iterable[dict[str, object]],
+) -> tuple[dict[str, object], ...]:
+    """Mantém decisão humana apenas para o mesmo contato normalizado."""
+    reviewed = {
+        item.get("id"): item
+        for item in existing
+        if isinstance(item.get("id"), str) and item.get("review_state") in REVIEW_STATES
+    }
+    result: list[dict[str, object]] = []
+    for record in records:
+        updated = dict(record)
+        prior = reviewed.get(updated["id"])
+        if isinstance(prior, dict):
+            for name in ("review_state", "reviewed_by", "reviewed_at"):
+                if name in prior:
+                    updated[name] = prior[name]
+        result.append(updated)
+    return tuple(result)
+
+
+def review_records(
+    records: Iterable[dict[str, object]],
+    contact_ids: set[str],
+    decision: str,
+    reviewer: str,
+    reviewed_at: str,
+) -> tuple[dict[str, object], ...]:
+    if decision not in REVIEW_STATES - {"pending"}:
+        raise ValueError("Decisão de revisão inválida.")
+    if not reviewer or not contact_ids:
+        raise ValueError("Revisão de contato inválida.")
+    updated: list[dict[str, object]] = []
+    found: set[str] = set()
+    for record in records:
+        item = dict(record)
+        identifier = item.get("id")
+        if isinstance(identifier, str) and identifier in contact_ids:
+            item.update(
+                {
+                    "review_state": decision,
+                    "reviewed_by": reviewer,
+                    "reviewed_at": reviewed_at,
+                }
+            )
+            found.add(identifier)
+        updated.append(item)
+    if found != contact_ids:
+        raise ValueError("Contato da revisão não localizado.")
+    return tuple(updated)

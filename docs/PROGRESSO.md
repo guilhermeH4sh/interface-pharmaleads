@@ -8,8 +8,13 @@ score heurístico `m10-v1`, sem escrita comercial. As seis colunas `contact_*` f
 inspecionadas no Supabase. O adaptador CAS lê exclusivamente o checkpoint M08/M09 e grava somente
 essas colunas; as políticas das fontes são revalidadas antes do PATCH e o teste confirma que uma
 fonte revogada interrompe a operação. A prova remota do lead 60 promoveu três contatos e três
-evidências, levando a revisão CAS de 0 para 1. Passaram 28 testes locais M10/M04, Ruff e mypy.
+evidências, levando a revisão CAS de 0 para 1. Passaram 30 testes locais M10/M04, Ruff e mypy.
 Faltam retenção/revisão humana e calibrar score/limiar com o piloto.
+
+A revisão humana M10 foi adicionada localmente: identificador estável por contato, decisão
+`approved`/`rejected`, autoria vinda do `sub` do JWT e CAS. A evidência é minimalista desde a
+origem (`minimal_only`), sem conteúdo bruto armazenado. Falta testar essa revisão remotamente e
+calibrar D-20.
 
 ## M09 aceito — navegador seletivo — 27/10/2026
 
