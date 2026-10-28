@@ -1,5 +1,43 @@
 # Estado atual — 27/10/2026
 
+## M10 em andamento — consolidação, revisão e evidências — 28/10/2026
+
+Iniciado após M09. O núcleo normaliza e deduplica observações por tipo/valor, preserva fontes
+e hashes de evidência, marca compartilhado somente a partir de três estabelecimentos e produz
+score heurístico `m10-v1`, sem escrita comercial. As seis colunas `contact_*` foram aplicadas e
+inspecionadas no Supabase. O adaptador CAS lê exclusivamente o checkpoint M08/M09 e grava somente
+essas colunas; as políticas das fontes são revalidadas antes do PATCH e o teste confirma que uma
+fonte revogada interrompe a operação. A prova remota do lead 60 promoveu três contatos e três
+evidências, levando a revisão CAS de 0 para 1. Passaram 28 testes locais M10/M04, Ruff e mypy.
+Faltam retenção/revisão humana e calibrar score/limiar com o piloto.
+
+## M09 aceito — navegador seletivo — 27/10/2026
+
+O browser será aplicado somente a páginas efetivamente dinâmicas que não tenham sido atendidas
+pelo HTTP autorizado. O contrato Playwright usa um contexto/página, Service Workers bloqueados,
+limites de requisição/HTML/tempo, egress por subrequisição, cancelamento e fechamento garantido.
+A prova Chromium controlada confirmou contato introduzido por JavaScript, comparação HTTP 0 ×
+browser 1, popup fechado, timeout, subrequisição sintética bloqueada e ausência de leak. O CLI
+exige decisão humana e M08 concluído; o worker dedicado reivindica apenas `crawl_browser`.
+Ver [M09](M09.md).
+
+## M08 aceito — coleta institucional HTTP — 27/10/2026
+
+Implementados Scrapy 2.19, fonte aprovada `confirmed_site_http`, limites de host,
+profundidade, concorrência, tamanho e tempo, `robots.txt`, AutoThrottle, retry finito,
+`Retry-After` e pausa sem evasão em 403/CAPTCHA. O parser versionado observa apenas
+`mailto:`, `tel:`, links explícitos WhatsApp e JSON-LD. O egress mantém SSRF/DNS
+rebinding bloqueados e fixa o IP validado. Observações e métricas ficam somente no
+`job_checkpoint`; nenhum contato comercial é sobrescrito e nenhuma tabela/coluna foi
+criada. Checkpoint periódico renova lease e permite retomada com fencing.
+
+Passaram 84 testes afetados M04/M06/M07/M08, Ruff, mypy e sintaxe PowerShell. A prova com
+servidor controlado respeitou robots, processou duas páginas e obteve três observações.
+A prova real do lead 60 terminou `succeeded`, processou duas páginas e observou um
+e-mail, um telefone e um WhatsApp. O `error_code` residual da primeira tentativa foi
+removido por CAS sem repetir o crawl; o estado final limpo foi confirmado. O módulo
+está pronto e aguarda somente o aceite humano. Ver [M08](M08.md).
+
 ## M07 aceito — descoberta e validação de sites — 27/10/2026
 
 Implementadas entrada manual autorizada, normalização de URL, bloqueio SSRF para

@@ -1,5 +1,16 @@
 # Contexto do PharmaLeads
 
+Atualização de 27/10/2026: M09 foi aceito. O navegador Playwright é seletivo, não substitui o
+HTTP do M08 e só aceita decisão humana após M08 concluído e M07 confirmado. A prova Chromium
+controlada validou JavaScript, comparação HTTP × browser, popup, timeout, bloqueio de
+subrequisição e encerramento sem leak; nenhum site externo ou Supabase foi usado. Ver [M09](M09.md).
+
+Atualização de 27/10/2026: M08 foi aceito após coleta HTTP somente em sites confirmados.
+E-mail, telefone e WhatsApp explícito são observações auditáveis no `job_checkpoint`,
+sem substituir contatos comerciais. Robots, limites, SSRF, retomada e reactor único
+passaram localmente. A prova real no lead 60 processou duas páginas, observou um contato
+de cada tipo e terminou `succeeded` com estado limpo. M09 está liberado. Ver [M08](M08.md).
+
 Atualização de 27/10/2026: M07 aceito com entrada manual de URLs, sem provedor
 nacional externo. A base bloqueia SSRF/DNS rebinding e exige CNPJ exato da filial.
 SQL/RLS foram inspecionados e a prova real confirmou `fdc.com.br` no lead 60, com um

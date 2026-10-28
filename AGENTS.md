@@ -6,7 +6,7 @@
 > Só abra um arquivo de código se a tarefa exigir alterar ou verificar algo que não esteja descrito aqui.
 > Se este arquivo contradizer o código, o código prevalece — e este arquivo deve ser corrigido.
 
-## Estado atual (verificado em código — 26/10/2026)
+## Estado atual (verificado em código — 27/10/2026)
 
 - **M00** aceito; **M01** aceito; **M02** aceito; **M03** aceito; **M04** aceito em 25/10/2026.
 - M02: RLS corrigida, tabela preparada com `cnpj NOT NULL` e coluna `origem`; importador CSV pronto.
@@ -14,16 +14,19 @@
 - M04: catálogo JSON sem SQLite, API somente leitura e importador protegido. Produção validada no Render: `/health`, Auth/RBAC real e Supabase conectado por HEAD com RLS 401. A revisão `m05-receita-1` agora publica a fonte Receita aprovada para o recorte M05. Detalhes em docs/M04.md.
 - **M05 aceito em 25/10/2026; G1 aprovado**: competência oficial 2026-10 baixada e filtrada em fluxo incremental. Foram analisados 73.809.379 estabelecimentos e gerados 128.895 leads elegíveis, sem rejeições/duplicações. Piloto estratificado de 100 leads (27 UFs, 9 CNAEs) gravado e confirmado no Supabase; IDs renumerados para 1–100 e próximo identity 101. O usuário avaliou a cobertura, os contatos declarados não verificados e os recursos medidos e autorizou avançar. Detalhes em docs/M05.md.
 - **M06 aceito em 26/10/2026**: fila reduzida a um trabalho corrente por lead nas 16 colunas `job_*` de `public.pharmaleads`; CAS substitui `SKIP LOCKED` devido à restrição de uma tabela/nenhum outro objeto. D-19, idempotência, lease, fencing, retry, cancelamento, recuperação e worker sintético entregues; 11 testes passaram. RLS/grants restringem UPDATE a `admin`/`operador`. A prova real confirmou um vencedor entre dois workers, recuperação na segunda tentativa, bloqueio do worker obsoleto e limpeza. Detalhes em docs/M06.md.
-- **M07 aceito em 27/10/2026**: entrada manual/CSV autorizado, validação SSRF/DNS rebinding com IP fixado, vínculo filial/rede por CNPJ, revisão versionada, adaptador CAS e verificador remoto de duas revisões entregues. O limite HTML seguro foi ajustado para 512 KiB após o caso real FDC de 330.572 bytes. As dez colunas `site_*` foram aplicadas e inspecionadas no Supabase; RLS permaneceu ativa, `authenticated` recebeu UPDATE nas dez colunas mais `website` e `anon` não recebeu esse grant. 28 testes M07 e 23 M04 afetados passaram. A prova real no lead 60 confirmou `fdc.com.br`, versão 2 e exatamente um vencedor entre duas revisões; `website` foi persistido. A auditoria read-only confirmou os 100 cadastros idênticos ao piloto original, os outros 99 sem dados M07 inesperados e zero escritas. Catálogo atual: `m07-pilot-audit-1`. Detalhes em docs/M07.md.
-- M08–M24: não iniciados. M08 liberado pelo aceite M07. G2/G3: não aprovados.
-- Testes Python: última suíte completa registrada com 99 testes antes do teste de amostragem; 22 testes afetados de M05/Data API, 11 testes M06 e 51 testes afetados de M07/M04 passaram. Suíte de integração PostgreSQL não executada.
+- **M07 aceito em 27/10/2026**: entrada manual/CSV autorizado, validação SSRF/DNS rebinding com IP fixado, vínculo filial/rede por CNPJ, revisão versionada, adaptador CAS e verificador remoto de duas revisões entregues. O limite HTML seguro foi ajustado para 512 KiB após o caso real FDC de 330.572 bytes. As dez colunas `site_*` foram aplicadas e inspecionadas no Supabase; RLS permaneceu ativa, `authenticated` recebeu UPDATE nas dez colunas mais `website` e `anon` não recebeu esse grant. 28 testes M07 e 23 M04 afetados passaram. A prova real no lead 60 confirmou `fdc.com.br`, versão 2 e exatamente um vencedor entre duas revisões; `website` foi persistido. A auditoria read-only confirmou os 100 cadastros idênticos ao piloto original, os outros 99 sem dados M07 inesperados e zero escritas. Detalhes em docs/M07.md.
+- **M08 aceito em 27/10/2026**: Scrapy institucional restrito ao site confirmado, robots/limites, SSRF com IP fixado, parsing explícito de e-mail/telefone/WhatsApp/JSON-LD, checkpoint retomável e worker com um reactor por processo foram implementados. Catálogo `m08-confirmed-http-1`; resultados ficam somente em `job_checkpoint`, sem promoção comercial. A prova real no lead 60 terminou `succeeded`, processou duas páginas e observou um contato de cada tipo; o erro residual da primeira tentativa foi removido por CAS e o estado final foi confirmado limpo. Detalhes em docs/M08.md.
+- **M09 aceito em 27/10/2026**: Playwright seletivo com contexto não persistente, limites, timeout/cancelamento, egress por subrequisição, CLI/worker dedicado e comparação HTTP × browser. Prova local Chromium confirmou JavaScript, popup, timeout, subrequisição bloqueada e fechamento sem leak; nenhum site externo/Supabase foi usado. Detalhes em docs/M09.md.
+- **M10 em andamento**: normalização/dedup de observações, limiar compartilhado provisório N=3 e score `m10-v1`; as seis colunas `contact_*` foram aplicadas. O adaptador CAS lê M08/M09 e grava somente esses campos, revalidando fonte antes do PATCH; teste de revogação passou. A prova remota do lead 60 gravou 3 contatos/3 evidências e levou a versão 0→1. Pendentes: retenção/revisão humana e calibração D-20. M11–M24: não iniciados. G2/G3: não aprovados.
+- Testes Python: última suíte completa registrada com 99 testes antes do teste de amostragem; 22 testes afetados de M05/Data API, 11 testes M06, 51 testes afetados de M07/M04 e 84 testes afetados de M08/M07/M06/M04 passaram. M09: teste unitário de egress, Ruff/mypy e prova Chromium controlada de JS/popup/timeout/subrequisição passaram. Suíte de integração PostgreSQL não executada.
 
 ## Stack e versões
 
 - Python 3.12 / FastAPI ≥0.115 / Uvicorn ≥0.34 / Pydantic ≥2.10 / pydantic-settings ≥2.7
 - SQLAlchemy ≥2.0 / Alembic ≥1.16 / psycopg (binary)
+- Scrapy ≥2.19,<3 (M08)
 - M04: configuração JSON versionada incluída no pacote Python; nenhum banco auxiliar.
-- Dev: pytest ≥8, httpx2 ≥2, ruff ≥0.9, mypy ≥1.15
+- Dev: pytest ≥8, httpx2 ≥2, ruff ≥0.9, mypy ≥1.15; Playwright ≥1.64,<2 (M09; Chromium só para prova controlada)
 - Frontend: React 19.3.1 / TypeScript 6.0.3 / Vite 8.3.5 (`apps/web`)
 - Gerenciadores: uv (backend), npm (web)
 
@@ -37,6 +40,8 @@ packages/backend/src/pharmaleads/
   domain/receita/        # recorte, coleta oficial incremental, stage e relatório G1 (M05)
   domain/jobs/           # estado, idempotência, lease e fencing da fila reduzida M06
   domain/sites/          # URL segura, vínculo por CNPJ e revisão concorrente M07
+  domain/crawling/       # observações M08 e contrato/browser seletivo M09
+  domain/contacts/       # normalização e consolidação de observações M10
   infrastructure/
     auth/jwt_validator.py        # validação JWT Supabase
     data_api.py                  # probe HEAD
@@ -50,6 +55,12 @@ packages/backend/src/pharmaleads/
     site_http.py                  # HTTP com IP fixado, SSRF e redirecionamentos seguros
     site_data_api.py              # CAS do fluxo de sites em public.pharmaleads
     site_cli.py                   # validar/propor/revisar candidatos M07
+    institutional_spider.py       # spider limitado e retomável M08
+    m08_{cli,runner,worker_cli}.py # enfileiramento, reactor único e worker M08
+    m09_browser.py               # contexto Playwright isolado e limitado M09
+    m09_{cli,runner,worker_cli}.py # enfileiramento explícito e worker dedicado M09
+    contact_data_api.py, m10_cli.py # CAS e promoção controlada de contatos M10
+    scrapy_{egress,retry}.py      # IP fixado e Retry-After M08
     database/{session,settings,cli}.py
   worker.py              # executor e handler sintético identificado
   shared/identifiers.py
@@ -61,8 +72,9 @@ ops/validate_m04_package.py  # smoke do wheel em API real somente localhost e da
 ops/sql/          # scripts SQL manuais, transacionais e restritos a public.pharmaleads
 ops/windows/    # Setup-M01.ps1, Start-Api.ps1, Start-Web.ps1, Test-M01.ps1,
                 # Test-M02.ps1, Import-Pharmaleads.ps1, Invoke-M05.ps1, Start-Worker.ps1, Test-M06-Remote.ps1,
-                # Invoke-M07.ps1, Test-M07-Remote.ps1, Test-M07-Pilot.ps1
-docs/           # acompanhamento e relatórios M01.md, M02.md, M04.md, M05.md, M06.md, M07.md
+                # Invoke-M07.ps1, Test-M07-Remote.ps1, Test-M07-Pilot.ps1, Test-M08-Remote.ps1,
+                # Test-M10-Remote.ps1
+docs/           # acompanhamento e relatórios M01.md, M02.md, M04.md, M05.md, M06.md, M07.md, M08.md, M09.md
 docs/referencia/  # contrato canônico (não editar)
 ```
 
@@ -135,6 +147,19 @@ cd apps/web && npm run lint
 
 # M07: auditar os 100 leads sem escrever; solicita chave/token sem exibi-los
 .\ops\windows\Test-M07-Pilot.ps1
+
+# M08: enfileirar, coletar o site confirmado e mostrar contagens; solicita segredos
+.\ops\windows\Test-M08-Remote.ps1 -LeadId 60
+
+# M09: somente após diagnosticar necessidade real de JavaScript no site confirmado
+.\.venv\Scripts\python.exe -m pharmaleads.infrastructure.m09_cli --lead-id ID --reason dynamic_after_http --apply
+.\.venv\Scripts\python.exe -m pharmaleads.infrastructure.m09_worker_cli --worker-id browser-piloto
+
+# M09: prova controlada local (Chromium instalado uma vez)
+.\.venv\Scripts\python.exe ops\verify_m09_browser.py
+
+# M10: dry-run remoto; acrescente -Apply somente após conferir a contagem
+.\ops\windows\Test-M10-Remote.ps1 -LeadId 60
 ```
 
 ## Restrições duras (não alterar sem autorização explícita)

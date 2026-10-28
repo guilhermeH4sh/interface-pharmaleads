@@ -7,8 +7,10 @@ from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 
-AUTHORIZED_PROJECT_REF = "qxsdcrywsjkrpcbfgbxb"
-AUTHORIZED_SESSION_HOST = "aws-1-sa-east-1.pooler.supabase.com"
+from pharmaleads.infrastructure.database.constants import (
+    AUTHORIZED_PROJECT_REF,
+    AUTHORIZED_SESSION_HOST,
+)
 
 
 class DatabaseSettings(BaseSettings):

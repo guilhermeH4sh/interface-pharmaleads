@@ -108,9 +108,21 @@ class JobQueue:
         return updated, False
 
     def claim(self, worker: str, now: datetime) -> JobRecord | None:
+        return self._claim(worker, now, None)
+
+    def claim_kind(self, worker: str, kind: str, now: datetime) -> JobRecord | None:
+        """Evita que um worker especializado reivindique job de outro coletor."""
+        if not kind.strip():
+            raise JobValidationError("Tipo de job inválido.")
+        return self._claim(worker, now, kind)
+
+    def _claim(self, worker: str, now: datetime, kind: str | None) -> JobRecord | None:
         instant = _now(now)
         worker_id = self._worker(worker)
-        for candidate in self._backend.claimable(instant, 20):
+        candidates = self._backend.claimable(instant, 20)
+        if kind is not None:
+            candidates = [candidate for candidate in candidates if candidate.kind == kind]
+        for candidate in candidates:
             updated = self._backend.compare_and_set(
                 candidate.lead_id,
                 ExpectedState(candidate.state, candidate.fence),
@@ -142,6 +154,23 @@ class JobQueue:
             raise QueueConflictError("Lease perdido; heartbeat recusado.")
         return updated
 
+    def checkpoint(self, job: JobRecord, checkpoint: dict[str, Any], now: datetime) -> JobRecord:
+        """Salva retomada limitada e renova o lease sob o mesmo fencing token."""
+        instant = _now(now)
+        updated = self._backend.compare_and_set(
+            job.lead_id,
+            self._owned(job),
+            {
+                "checkpoint": checkpoint,
+                "lease_until": instant + self._lease_duration,
+                "updated_at": instant,
+            },
+            instant,
+        )
+        if updated is None:
+            raise QueueConflictError("Lease perdido; checkpoint recusado.")
+        return updated
+
     def complete(self, job: JobRecord, checkpoint: dict[str, Any], now: datetime) -> JobRecord:
         instant = _now(now)
         updated = self._backend.compare_and_set(
@@ -150,6 +179,7 @@ class JobQueue:
             {
                 "state": JobState.SUCCEEDED,
                 "checkpoint": checkpoint,
+                "error_code": None,
                 "worker": None,
                 "lease_until": None,
                 "finished_at": instant,

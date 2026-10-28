@@ -11,7 +11,7 @@ import re
 import ssl
 from http.client import HTTPException, HTTPSConnection
 
-from pharmaleads.infrastructure.database.settings import AUTHORIZED_PROJECT_REF
+from pharmaleads.infrastructure.database.constants import AUTHORIZED_PROJECT_REF
 
 HOST = f"{AUTHORIZED_PROJECT_REF}.supabase.co"
 PATH = "/rest/v1/pharmaleads?select=id&limit=0"

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "revision": "m07-pilot-audit-1",
+  "revision": "m10-contact-consolidation-1",
   "sources": [
     {
       "id": "receita_cnpj",
@@ -28,6 +28,34 @@
       "finalidade": "Submeter um domínio candidato à validação SSRF, vínculo por CNPJ e revisão humana.",
       "aprovado_por": "usuario-projeto",
       "aprovado_em": "2026-10-26",
+      "vigencia_ate": null
+    },
+    {
+      "id": "confirmed_site_http",
+      "nome": "Site institucional confirmado",
+      "tipo": "scraping_http",
+      "estado": "aprovada",
+      "descricao": "Páginas institucionais do domínio confirmado no M07, limitadas por robots, egress e orçamento do M08.",
+      "licenca": "Conteúdo publicamente disponibilizado pelo titular do domínio; robots e restrições do site prevalecem.",
+      "termos": "Avaliação por domínio no momento da coleta; bloqueios e recusas encerram o crawl sem evasão.",
+      "fornecedor": "Titular do site institucional confirmado",
+      "finalidade": "Observar contatos institucionais explicitamente publicados, sem promoção comercial automática.",
+      "aprovado_por": "usuario-projeto",
+      "aprovado_em": "2026-10-27",
+      "vigencia_ate": null
+    },
+    {
+      "id": "confirmed_site_browser",
+      "nome": "Página dinâmica de site institucional confirmado",
+      "tipo": "scraping_browser",
+      "estado": "aprovada",
+      "descricao": "Renderização isolada e manualmente autorizada de uma página dinâmica já confirmada no M07; não é fallback automático do HTTP.",
+      "licenca": "Conteúdo publicamente disponibilizado pelo titular do domínio; robots, termos e limites técnicos prevalecem.",
+      "termos": "Execução seletiva M09, sem evasão de bloqueios, somente após a coleta HTTP demonstrar necessidade de JavaScript.",
+      "fornecedor": "Titular do site institucional confirmado",
+      "finalidade": "Observar contatos institucionais explicitamente renderizados, sem promoção comercial automática.",
+      "aprovado_por": "usuario-projeto",
+      "aprovado_em": "2026-10-27",
       "vigencia_ate": null
     }
   ],
@@ -96,6 +124,132 @@
       "versao": 1
     },
     {
+      "source_id": "confirmed_site_http",
+      "campo": "site_page",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Baixar somente páginas institucionais relevantes do domínio confirmado, respeitando robots e limites M08.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "confirmed_site_http",
+      "campo": "email",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Observar somente e-mail publicado explicitamente em mailto ou JSON-LD.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "confirmed_site_http",
+      "campo": "telefone",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Observar somente telefone publicado explicitamente em tel ou JSON-LD.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "confirmed_site_http",
+      "campo": "whatsapp",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Observar somente link explícito do WhatsApp; número móvel não é convertido em WhatsApp.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "confirmed_site_http",
+      "campo": "job_checkpoint",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Persistir observações e métricas limitadas no checkpoint do lead, sem alterar contato comercial.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "confirmed_site_http",
+      "campo": "contact_records",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Consolidar somente contatos observados em registros revisáveis do próprio lead, sem campo comercial.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "confirmed_site_http",
+      "campo": "contact_evidence",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Persistir hashes e metadados mínimos de evidência para auditoria e retenção M10.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "confirmed_site_browser",
+      "campo": "site_page",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Renderizar uma única página dinâmica do domínio previamente confirmado, sob limites e egress M09.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "confirmed_site_browser",
+      "campo": "email",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Observar somente e-mail explicitamente renderizado em link ou JSON-LD.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "confirmed_site_browser",
+      "campo": "telefone",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Observar somente telefone explicitamente renderizado em link ou JSON-LD.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "confirmed_site_browser",
+      "campo": "whatsapp",
+      "acao": "coletar",
+      "decisao": "permitido",
+      "justificativa": "Observar somente link explícito de WhatsApp renderizado.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "confirmed_site_browser",
+      "campo": "job_checkpoint",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Persistir somente checkpoint e métricas limitadas, sem alterar dados comerciais.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "confirmed_site_browser",
+      "campo": "contact_records",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Consolidar somente contatos renderizados e observados em registros revisáveis do próprio lead.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
+      "source_id": "confirmed_site_browser",
+      "campo": "contact_evidence",
+      "acao": "persistir",
+      "decisao": "permitido",
+      "justificativa": "Persistir hashes e metadados mínimos de evidência renderizada para auditoria e retenção M10.",
+      "vigente_ate": null,
+      "versao": 1
+    },
+    {
       "source_id": "manual_site_candidate",
       "campo": "site_candidate_url",
       "acao": "persistir",
@@ -144,6 +298,34 @@
       "actor": "usuario-projeto",
       "at": "2026-10-27T00:00:00-03:00",
       "reason": "Auditoria somente leitura autorizada para confirmar os 100 leads após a prova M07."
+    },
+    {
+      "source_id": "confirmed_site_http",
+      "revision": "m08-confirmed-http-1",
+      "actor": "usuario-projeto",
+      "at": "2026-10-27T07:00:00-03:00",
+      "reason": "M08 autorizado para contatos explicitamente publicados nos sites já confirmados, sem promoção comercial direta."
+    },
+    {
+      "source_id": "confirmed_site_browser",
+      "revision": "m09-confirmed-browser-1",
+      "actor": "usuario-projeto",
+      "at": "2026-10-27T10:00:00-03:00",
+      "reason": "M09 autorizado somente para página dinâmica já confirmada e após diagnóstico HTTP; sem fallback automático ou promoção comercial."
+    },
+    {
+      "source_id": "confirmed_site_http",
+      "revision": "m10-contact-consolidation-1",
+      "actor": "usuario-projeto",
+      "at": "2026-10-28T00:00:00-03:00",
+      "reason": "M10 autorizado para consolidar observações M08/M09 em registros revisáveis e evidência mínima, sem atualização comercial."
+    },
+    {
+      "source_id": "confirmed_site_browser",
+      "revision": "m10-contact-consolidation-1",
+      "actor": "usuario-projeto",
+      "at": "2026-10-28T00:00:00-03:00",
+      "reason": "M10 autorizado para consolidar observações M08/M09 em registros revisáveis e evidência mínima, sem atualização comercial."
     }
   ]
 }

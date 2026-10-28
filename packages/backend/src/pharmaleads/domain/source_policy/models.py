@@ -42,6 +42,7 @@ class SourceType(StrEnum):
     CSV_MANUAL = "csv_manual"
     SCRAPING_HTTP = "scraping_http"
     SCRAPING_JS = "scraping_js"
+    SCRAPING_BROWSER = "scraping_browser"
     LOCALIZADOR_REDE = "localizador_rede"
     ANVISA = "anvisa"
     FARMACIA_POPULAR = "farmacia_popular"

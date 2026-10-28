@@ -160,6 +160,33 @@ def test_expired_worker_is_fenced_out_after_recovery() -> None:
     assert completed.checkpoint == {"valid": True}
 
 
+def test_checkpoint_renews_lease_without_changing_fencing_owner() -> None:
+    backend = MemoryBackend(lead())
+    queue = JobQueue(backend, lease_duration=timedelta(seconds=10))
+    queue.enqueue(request(), NOW)
+    running = queue.claim("worker-a", NOW)
+    assert running is not None
+    saved = queue.checkpoint(running, {"pending_urls": ["https://example.com/"]}, NOW)
+    assert saved.checkpoint == {"pending_urls": ["https://example.com/"]}
+    assert saved.fence == running.fence
+    assert saved.worker == running.worker
+    assert saved.lease_until == NOW + timedelta(seconds=10)
+
+
+def test_success_clears_error_from_previous_attempt() -> None:
+    backend = MemoryBackend(lead())
+    queue = JobQueue(backend)
+    queue.enqueue(request(), NOW)
+    first = queue.claim("worker-a", NOW)
+    assert first is not None
+    queue.fail(first, "temporary", NOW + timedelta(seconds=1))
+    second = queue.claim("worker-b", NOW + timedelta(seconds=2))
+    assert second is not None and second.error_code == "temporary"
+    completed = queue.complete(second, {"ok": True}, NOW + timedelta(seconds=3))
+    assert completed.state == JobState.SUCCEEDED
+    assert completed.error_code is None
+
+
 def test_failure_retries_with_backoff_and_cancel_is_terminal() -> None:
     backend = MemoryBackend(lead())
     queue = JobQueue(backend)

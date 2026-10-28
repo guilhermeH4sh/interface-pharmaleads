@@ -83,10 +83,18 @@ class _PinnedHTTPSConnection(HTTPSConnection):
 class PinnedSiteTransport:
     """Conecta ao IP já validado mantendo Host/SNI do domínio original."""
 
-    def __init__(self, *, timeout: float = 10.0) -> None:
+    def __init__(
+        self,
+        *,
+        timeout: float = 10.0,
+        user_agent: str = "PharmaLeads-M07/1.0",
+    ) -> None:
         if not 0.1 <= timeout <= 30:
             raise ValueError("Timeout HTTP fora do limite.")
+        if not user_agent.strip() or len(user_agent) > 200:
+            raise ValueError("User-Agent HTTP inválido.")
         self._timeout = timeout
+        self._user_agent = user_agent
         self._context = ssl.create_default_context()
 
     def request(self, target: EgressTarget, max_body_bytes: int) -> BoundedResponse:
@@ -113,7 +121,7 @@ class PinnedSiteTransport:
                     "Connection": "close",
                     "Host": target.host,
                     "Range": f"bytes=0-{max_body_bytes - 1}",
-                    "User-Agent": "PharmaLeads-M07/1.0",
+                    "User-Agent": self._user_agent,
                 },
             )
             response = connection.getresponse()
