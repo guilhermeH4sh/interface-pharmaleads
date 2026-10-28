@@ -7,6 +7,7 @@ candidatas de até 20 leads existentes da UF SP. A implementação usa consultas
 atribuição ODbL, sem Nominatim, sem dados brutos persistidos e sem confirmação automática: todo
 candidato ainda precisa passar pelo M07 com CNPJ forte e revisão. Passaram os testes locais de
 normalização, escopo SP, URL segura e catálogo; falta a prova remota com leads SP reais.
+Timeout do Overpass é tratado por lead e não interrompe os demais candidatos.
 
 ## M10 em andamento — consolidação, revisão e evidências — 28/10/2026
 

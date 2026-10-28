@@ -16,6 +16,7 @@ PATH = "/api/interpreter"
 MAX_RESPONSE_BYTES = 1_048_576
 SOURCE_ID = "osm_site_candidate"
 LEGAL_SUFFIXES = {"LTDA", "ME", "EPP", "SA", "S", "A", "EIRELI"}
+SP_BBOX = "-25.36,-53.11,-19.78,-44.16"
 
 
 class OsmDiscoveryError(RuntimeError):
@@ -64,9 +65,8 @@ def query_for(lead: OsmLead) -> str:
         raise ValueError("Piloto OSM limitado à UF SP.")
     pattern = _regex(lead.name)
     return (
-        "[out:json][timeout:20];"
-        'area["ISO3166-2"="BR-SP"]->.searchArea;'
-        f'nwr(area.searchArea)["name"~"^{pattern}$",i]["website"];'
+        "[out:json][timeout:15];"
+        f'nwr["name"~"^{pattern}$",i]["website"]({SP_BBOX});'
         "out tags center 10;"
     )
 
@@ -113,7 +113,7 @@ def candidates(lead: OsmLead, document: object) -> tuple[dict[str, object], ...]
 class OverpassClient:
     def discover(self, lead: OsmLead) -> tuple[dict[str, object], ...]:
         body = urlencode({"data": query_for(lead)}).encode()
-        connection = HTTPSConnection(HOST, timeout=30, context=ssl.create_default_context())
+        connection = HTTPSConnection(HOST, timeout=20, context=ssl.create_default_context())
         try:
             connection.request(
                 "POST",
@@ -127,6 +127,8 @@ class OverpassClient:
             )
             response = connection.getresponse()
             raw = response.read(MAX_RESPONSE_BYTES + 1)
+        except OSError as exc:
+            raise OsmDiscoveryError("Consulta OSM indisponível ou excedeu o tempo.") from exc
         finally:
             connection.close()
         if len(raw) > MAX_RESPONSE_BYTES:

@@ -9,7 +9,7 @@ def lead() -> OsmLead:
 
 def test_query_is_limited_to_sp_and_escapes_name() -> None:
     query = query_for(lead())
-    assert '"ISO3166-2"="BR-SP"' in query
+    assert "-25.36,-53.11,-19.78,-44.16" in query
     assert "FARMACIA.*EXEMPLO" in query
     with pytest.raises(ValueError, match="UF SP"):
         query_for(OsmLead(8, "123", "Farmácia Exemplo", "RJ", "Rio de Janeiro"))

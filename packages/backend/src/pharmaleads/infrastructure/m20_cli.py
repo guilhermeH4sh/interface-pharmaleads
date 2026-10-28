@@ -100,8 +100,12 @@ def main(argv: list[str] | None = None) -> int:
             raise M20DataApiError("Piloto OSM requer leads existentes da UF SP.")
         client = OverpassClient()
         discovered: list[dict[str, object]] = []
+        failed_leads: list[int] = []
         for index, lead in enumerate(leads):
-            discovered.extend(client.discover(lead))
+            try:
+                discovered.extend(client.discover(lead))
+            except OsmDiscoveryError:
+                failed_leads.append(lead.lead_id)
             if index + 1 < len(leads):
                 time.sleep(2)
         print(
@@ -109,6 +113,7 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "attribution": "© OpenStreetMap contributors, ODbL",
                     "candidates": discovered,
+                    "failed_lead_ids": failed_leads,
                     "leads_queried": len(leads),
                     "source_id": SOURCE_ID,
                     "writes": 0,
