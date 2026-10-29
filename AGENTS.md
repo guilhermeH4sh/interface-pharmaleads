@@ -22,6 +22,12 @@
 
 ## Stack e versões
 
+Atualização M11: API CRM em andamento com `GET /v1/leads` e `GET /v1/leads/{lead_id}`;
+paginação por ID, filtros UF/CNPJ e escopo por responsável reutilizam os papéis M03, sem fechar D-07.
+17 testes M11/auth passaram, além de Ruff e mypy. Implementação em `api/routes/v1/leads.py`.
+Pendentes: edição CAS, histórico/atividades, contatos autorizados, D-07/D-17 e prova remota.
+M20 interrompido pelo usuário, sem aceite; esta atualização substitui o estado anterior acima.
+
 - Python 3.12 / FastAPI ≥0.115 / Uvicorn ≥0.34 / Pydantic ≥2.10 / pydantic-settings ≥2.7
 - SQLAlchemy ≥2.0 / Alembic ≥1.16 / psycopg (binary)
 - Scrapy ≥2.19,<3 (M08); osmium ≥4.3,<5 (leitura efêmera do extrato OSM M20)
@@ -98,6 +104,8 @@ Prefixo `PHARMALEADS_*` (pydantic-settings). Relevantes:
 | GET | `/health/supabase` | probe Data API; aceita 401/403 como conectado |
 | GET | `/ready` | ainda 503; prontidão plena será implementada em módulo posterior |
 | GET | `/v1/me` | JWT obrigatório; retorna perfil do usuário autenticado |
+| GET | `/v1/leads` | M11: consulta cadastral, cursor after_id, filtros UF/CNPJ e escopo por responsável |
+| GET | `/v1/leads/{lead_id}` | M11: ficha cadastral com o mesmo escopo e RLS |
 | GET | `/v1/sources` | M04; catálogo de fontes, escopo `sources:read` |
 | GET | `/v1/sources/{source_id}/policies` | M04; consulta políticas publicadas |
 | GET | `/v1/sources/{source_id}/history` | M04; histórico declarativo da configuração; `sources:manage` |

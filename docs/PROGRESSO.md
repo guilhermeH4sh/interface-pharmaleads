@@ -1,5 +1,12 @@
 # Estado atual — 27/10/2026
 
+## M11 — API CRM e histórico: em andamento
+
+M20 interrompido por decisão humana, sem aceite. Iniciada consulta CRM real por Data API,
+paginação por ID, filtros UF/CNPJ, escopo comercial por responsável e ficha com 404 para
+resultado invisível. 17 testes M11/auth passaram, Ruff e mypy aprovados. Sem alteração remota.
+Pendências e limitação de imutabilidade do histórico na única tabela descritas em M11.md.
+
 ## M20 antecipado em andamento — descoberta regional OSM — 28/10/2026
 
 Por exceção humana antes de G2, foi autorizada uma fonte OpenStreetMap para descobrir somente URLs

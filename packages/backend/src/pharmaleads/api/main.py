@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException
 
 from pharmaleads.api.errors import ErrorEnvelope, error_response
 from pharmaleads.api.routes.v1 import me_router
+from pharmaleads.api.routes.v1.leads import router as leads_router
 from pharmaleads.api.routes.v1.sources import router as sources_router
 from pharmaleads.config import Settings
 from pharmaleads.domain.source_policy.registry import SourcePolicyRegistry
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.state.settings = settings  # injetado nas dependências via request.app.state
     app.state.source_policy_registry = SourcePolicyRegistry(settings.source_policy_path)
     app.include_router(me_router)
+    app.include_router(leads_router)
     app.include_router(sources_router)
     app.add_middleware(
         CORSMiddleware,
