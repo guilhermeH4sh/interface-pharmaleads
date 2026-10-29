@@ -19,7 +19,7 @@ from pharmaleads.infrastructure.data_api import HOST
 router = APIRouter(prefix="/v1/leads", tags=["leads"])
 logger = logging.getLogger(__name__)
 # Contatos/evidências aguardam filtro de elegibilidade; não selecionar colunas técnicas.
-FIELDS = "id,cnpj,nome,razao_social,uf,cidade,responsavel"
+FIELDS = "id,cnpj,nome,razao_social,uf,cidade,responsavel,status,cnae,bairro,endereco"
 
 
 def scoped_query(user: AuthenticatedUser) -> dict[str, str]:

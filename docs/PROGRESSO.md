@@ -1,5 +1,13 @@
 # Estado atual — 27/10/2026
 
+## M13 antecipado — interface definitiva Centrus AI
+
+Por solicitação humana, frontend real de consulta com login Supabase, quadro/lista, filtro UF,
+busca no recorte, paginação e ficha cadastral. Proibidos dados fictícios no produto. Identidade
+visual consultada em centrusai.com. Build, lint, tipos e dois testes web passaram; login foi
+inspecionado em Chromium desktop/celular sem overflow. Prova autenticada e demais operações
+dependentes M11/M12 pendentes; não representa aceite final. Detalhes em docs/M13.md.
+
 ## M11 — API CRM e histórico: em andamento
 
 M20 interrompido por decisão humana, sem aceite. Iniciada consulta CRM real por Data API,

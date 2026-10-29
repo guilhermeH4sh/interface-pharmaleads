@@ -195,6 +195,9 @@ cd apps/web && npm run lint
 
 ## Regras de domínio
 
+- Diretriz humana: interface definitiva Centrus AI, somente registros e métricas reais. Proibidos leads, cards, contagens, pessoas e resultados fictícios na interface, inclusive em demonstrações. Fixtures isoladas de testes não podem ser incluídas no produto.
+- M13 antecipado por autorização humana: consulta real em quadro/lista e login em `Dashboard.tsx`, cliente `lib/crm.ts`, identidade `crm.css` baseada em centrusai.com. M11 continua incompleto; não declarar CRM finalizado. Credenciais de sessão somente em memória. Conta operador não possui escopo CRM; respeitar 403 sem ampliar RLS automaticamente.
+
 - Coleta nunca altera estado comercial (CRM separado).
 - Política de fonte/campo/ação bloqueia por padrão.
 - Google transitório e condicional — somente M21.
