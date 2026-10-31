@@ -1,7 +1,0 @@
----
-description: Frontend TypeScript
-globs: "**/*.{ts,tsx}"
-alwaysApply: false
----
-
-Contrato canônico em docs/referencia/PHARMALEADS_ESPECIFICACAO_DEFINITIVA_CURSOR.md, §§2/10/11. React/TypeScript strict; contratos OpenAPI; estado real e erros explícitos. M01 somente shell, CRM real M13. Sem dados fictícios operacionais ou secrets VITE. Código anterior não comprova aceite da nova arquitetura.
