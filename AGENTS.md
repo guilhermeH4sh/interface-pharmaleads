@@ -195,12 +195,10 @@ cd apps/web && npm run lint
 
 ## Regras de domínio
 
-- Apresentação local M13: Vite permite leitura sem login do arquivo real do piloto M05 auditado,
-  somente em localhost. Snapshot explicitamente identificado, sem estado comercial inventado.
-  Build de produção não inclui arquivo nem endpoint local; API remota continua autenticada.
+- Apresentação M13: a interface consulta a API remota; a fonte local do piloto não é usada para exibir leads.
 
 - Diretriz humana: interface definitiva Centrus AI, somente registros e métricas reais. Proibidos leads, cards, contagens, pessoas e resultados fictícios na interface, inclusive em demonstrações. Fixtures isoladas de testes não podem ser incluídas no produto.
-- M13 antecipado por autorização humana: consulta real em quadro/lista e login em `Dashboard.tsx`, cliente `lib/crm.ts`, identidade `crm.css` baseada em centrusai.com. M11 continua incompleto; não declarar CRM finalizado. Credenciais de sessão somente em memória. Conta operador não possui escopo CRM; respeitar 403 sem ampliar RLS automaticamente.
+- M13 antecipado por autorização humana: interface em andamento com visual do primeiro commit e dados reais via API. Sem tela de login; a leitura remota aguarda sessão autorizada e CORS. M11 continua incompleto; não declarar CRM finalizado nem ampliar RLS automaticamente.
 
 - Coleta nunca altera estado comercial (CRM separado).
 - Política de fonte/campo/ação bloqueia por padrão.
@@ -247,3 +245,5 @@ cd apps/web && npm run lint
 Não é necessário atualizar o AGENTS.md para: patches de bug sem impacto na estrutura, alterações internas de função sem mudança de interface pública, ou atualizações de docs que não mudam o estado de módulos.
 
 Ao atualizar, use patch pontual (só as linhas que divergem). Nunca reescreva o arquivo inteiro exceto se >50% estiver desatualizado.
+
+- Interface em andamento: visual adaptado do commit inicial `12c5f93`, consulta exclusivamente a API real e não usa snapshot como fonte; sem tela de login, a leitura remota permanece bloqueada até existir sessão autorizada e CORS configurado. Build e lint web passaram em 31/10/2026; não foi confirmada consulta remota autenticada.

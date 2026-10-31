@@ -1,55 +1,71 @@
-import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Building2, ChevronRight, Columns3, List, LogOut, RefreshCw, Search, X } from "lucide-react";
-import { login, request, type Lead, type Page, type Session } from "./lib/crm";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Activity, Building2, ChevronRight, Database, Filter, RefreshCw, Search, Users, X } from "lucide-react";
+import { request, type Lead, type Page } from "./lib/crm";
+import logo from "./assets/centrus-logo-original.png";
 import "./crm.css";
 
-const stages = ["Não contatado", "Em contato", "Respondido", "Qualificado", "Sem interesse"];
-const ufs = "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" ");
-const display = (value: string | null | undefined) => value || "Não informado";
+const states = "AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO".split(" ");
+const display = (value: string | null | undefined) => value?.trim() || "Não informado";
+const formatCnpj = (value: string) => /^\d{14}$/.test(value) ? value.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : value;
 
 export function Dashboard() {
-  const [session, setSession] = useState<Session | null>(import.meta.env.VITE_LOCAL_PILOT ? { token: "", profile: { email: "Snapshot real do piloto", role: "Consulta local · sem login", scopes: [] } } : null);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
   const [rows, setRows] = useState<Lead[]>([]);
   const [cursor, setCursor] = useState<number | null>(null);
+  const [query, setQuery] = useState("");
   const [uf, setUf] = useState("");
-  const [search, setSearch] = useState("");
-  const [view, setView] = useState("board");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [selected, setSelected] = useState<Lead | null>(null);
-  const [revision, setRevision] = useState(0);
-  const dialog = useRef<HTMLDialogElement>(null);
-  const controller = useRef<AbortController | null>(null);
-  const detailTrigger = useRef<HTMLElement | null>(null);
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
-    if (!session) return;
-    const abort = new AbortController(); controller.current = abort;
-    void request<Page>(`/v1/leads?limit=100${uf ? `&uf=${uf}` : ""}`, session.token, abort.signal)
-      .then(data => { if (!abort.signal.aborted) { setRows(data.items); setCursor(data.next_after_id); } })
-      .catch(e => { if (!abort.signal.aborted) setError(e instanceof Error ? e.message : "Conexão indisponível."); })
-      .finally(() => { if (!abort.signal.aborted) setBusy(false); });
-    return () => abort.abort();
-  }, [session, uf, revision]);
-  useEffect(() => { if (selected) dialog.current?.showModal(); }, [selected]);
-  const filtered = rows.filter(row => `${row.nome} ${row.razao_social || ""} ${row.cnpj} ${row.cidade}`.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR")));
-  const reset = () => { controller.current?.abort(); setSession(null); setRows([]); setSelected(null); setCursor(null); setError(""); setBusy(false); };
-  const refresh = () => { setError(""); setBusy(true); setRows([]); setCursor(null); setRevision(v => v + 1); };
-  const open = (row: Lead) => { detailTrigger.current = document.activeElement as HTMLElement; setSelected(row); };
-  const close = () => { setSelected(null); detailTrigger.current?.focus(); };
+    const controller = new AbortController();
+    const url = `/v1/leads?limit=100${uf ? `&uf=${encodeURIComponent(uf)}` : ""}`;
+    request<Page>(url, "", controller.signal)
+      .then(page => { if (!controller.signal.aborted) { setRows(page.items); setCursor(page.next_after_id); setError(""); } })
+      .catch(reason => { if (!controller.signal.aborted) { setRows([]); setCursor(null); setError(reason instanceof TypeError ? "Não foi possível conectar à API. Verifique a conexão e a configuração de acesso." : reason instanceof Error ? reason.message : "Falha ao consultar os estabelecimentos."); } })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [uf, version]);
 
-  if (!session) return <div className="login-layout"><section className="login-story"><a className="wordmark" href="https://centrusai.com">centrus<span>AI</span></a><p className="overline">PHARMALEADS / INTELIGÊNCIA COMERCIAL</p><h1>Mais contexto.<br />Melhores conexões.</h1><p>Uma visão organizada dos estabelecimentos, da origem dos dados e de cada etapa da prospecção.</p><div className="story-rule"/><small>Dados reais · Acesso autenticado · Prospecção farmacêutica</small></section><main className="login-panel"><div><p className="overline">BEM-VINDO AO PHARMALEADS</p><h2>Seu próximo contato<br />começa aqui.</h2><p className="muted">Entre com sua conta autorizada do Supabase.</p><form onSubmit={async event => { event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setBusy(true); setError(""); try { const result = await login(String(data.get("email")), String(data.get("password")), String(data.get("key") || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "").trim()); form.reset(); setRows([]); setSession(result); } catch (e) { setError(e instanceof Error ? e.message : "Falha ao entrar."); setBusy(false); } }}>
-      <label>E-mail<input name="email" type="email" autoComplete="username" required /></label><label>Senha<input name="password" type="password" autoComplete="current-password" required /></label>
-      {!import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY && <label>Chave publicável do projeto<input name="key" autoComplete="off" placeholder="sb_publishable_…" required /><small>Configuração de conexão fornecida pelo administrador.</small></label>}
-      {error && <p role="alert" className="error">{error}</p>}<button className="primary" disabled={busy}>{busy ? "Conectando…" : "Acessar plataforma"}<ArrowRight size={18}/></button></form><p className="login-foot">Centrus AI · PharmaLeads</p></div></main></div>;
+  const refresh = useCallback(() => { setError(""); setRows([]); setCursor(null); setLoading(true); setVersion(current => current + 1); }, []);
+  const filtered = useMemo(() => {
+    const value = query.trim().toLocaleLowerCase("pt-BR");
+    return rows.filter(row => !value || `${row.nome} ${row.razao_social ?? ""} ${row.cnpj} ${row.cidade} ${row.uf}`.toLocaleLowerCase("pt-BR").includes(value));
+  }, [rows, query]);
+  const loadMore = async () => {
+    if (cursor === null || loading) return;
+    setLoading(true); setError("");
+    try {
+      const page = await request<Page>(`/v1/leads?limit=100&after_id=${cursor}${uf ? `&uf=${encodeURIComponent(uf)}` : ""}`, "");
+      setRows(current => [...current, ...page.items]); setCursor(page.next_after_id);
+    } catch (reason) { setError(reason instanceof TypeError ? "Não foi possível conectar à API." : reason instanceof Error ? reason.message : "Falha ao carregar registros."); }
+    finally { setLoading(false); }
+  };
+  const available = !error && !loading;
+  const ufCount = new Set(rows.map(row => row.uf).filter(Boolean)).size;
 
-  return <div className="crm"><a className="skip" href="#content">Pular para o conteúdo</a><header className="app-header"><a className="wordmark" href="/">centrus<span>AI</span></a><span className="product">PharmaLeads</span><nav aria-label="Navegação principal"><span aria-current="page"><Building2 size={17}/>Estabelecimentos</span></nav><div className="identity"><strong>{session.profile.email}</strong><small>{session.profile.role}</small></div><button title="Sair" aria-label="Sair" onClick={reset}><LogOut size={18}/></button></header>
-    <main id="content"><div className="page-heading"><div><p className="overline">RELACIONAMENTO / PROSPECÇÃO</p><h1>Pipeline de leads<span className="live">{import.meta.env.VITE_LOCAL_PILOT ? "Piloto local" : "Supabase"}</span></h1><p className="muted">{import.meta.env.VITE_LOCAL_PILOT ? "Snapshot dos 100 cadastros importados. Status e responsáveis atuais do Supabase não disponíveis nesta consulta local." : "Conheça cada estabelecimento. Organize a próxima conversa."}</p></div><button onClick={refresh} disabled={busy}><RefreshCw size={16} className={busy ? "spin" : ""}/>{busy ? "Atualizando…" : "Atualizar"}</button></div>
-    <div className="toolbar"><label className="search"><Search size={18}/><input aria-label="Buscar nos leads carregados" placeholder="Buscar nome, CNPJ ou município…" value={search} onChange={e => setSearch(e.target.value)}/></label><select aria-label="Filtrar por UF" value={uf} onChange={e => { setUf(e.target.value); setRows([]); setCursor(null); setError(""); setBusy(true); }}><option value="">Todas as UFs</option>{ufs.map(value => <option key={value}>{value}</option>)}</select><span className="result-count">{busy ? "Consultando…" : `${filtered.length} exibidos / ${rows.length} carregados`}</span><div className="view-switch" aria-label="Modo de visualização"><button aria-label="Quadro" aria-pressed={view === "board"} onClick={() => setView("board")}><Columns3 size={18}/></button><button aria-label="Lista" aria-pressed={view === "list"} onClick={() => setView("list")}><List size={18}/></button></div></div>
-    {error && <div className="error" role="alert">{error}</div>}
-    {busy && rows.length === 0 ? <div className="empty" role="status"><RefreshCw className="spin"/>Carregando estabelecimentos…</div> : view === "board" ? <div className="board">{[...stages, ...(filtered.some(row => !stages.includes(row.status || "")) ? ["Sem status"] : [])].map((stage, index) => { const items = filtered.filter(row => stage === "Sem status" ? !stages.includes(row.status || "") : row.status === stage); return <section className="lane" key={stage}><div className="lane-heading"><span className="lane-index">{String(index + 1).padStart(2, "0")}</span><h2>{stage}</h2><span className="count">{items.length}</span></div><div className="lane-items">{items.map(row => <button className="lead-card" key={row.id} onClick={() => open(row)}><span className="card-top"><span>#{row.id}</span><span className="uf">{row.uf}</span></span><strong>{row.nome}</strong><span className="company">{display(row.razao_social)}</span><span className="card-bottom">{row.cidade}<ChevronRight size={15}/></span></button>)}{!items.length && <p className="lane-empty">Nenhum lead carregado<br />nesta etapa.</p>}</div></section>; })}</div> : <div className="table-wrap"><table><thead><tr><th>Estabelecimento</th><th>CNPJ</th><th>Localização</th><th>Etapa</th></tr></thead><tbody>{filtered.map(row => <tr key={row.id}><td><button className="text-button" onClick={() => open(row)}>{row.nome}</button><small>{display(row.razao_social)}</small></td><td>{row.cnpj}</td><td>{row.cidade} / {row.uf}</td><td>{display(row.status)}</td></tr>)}</tbody></table>{!filtered.length && <p className="empty">Nenhum estabelecimento encontrado neste recorte.</p>}</div>}
-    {cursor !== null && <button disabled={busy} className="load-more" onClick={async () => { setBusy(true); setError(""); const abort = new AbortController(); controller.current = abort; try { const data = await request<Page>(`/v1/leads?limit=100&after_id=${cursor}${uf ? `&uf=${uf}` : ""}`, session.token, abort.signal); if (!abort.signal.aborted) { setRows(old => [...old, ...data.items]); setCursor(data.next_after_id); } } catch (e) { if (!abort.signal.aborted) setError(e instanceof Error ? e.message : "Falha ao carregar."); } finally { if (!abort.signal.aborted) setBusy(false); } }}>Carregar mais estabelecimentos</button>}
-    <footer>{import.meta.env.VITE_LOCAL_PILOT ? "Fonte: arquivo real do piloto M05, auditado no M07 · Sem sincronização ao vivo" : "Registros reais de public.pharmaleads"} · Contagens do recorte carregado · Edição comercial em implementação</footer></main>
-    <dialog ref={dialog} onCancel={close} onClose={close} className="lead-detail" aria-labelledby="detail-name">{selected && <><div className="detail-top"><span className="overline">ESTABELECIMENTO #{selected.id}</span><button aria-label="Fechar ficha" onClick={() => dialog.current?.close()}><X size={20}/></button></div><h2 id="detail-name">{selected.nome}</h2><p className="muted">{display(selected.razao_social)}</p><span className="status-label">{display(selected.status)}</span><dl>{[["CNPJ", selected.cnpj], ["CNAE", selected.cnae], ["Município / UF", `${selected.cidade} / ${selected.uf}`], ["Endereço", selected.endereco], ["Bairro", selected.bairro], ["Responsável (ID)", selected.responsavel]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{display(value)}</dd></div>)}</dl><div className="detail-note">Contatos e evidências serão exibidos quando a API disponibilizar a consulta autorizada desses campos.</div></>}</dialog>
+  return <div className="app-shell">
+    <header className="app-header"><div className="header-container">
+      <a className="brand-section" href="#leads"><img className="brand-logo-img" src={logo} alt="Centrus AI"/><span><strong className="brand-name">Centrus <b>PharmaLeads</b></strong><small className="brand-subtitle">Inteligência Farmacêutica · B2B</small></span></a>
+      <nav className="header-nav" aria-label="Navegação principal"><a className="nav-link active" href="#leads"><Users size={17}/> Leads</a></nav>
+      <span className="connection-status"><span className={available ? "status-dot online" : "status-dot"}/>{loading ? "Consultando" : error ? "Consulta indisponível" : "Dados consultados"}</span>
+    </div></header>
+    <main className="main-wrapper" id="leads">
+      <section className="page-title-row"><div><span className="eyebrow">CENTRUS PHARMALEADS</span><h1>Prospecção e Gestão de Contas Farmacêuticas</h1><p>Consulte os estabelecimentos disponíveis para prospecção e relacionamento.</p></div><button className="btn btn-primary" onClick={refresh} disabled={loading}><RefreshCw size={16}/> Atualizar leads</button></section>
+      <section className="kpi-section" aria-label="Resumo dos registros carregados">
+        <article className="kpi-card highlight"><div className="kpi-header"><span>Estabelecimentos carregados</span><Users size={19}/></div><strong className="kpi-value">{available ? rows.length : "—"}</strong><p>{cursor !== null ? "Existem mais registros para carregar" : "Registros retornados pela consulta"}</p></article>
+        <article className="kpi-card"><div className="kpi-header"><span>UFs nos registros carregados</span><Building2 size={19}/></div><strong className="kpi-value">{available ? ufCount : "—"}</strong><p>Distribuição da seleção atual</p></article>
+        <article className="kpi-card"><div className="kpi-header"><span>Resultados da busca</span><Search size={19}/></div><strong className="kpi-value">{available ? filtered.length : "—"}</strong><p>Nome, CNPJ ou município</p></article>
+        <article className="kpi-card source-card"><div className="kpi-header"><span>Fonte dos dados</span><Database size={19}/></div><strong>Supabase</strong><p>Consulta pela API PharmaLeads</p></article>
+      </section>
+      <section className="leads-panel"><div className="panel-heading"><div><span className="eyebrow">CARTEIRA DE PROSPECÇÃO</span><h2>Estabelecimentos</h2><p>Consulte os registros disponíveis e abra a ficha para mais detalhes.</p></div><span className="count-badge">{error ? "Consulta indisponível" : loading && !rows.length ? "Consultando…" : `${filtered.length} carregados`}</span></div>
+        <div className="filters"><label className="search-field"><Search size={18}/><input aria-label="Buscar estabelecimentos" value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar por nome, CNPJ ou município"/>{query && <button aria-label="Limpar busca" onClick={() => setQuery("")}><X size={16}/></button>}</label><label className="select-field"><Filter size={17}/><select aria-label="Filtrar por UF" value={uf} onChange={event => { setUf(event.target.value); setRows([]); setCursor(null); setError(""); setLoading(true); }}><option value="">Todas as UFs</option>{states.map(state => <option key={state}>{state}</option>)}</select></label></div>
+        {error && <div className="error-message" role="alert"><Activity size={18}/><span>{error}</span></div>}
+        {loading && !rows.length ? <div className="empty">Consultando estabelecimentos…</div> : !error && !filtered.length ? <div className="empty">Nenhum estabelecimento encontrado.</div> : <div className="table-scroll"><table><thead><tr><th>Estabelecimento</th><th>CNPJ</th><th>Município / UF</th><th>CNAE</th><th>Status</th><th><span className="sr-only">Detalhes</span></th></tr></thead><tbody>{filtered.map(row => <tr key={row.id} onClick={() => setSelected(row)} tabIndex={0} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelected(row); } }}><td><strong>{row.nome}</strong><small>{display(row.razao_social)}</small></td><td className="mono">{formatCnpj(row.cnpj)}</td><td>{display(row.cidade)} / {row.uf}</td><td>{display(row.cnae)}</td><td><span className="status-badge">{display(row.status)}</span></td><td><ChevronRight size={17}/></td></tr>)}</tbody></table></div>}
+        {cursor !== null && <div className="load-more"><button className="btn btn-secondary" disabled={loading} onClick={() => void loadMore()}>{loading ? "Carregando…" : "Carregar mais"}</button></div>}
+      </section><footer className="page-footer"><span>Fonte: public.pharmaleads via API</span><span>{error ? "Dados indisponíveis" : `${rows.length} registros carregados`}</span></footer>
+    </main>
+    {selected && <div className="overlay" onMouseDown={event => { if (event.target === event.currentTarget) setSelected(null); }}><section className="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title"><header><div><span className="eyebrow">ESTABELECIMENTO · #{selected.id}</span><h2 id="detail-title">{selected.nome}</h2><p>{display(selected.razao_social)}</p></div><button aria-label="Fechar ficha" onClick={() => setSelected(null)}><X/></button></header><dl>{[["CNPJ",formatCnpj(selected.cnpj)],["Município",selected.cidade],["UF",selected.uf],["CNAE",selected.cnae],["Endereço",selected.endereco],["Bairro",selected.bairro],["Status",selected.status],["Responsável",selected.responsavel]].map(([label,value]) => <div key={label}><dt>{label}</dt><dd>{display(value)}</dd></div>)}</dl></section></div>}
   </div>;
 }

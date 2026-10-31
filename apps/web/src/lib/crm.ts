@@ -6,9 +6,8 @@ export type Session = { token: string; profile: Profile };
 export type Page = { items: Lead[]; next_after_id: number | null };
 
 export async function request<T>(path: string, token: string, signal?: AbortSignal): Promise<T> {
-  const local = import.meta.env.VITE_LOCAL_PILOT && path.startsWith("/v1/leads?");
-  const response = await fetch(local ? `/__local/pilot?${path.split("?")[1]}` : `${API}${path}`, { headers: local ? {} : { Authorization: `Bearer ${token}` }, signal });
-  if (!response.ok) throw new Error(response.status === 401 ? "Sessão expirada. Saia e entre novamente." : response.status === 403 ? "Seu perfil não tem acesso ao CRM. Solicite acesso ao administrador." : `Não foi possível consultar os leads (HTTP ${response.status}).`);
+  const response = await fetch(`${API}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal });
+  if (!response.ok) throw new Error(response.status === 401 ? "A API exige autenticação para consultar os leads do Supabase." : response.status === 403 ? "Seu perfil não tem acesso ao CRM. Solicite acesso ao administrador." : `Não foi possível consultar os leads (HTTP ${response.status}).`);
   return response.json() as Promise<T>;
 }
 
