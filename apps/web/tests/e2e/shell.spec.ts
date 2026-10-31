@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-test("acesso real inicia sem dados, é responsivo e não consulta antes do login", async ({ page }) => {
-  const external: string[] = [];
-  page.on("request", request => { if (!request.url().startsWith("http://127.0.0.1:5173")) external.push(request.url()); });
+test("painel mostra estado vazio e é responsivo", async ({ page }) => {
+  await page.route("**/api/config", route => route.fulfill({json:{segmentos:[{id:"varejo",descricao:"Farmácias e drogarias"}]}}));
+  await page.route("**/api/status", route => route.fulfill({json:{total_leads:0,execucao:null,consulta_atual:null}}));
+  await page.route("**/api/leads**", route => route.fulfill({json:{items:[],total:0,next_offset:null}}));
   await page.goto("/");
-  await expect(page.getByLabel("E-mail")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Acessar plataforma" })).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Configurar busca"})).toBeVisible();
+  await expect(page.getByText("Nenhum estabelecimento encontrado.")).toBeVisible();
+  await expect(page.getByRole("button",{name:"Iniciar coleta"})).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  expect(external).toEqual([]);
-  await page.screenshot({ path: `test-results/centrus-${test.info().project.name}.png`, fullPage: true });
 });

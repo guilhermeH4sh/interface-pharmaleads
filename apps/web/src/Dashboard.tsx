@@ -1,71 +1,75 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, Building2, ChevronRight, Database, Filter, RefreshCw, Search, Users, X } from "lucide-react";
-import { request, type Lead, type Page } from "./lib/crm";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Activity, Building2, ChevronRight, Database, Download, Filter, Play, RefreshCw, Search, Square, Users, X } from "lucide-react";
+import { request, type Lead, type Page, type Segmento, type Status } from "./lib/crm";
 import logo from "./assets/centrus-logo-original.png";
 import "./crm.css";
 
 const states = "AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO".split(" ");
-const display = (value: string | null | undefined) => value?.trim() || "Não informado";
-const formatCnpj = (value: string) => /^\d{14}$/.test(value) ? value.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : value;
+const display = (value: string | number | null | undefined) => String(value ?? "").trim() || "Não informado";
+const situacao = (value: string) => ({ ativa_ou_desconhecida: "Ativa ou desconhecida", fechada_temporariamente: "Fechada temporariamente", fechada_permanentemente: "Fechada permanentemente", fechada: "Fechada" }[value] || display(value));
 
 export function Dashboard() {
-  const [rows, setRows] = useState<Lead[]>([]);
-  const [cursor, setCursor] = useState<number | null>(null);
+  const [page, setPage] = useState<Page>({ items: [], total: 0, next_offset: null });
+  const [status, setStatus] = useState<Status | null>(null);
+  const [segmentos, setSegmentos] = useState<Segmento[]>([]);
+  const [selectedSegments, setSelectedSegments] = useState<string[]>(["varejo", "manipulacao"]);
+  const [locais, setLocais] = useState("");
+  const [depth, setDepth] = useState(1);
+  const [emails, setEmails] = useState(false);
   const [query, setQuery] = useState("");
   const [uf, setUf] = useState("");
+  const [segmento, setSegmento] = useState("");
+  const [stateFilter, setStateFilter] = useState("");
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
   const [selected, setSelected] = useState<Lead | null>(null);
   const [version, setVersion] = useState(0);
+  const ultimaColeta = useRef("");
+  const filters = useMemo(() => { const p = new URLSearchParams(); if(query.trim()) p.set("q",query.trim()); if(uf) p.set("uf",uf); if(segmento) p.set("segmento",segmento); if(stateFilter) p.set("situacao",stateFilter); return p.toString(); },[query,uf,segmento,stateFilter]);
+  const refreshStatus = useCallback(() => request<Status>("/api/status").then(setStatus).catch(() => setStatus(null)), []);
 
+  useEffect(() => { request<{segmentos: Segmento[]}>("/api/config").then(x => setSegmentos(x.segmentos)).catch(() => setActionError("Não foi possível consultar a API local.")); void refreshStatus(); const timer=window.setInterval(() => void refreshStatus(),2500); return () => window.clearInterval(timer); },[refreshStatus]);
+  useEffect(() => { const controller=new AbortController(); const timer=window.setTimeout(() => { setLoading(true); request<Page>(`/api/leads?${filters}`,{signal:controller.signal}).then(result => { if (!controller.signal.aborted) {setPage(result);setError("");} }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Falha ao consultar os leads."); }).finally(() => {if(!controller.signal.aborted)setLoading(false);}); }, 250); return () => {controller.abort();window.clearTimeout(timer);}; },[filters,version]);
+  const loadMore = async () => { if(page.next_offset===null || loading) return; setLoading(true); try {const next=await request<Page>(`/api/leads?${filters}&offset=${page.next_offset}`);setPage(current=>({...next,items:[...current.items,...next.items]}));} catch(reason) {setError(reason instanceof Error ? reason.message : "Falha ao carregar registros.");} finally {setLoading(false);} };
+  const running = status?.execucao?.estado === "executando" || status?.execucao?.estado === "parando";
+  const start = async () => {setBusy(true);setActionError("");try {await request("/api/coletas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({locais:locais.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),segmentos:selectedSegments,profundidade:depth,emails})});await refreshStatus();} catch(reason) {setActionError(reason instanceof Error ? reason.message : "Falha ao iniciar coleta.");} finally {setBusy(false);} };
+  const stop = async () => {setBusy(true);setActionError("");try {await request("/api/coletas/parar",{method:"POST"});await refreshStatus();} catch(reason) {setActionError(reason instanceof Error ? reason.message : "Falha ao parar coleta.");} finally {setBusy(false);} };
+  const run=status?.execucao;
   useEffect(() => {
-    const controller = new AbortController();
-    const url = `/v1/leads?limit=100${uf ? `&uf=${encodeURIComponent(uf)}` : ""}`;
-    request<Page>(url, "", controller.signal)
-      .then(page => { if (!controller.signal.aborted) { setRows(page.items); setCursor(page.next_after_id); setError(""); } })
-      .catch(reason => { if (!controller.signal.aborted) { setRows([]); setCursor(null); setError(reason instanceof TypeError ? "Não foi possível conectar à API. Verifique a conexão e a configuração de acesso." : reason instanceof Error ? reason.message : "Falha ao consultar os estabelecimentos."); } })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [uf, version]);
-
-  const refresh = useCallback(() => { setError(""); setRows([]); setCursor(null); setLoading(true); setVersion(current => current + 1); }, []);
-  const filtered = useMemo(() => {
-    const value = query.trim().toLocaleLowerCase("pt-BR");
-    return rows.filter(row => !value || `${row.nome} ${row.razao_social ?? ""} ${row.cnpj} ${row.cidade} ${row.uf}`.toLocaleLowerCase("pt-BR").includes(value));
-  }, [rows, query]);
-  const loadMore = async () => {
-    if (cursor === null || loading) return;
-    setLoading(true); setError("");
-    try {
-      const page = await request<Page>(`/v1/leads?limit=100&after_id=${cursor}${uf ? `&uf=${encodeURIComponent(uf)}` : ""}`, "");
-      setRows(current => [...current, ...page.items]); setCursor(page.next_after_id);
-    } catch (reason) { setError(reason instanceof TypeError ? "Não foi possível conectar à API." : reason instanceof Error ? reason.message : "Falha ao carregar registros."); }
-    finally { setLoading(false); }
-  };
-  const available = !error && !loading;
-  const ufCount = new Set(rows.map(row => row.uf).filter(Boolean)).size;
+    if (!run || !run.concluidas) return;
+    const marcador = `${run.id}:${run.concluidas}`;
+    if (ultimaColeta.current !== marcador) {
+      ultimaColeta.current = marcador;
+      setVersion(n => n + 1);
+    }
+  }, [run]);
+  const progress=run?.total ? Math.round(((run.concluidas+run.falhas)/run.total)*100) : 0;
+  const refresh = () => { setVersion(n=>n+1); void refreshStatus(); };
 
   return <div className="app-shell">
     <header className="app-header"><div className="header-container">
       <a className="brand-section" href="#leads"><img className="brand-logo-img" src={logo} alt="Centrus AI"/><span><strong className="brand-name">Centrus <b>PharmaLeads</b></strong><small className="brand-subtitle">Inteligência Farmacêutica · B2B</small></span></a>
-      <nav className="header-nav" aria-label="Navegação principal"><a className="nav-link active" href="#leads"><Users size={17}/> Leads</a></nav>
-      <span className="connection-status"><span className={available ? "status-dot online" : "status-dot"}/>{loading ? "Consultando" : error ? "Consulta indisponível" : "Dados consultados"}</span>
+      <nav className="header-nav" aria-label="Navegação principal"><a className="nav-link active" href="#leads"><Users size={17}/> Leads</a><a className="nav-link" href="#coleta"><Activity size={17}/> Coleta</a></nav>
+      <span className="connection-status"><span className={status ? "status-dot online" : "status-dot"}/>{status ? "API local conectada" : "API local indisponível"}</span>
     </div></header>
     <main className="main-wrapper" id="leads">
-      <section className="page-title-row"><div><span className="eyebrow">CENTRUS PHARMALEADS</span><h1>Prospecção e Gestão de Contas Farmacêuticas</h1><p>Consulte os estabelecimentos disponíveis para prospecção e relacionamento.</p></div><button className="btn btn-primary" onClick={refresh} disabled={loading}><RefreshCw size={16}/> Atualizar leads</button></section>
-      <section className="kpi-section" aria-label="Resumo dos registros carregados">
-        <article className="kpi-card highlight"><div className="kpi-header"><span>Estabelecimentos carregados</span><Users size={19}/></div><strong className="kpi-value">{available ? rows.length : "—"}</strong><p>{cursor !== null ? "Existem mais registros para carregar" : "Registros retornados pela consulta"}</p></article>
-        <article className="kpi-card"><div className="kpi-header"><span>UFs nos registros carregados</span><Building2 size={19}/></div><strong className="kpi-value">{available ? ufCount : "—"}</strong><p>Distribuição da seleção atual</p></article>
-        <article className="kpi-card"><div className="kpi-header"><span>Resultados da busca</span><Search size={19}/></div><strong className="kpi-value">{available ? filtered.length : "—"}</strong><p>Nome, CNPJ ou município</p></article>
-        <article className="kpi-card source-card"><div className="kpi-header"><span>Fonte dos dados</span><Database size={19}/></div><strong>Supabase</strong><p>Consulta pela API PharmaLeads</p></article>
+      <section className="page-title-row"><div><span className="eyebrow">CENTRUS PHARMALEADS</span><h1>Prospecção e Gestão de Contas Farmacêuticas</h1><p>Configure coletas e consulte estabelecimentos encontrados no Google Maps.</p></div><button className="btn btn-primary" onClick={refresh} disabled={loading}><RefreshCw size={16}/> Atualizar leads</button></section>
+      <section className="kpi-section" aria-label="Resumo"><article className="kpi-card highlight"><div className="kpi-header"><span>Leads no banco</span><Users size={19}/></div><strong className="kpi-value">{status?.total_leads ?? "—"}</strong><p>Estabelecimentos únicos</p></article><article className="kpi-card"><div className="kpi-header"><span>Resultados filtrados</span><Search size={19}/></div><strong className="kpi-value">{error ? "—" : page.total}</strong><p>Consulta no banco completo</p></article><article className="kpi-card"><div className="kpi-header"><span>Última coleta</span><Building2 size={19}/></div><strong className="kpi-value">{run ? `${run.concluidas}/${run.total}` : "—"}</strong><p>{run ? `${run.falhas} com falha` : "Nenhuma execução iniciada"}</p></article><article className="kpi-card source-card"><div className="kpi-header"><span>Fonte dos dados</span><Database size={19}/></div><strong>SQLite local</strong><p>Google Maps via Gosom</p></article></section>
+      <section className="leads-panel collection-panel" id="coleta"><div className="panel-heading"><div><span className="eyebrow">NOVA COLETA</span><h2>Configurar busca</h2><p>Informe cidades ou bairros, um por linha. Ex.: Curitiba, PR.</p></div><span className="count-badge">{run ? ({executando:"Em andamento",parando:"Parando",parada:"Parada",concluida:"Concluída",concluida_com_falhas:"Concluída com falhas",falhou:"Falhou",interrompida:"Interrompida"}[run.estado] || run.estado) : "Aguardando"}</span></div>
+        <div className="collection-body"><div className="collection-grid"><label className="field-label">Cidades ou regiões<textarea aria-label="Cidades ou regiões" rows={4} value={locais} onChange={e=>setLocais(e.target.value)} placeholder={"Curitiba, PR\nFlorianópolis, SC"} disabled={!!running}/></label><div><fieldset className="segment-options" disabled={!!running}><legend>Segmentos</legend>{segmentos.map(item=><label key={item.id}><input type="checkbox" checked={selectedSegments.includes(item.id)} onChange={e=>setSelectedSegments(current=>e.target.checked?[...current,item.id]:current.filter(x=>x!==item.id))}/>{item.descricao}</label>)}</fieldset><div className="collection-options"><label>Profundidade <input aria-label="Profundidade" type="number" min="1" max="10" value={depth} disabled={!!running} onChange={e=>setDepth(Number(e.target.value))}/></label><label><input type="checkbox" checked={emails} disabled={!!running} onChange={e=>setEmails(e.target.checked)}/> Buscar e-mails nos sites</label></div></div></div>
+        {actionError && <div className="error-message" role="alert">{actionError}</div>}
+        <div className="run-actions"><button className="btn btn-primary" onClick={()=>void start()} disabled={busy || !!running || !locais.trim() || !selectedSegments.length}><Play size={16}/> Iniciar coleta</button><button className="btn btn-secondary" onClick={()=>void stop()} disabled={busy || !running || run?.estado === "parando"}><Square size={15}/> Parar coleta</button><span>Até 100 locais por execução · 1 busca por vez</span></div>
+        {run && <div className="run-progress"><div><strong>Progresso da execução #{run.id}</strong><span>{run.concluidas + run.falhas} de {run.total} buscas · {run.falhas} falhas</span></div><progress max={100} value={progress} aria-label="Progresso da coleta"/><p>{status?.consulta_atual ? `Buscando: ${status.consulta_atual}` : run.erro ? `Último erro: ${run.erro}` : "Os resultados são salvos após cada busca concluída."}</p></div>}</div>
       </section>
-      <section className="leads-panel"><div className="panel-heading"><div><span className="eyebrow">CARTEIRA DE PROSPECÇÃO</span><h2>Estabelecimentos</h2><p>Consulte os registros disponíveis e abra a ficha para mais detalhes.</p></div><span className="count-badge">{error ? "Consulta indisponível" : loading && !rows.length ? "Consultando…" : `${filtered.length} carregados`}</span></div>
-        <div className="filters"><label className="search-field"><Search size={18}/><input aria-label="Buscar estabelecimentos" value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar por nome, CNPJ ou município"/>{query && <button aria-label="Limpar busca" onClick={() => setQuery("")}><X size={16}/></button>}</label><label className="select-field"><Filter size={17}/><select aria-label="Filtrar por UF" value={uf} onChange={event => { setUf(event.target.value); setRows([]); setCursor(null); setError(""); setLoading(true); }}><option value="">Todas as UFs</option>{states.map(state => <option key={state}>{state}</option>)}</select></label></div>
+      <section className="leads-panel lead-list"><div className="panel-heading"><div><span className="eyebrow">CARTEIRA DE PROSPECÇÃO</span><h2>Estabelecimentos</h2><p>Filtre os leads e abra a ficha para mais detalhes.</p></div><a className="btn btn-secondary" href={`/api/exportar?${filters}`}><Download size={16}/> Exportar CSV</a></div>
+        <div className="filters"><label className="search-field"><Search size={18}/><input aria-label="Buscar estabelecimentos" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Buscar por nome, endereço ou telefone"/>{query && <button aria-label="Limpar busca" onClick={()=>setQuery("")}><X size={16}/></button>}</label><label className="select-field"><Filter size={17}/><select aria-label="Filtrar por UF" value={uf} onChange={e=>setUf(e.target.value)}><option value="">Todas as UFs</option>{states.map(state=><option key={state}>{state}</option>)}</select></label><label className="select-field"><select aria-label="Filtrar por segmento" value={segmento} onChange={e=>setSegmento(e.target.value)}><option value="">Todos os segmentos</option>{segmentos.map(s=><option key={s.id} value={s.id}>{s.descricao}</option>)}</select></label><label className="select-field"><select aria-label="Filtrar por situação" value={stateFilter} onChange={e=>setStateFilter(e.target.value)}><option value="">Todas as situações</option><option value="ativa_ou_desconhecida">Ativa ou desconhecida</option><option value="fechada_temporariamente">Fechada temporariamente</option><option value="fechada_permanentemente">Fechada permanentemente</option><option value="fechada">Fechada</option></select></label></div>
         {error && <div className="error-message" role="alert"><Activity size={18}/><span>{error}</span></div>}
-        {loading && !rows.length ? <div className="empty">Consultando estabelecimentos…</div> : !error && !filtered.length ? <div className="empty">Nenhum estabelecimento encontrado.</div> : <div className="table-scroll"><table><thead><tr><th>Estabelecimento</th><th>CNPJ</th><th>Município / UF</th><th>CNAE</th><th>Status</th><th><span className="sr-only">Detalhes</span></th></tr></thead><tbody>{filtered.map(row => <tr key={row.id} onClick={() => setSelected(row)} tabIndex={0} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelected(row); } }}><td><strong>{row.nome}</strong><small>{display(row.razao_social)}</small></td><td className="mono">{formatCnpj(row.cnpj)}</td><td>{display(row.cidade)} / {row.uf}</td><td>{display(row.cnae)}</td><td><span className="status-badge">{display(row.status)}</span></td><td><ChevronRight size={17}/></td></tr>)}</tbody></table></div>}
-        {cursor !== null && <div className="load-more"><button className="btn btn-secondary" disabled={loading} onClick={() => void loadMore()}>{loading ? "Carregando…" : "Carregar mais"}</button></div>}
-      </section><footer className="page-footer"><span>Fonte: public.pharmaleads via API</span><span>{error ? "Dados indisponíveis" : `${rows.length} registros carregados`}</span></footer>
+        {loading && !page.items.length ? <div className="empty">Consultando estabelecimentos…</div> : !error && !page.items.length ? <div className="empty">Nenhum estabelecimento encontrado.</div> : <div className="table-scroll"><table><thead><tr><th>Estabelecimento</th><th>Local da busca</th><th>Telefone</th><th>Segmento</th><th>Situação</th><th><span className="sr-only">Detalhes</span></th></tr></thead><tbody>{page.items.map(row=><tr key={row.chave} onClick={()=>setSelected(row)} tabIndex={0} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();setSelected(row);}}}><td><strong>{display(row.nome)}</strong><small>{display(row.categoria)}</small></td><td>{display(row.local_busca)}</td><td className="mono">{display(row.telefone)}</td><td>{display(row.segmento)}</td><td><span className="status-badge">{situacao(row.situacao)}</span></td><td><ChevronRight size={17}/></td></tr>)}</tbody></table></div>}
+        {page.next_offset!==null && <div className="load-more"><button className="btn btn-secondary" disabled={loading} onClick={()=>void loadMore()}>{loading?"Carregando…":"Carregar mais"}</button></div>}
+      </section><footer className="page-footer"><span>Fonte: Google Maps · Banco SQLite local</span><span>{page.items.length} de {page.total} registros carregados</span></footer>
     </main>
-    {selected && <div className="overlay" onMouseDown={event => { if (event.target === event.currentTarget) setSelected(null); }}><section className="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title"><header><div><span className="eyebrow">ESTABELECIMENTO · #{selected.id}</span><h2 id="detail-title">{selected.nome}</h2><p>{display(selected.razao_social)}</p></div><button aria-label="Fechar ficha" onClick={() => setSelected(null)}><X/></button></header><dl>{[["CNPJ",formatCnpj(selected.cnpj)],["Município",selected.cidade],["UF",selected.uf],["CNAE",selected.cnae],["Endereço",selected.endereco],["Bairro",selected.bairro],["Status",selected.status],["Responsável",selected.responsavel]].map(([label,value]) => <div key={label}><dt>{label}</dt><dd>{display(value)}</dd></div>)}</dl></section></div>}
+    {selected && <div className="overlay" onMouseDown={event=>{if(event.target===event.currentTarget)setSelected(null);}}><section className="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title"><header><div><span className="eyebrow">ESTABELECIMENTO</span><h2 id="detail-title">{display(selected.nome)}</h2><p>{display(selected.categoria)}</p></div><button aria-label="Fechar ficha" onClick={()=>setSelected(null)}><X/></button></header><dl>{[["Local da busca",selected.local_busca],["Segmento",selected.segmento],["Endereço",selected.endereco],["Telefone",selected.telefone],["Site",selected.site],["E-mail",selected.emails],["Situação",situacao(selected.situacao)],["Avaliação",selected.avaliacao],["Quantidade de avaliações",selected.qtd_avaliacoes],["Latitude",selected.latitude],["Longitude",selected.longitude]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{display(value)}</dd></div>)}</dl><div className="drawer-links">{selected.link && <a href={selected.link} target="_blank" rel="noreferrer">Abrir no Maps</a>}{selected.whatsapp_link && <a href={selected.whatsapp_link} target="_blank" rel="noreferrer">Abrir WhatsApp</a>}</div></section></div>}
   </div>;
 }
