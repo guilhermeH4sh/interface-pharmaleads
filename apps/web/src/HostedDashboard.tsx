@@ -105,6 +105,7 @@ export function HostedDashboard() {
   const [collectionRun, setCollectionRun] = useState<CollectorRun | null>(null);
   const [collectionError, setCollectionError] = useState("");
   const [collectionBusy, setCollectionBusy] = useState(false);
+  const [collectorReady, setCollectorReady] = useState(false);
   const lastCompleted = useRef(0);
 
   useEffect(() => {
@@ -148,11 +149,13 @@ export function HostedDashboard() {
       if (!response.ok) throw new Error(body.error || `Coleta indisponível (HTTP ${response.status}).`);
       setCollectionRun(body.run || null);
       setCollectionError("");
+      setCollectorReady(true);
       if (body.run?.status === "completed" && lastCompleted.current !== body.run.id) {
         lastCompleted.current = body.run.id;
         refresh();
       }
     } catch (reason) {
+      setCollectorReady(false);
       setCollectionError(reason instanceof Error ? reason.message : "Não foi possível consultar a coleta online.");
     }
   }, [session, refresh]);
@@ -192,7 +195,7 @@ export function HostedDashboard() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Falha no login."); }
     finally { setLoading(false); }
   };
-  const signOut = () => { sessionStorage.removeItem(SESSION_KEY); setSession(null); setRows([]); setSelected(null); setError(""); setCollectionRun(null); setCollectionError(""); };
+  const signOut = () => { sessionStorage.removeItem(SESSION_KEY); setSession(null); setRows([]); setSelected(null); setError(""); setCollectionRun(null); setCollectionError(""); setCollectorReady(false); };
   const exportCsv = () => {
     const columns: (keyof Lead)[] = ["chave", "nome", "segmento", "categoria", "endereco", "local_busca", "telefone", "site", "emails", "situacao", "avaliacao", "qtd_avaliacoes", "link"];
     const csv = "\uFEFF" + [columns.join(";"), ...filtered.map(row => columns.map(column => csvCell(row[column])).join(";"))].join("\r\n");
@@ -214,7 +217,7 @@ export function HostedDashboard() {
         <section className="leads-panel hosted-note" id="coleta"><div className="panel-heading"><div><span className="eyebrow">COLETA ONLINE</span><h2>Iniciar busca no Google Maps</h2><p>O job roda no GitHub Actions e envia cada resultado ao Supabase.</p></div><button className="btn btn-secondary" onClick={signOut}>Sair</button></div>
           <div className="collection-body"><div className="collection-grid"><label className="field-label">Cidades ou regiões<textarea aria-label="Cidades ou regiões" rows={4} value={collectionLocals} onChange={event => setCollectionLocals(event.target.value)} placeholder={"Curitiba, PR\nFlorianópolis, SC"}/></label><div><fieldset className="segment-options"><legend>Segmentos</legend>{[["varejo","Farmácias e drogarias"],["manipulacao","Manipulação"],["homeopatia","Homeopatia"],["veterinaria","Veterinária"],["distribuidoras","Distribuidoras"]].map(([id,label]) => <label key={id}><input type="checkbox" checked={collectionSegments.includes(id)} onChange={event => setCollectionSegments(current => event.target.checked ? [...current,id] : current.filter(x => x !== id))}/>{label}</label>)}</fieldset><div className="collection-options"><label>Profundidade <input aria-label="Profundidade online" type="number" min="1" max="10" value={collectionDepth} onChange={event => setCollectionDepth(Number(event.target.value))}/></label><label><input type="checkbox" checked={collectionEmails} onChange={event => setCollectionEmails(event.target.checked)}/> Buscar e-mails nos sites</label></div></div></div>
           {collectionError && <div className="error-message" role="alert">{collectionError}</div>}
-          <div className="run-actions"><button className="btn btn-primary" disabled={collectionBusy || !collectionLocals.trim() || !collectionSegments.length || !!(collectionRun && ["queued","in_progress","waiting","pending","requested"].includes(collectionRun.status))} onClick={() => void collectionAction("start")}>Iniciar coleta</button><button className="btn btn-secondary" disabled={collectionBusy || !collectionRun || !["queued","in_progress","waiting","pending","requested"].includes(collectionRun.status)} onClick={() => void collectionAction("stop")}>Parar coleta</button><span>Até 20 buscas por execução</span></div>
+          <div className="run-actions"><button className="btn btn-primary" disabled={!collectorReady || collectionBusy || !collectionLocals.trim() || !collectionSegments.length || !!(collectionRun && ["queued","in_progress","waiting","pending","requested"].includes(collectionRun.status))} onClick={() => void collectionAction("start")}>Iniciar coleta</button><button className="btn btn-secondary" disabled={!collectorReady || collectionBusy || !collectionRun || !["queued","in_progress","waiting","pending","requested"].includes(collectionRun.status)} onClick={() => void collectionAction("stop")}>Parar coleta</button><span>Até 20 buscas por execução</span></div>
           {collectionRun && <div className="run-progress"><strong>Última execução: {collectionRun.status === "completed" ? collectionRun.conclusion === "success" ? "Concluída" : collectionRun.conclusion === "cancelled" ? "Cancelada" : "Falhou" : collectionRun.status === "in_progress" ? "Em andamento" : "Na fila"}</strong><p><a href={collectionRun.url} target="_blank" rel="noreferrer">Acompanhar no GitHub Actions</a></p></div>}
           </div>
         </section>
