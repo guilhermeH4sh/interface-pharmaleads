@@ -7,11 +7,13 @@ import "./crm.css";
 // A publishable key is designed for browser use. Row Level Security protects the table.
 const SUPABASE_URL = "https://qxsdcrywsjkrpcbfgbxb.supabase.co";
 const PUBLISHABLE_KEY = "sb_publishable_9AdBAjeEHFysAVpC7VCLMw_cDgQ4Fl0";
+const AUTHORIZED_USER_ID = "677ed1e4-3e73-4f2c-951f-e77386f305da";
 const SESSION_KEY = "pharmaleads-supabase-session";
 const COLUMNS = "chave,nome,segmento,categoria,endereco,local_busca,telefone,telefone_normalizado,celular,whatsapp_link,site,emails,situacao,avaliacao,qtd_avaliacoes,latitude,longitude,link";
 
 type Session = { access_token: string; refresh_token: string; expires_at: number };
 type AuthResponse = { access_token?: string; refresh_token?: string; expires_in?: number; user?: { id?: string }; error_description?: string; msg?: string };
+class AccessError extends Error {}
 
 function savedSession(): Session | null {
   try {
@@ -30,7 +32,11 @@ async function authenticate(grant: "password" | "refresh_token", fields: Record<
   });
   const body = await response.json() as AuthResponse;
   if (!response.ok || !body.access_token || !body.refresh_token || !body.expires_in) {
-    throw new Error(grant === "password" ? "Login não autorizado. Confira e-mail e senha da conta Supabase." : "Sessão expirada. Entre novamente.");
+    throw new AccessError(grant === "password" ? "Login não autorizado. Confira e-mail e senha da conta Supabase." : "Sessão expirada. Entre novamente.");
+  }
+  if (body.user?.id !== AUTHORIZED_USER_ID) {
+    sessionStorage.removeItem(SESSION_KEY);
+    throw new AccessError("Esta conta não é o usuário autorizado para public.pharmaleads. Entre com o usuário cadastrado em Supabase Authentication > Users.");
   }
   const session = { access_token: body.access_token, refresh_token: body.refresh_token, expires_at: Date.now() + body.expires_in * 1000 };
   sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
@@ -43,6 +49,12 @@ async function validSession(session: Session): Promise<Session> {
 
 async function fetchLeads(session: Session): Promise<{ session: Session; rows: Lead[] }> {
   const active = await validSession(session);
+  const identity = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}` },
+  });
+  if (!identity.ok) throw new AccessError("Sessão inválida ou expirada. Entre novamente.");
+  const user = await identity.json() as { id?: string };
+  if (user.id !== AUTHORIZED_USER_ID) throw new AccessError("Esta conta não tem acesso aos leads. Entre com o usuário autorizado em Supabase Authentication > Users.");
   const rows: Lead[] = [];
   let offset = 0;
   while (true) {
@@ -50,7 +62,7 @@ async function fetchLeads(session: Session): Promise<{ session: Session; rows: L
     const response = await fetch(`${SUPABASE_URL}/rest/v1/pharmaleads?${query}`, {
       headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}`, Prefer: "count=exact" },
     });
-    if (response.status === 401 || response.status === 403) throw new Error("A conta não tem acesso à tabela pharmaleads. Verifique as permissões no Supabase.");
+    if (response.status === 401 || response.status === 403) throw new AccessError("A conta não tem acesso à tabela pharmaleads. Verifique as permissões no Supabase.");
     if (!response.ok) throw new Error(`Consulta ao Supabase falhou (HTTP ${response.status}).`);
     const batch = await response.json() as Lead[];
     rows.push(...batch);
@@ -58,6 +70,7 @@ async function fetchLeads(session: Session): Promise<{ session: Session; rows: L
     const total = Number(response.headers.get("content-range")?.split("/")[1]);
     if (!batch.length || (Number.isFinite(total) && offset >= total) || (!Number.isFinite(total) && batch.length < 500)) break;
   }
+  if (!rows.length) throw new Error("O Supabase retornou zero leads para esta conta. Verifique as políticas RLS da tabela public.pharmaleads.");
   return { session: active, rows };
 }
 
@@ -97,7 +110,7 @@ export function HostedDashboard() {
     }).catch(reason => {
       if (cancelled) return;
       setError(reason instanceof Error ? reason.message : "Não foi possível consultar os leads.");
-      if (String(reason).includes("Sessão expirada")) { sessionStorage.removeItem(SESSION_KEY); setSession(null); }
+      if (reason instanceof AccessError) { sessionStorage.removeItem(SESSION_KEY); setSession(null); }
     }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
     // A nova sessão gerada pelo refresh não deve repetir a consulta.
@@ -136,7 +149,7 @@ export function HostedDashboard() {
     <header className="app-header"><div className="header-container">
       <a className="brand-section" href="#leads"><img className="brand-logo-img" src={logo} alt="Centrus AI"/><span><strong className="brand-name">Centrus <b>PharmaLeads</b></strong><small className="brand-subtitle">Inteligência Farmacêutica · B2B</small></span></a>
       <nav className="header-nav" aria-label="Navegação principal"><a className="nav-link active" href="#leads"><Users size={17}/> Leads</a></nav>
-      <span className="connection-status"><span className={session && !error ? "status-dot online" : "status-dot"}/>{session ? "Supabase conectado" : "Acesso protegido"}</span>
+      <span className="connection-status"><span className={session && rows.length && !error ? "status-dot online" : "status-dot"}/>{session && rows.length && !error ? "Supabase conectado" : "Acesso protegido"}</span>
     </div></header>
     <main className="main-wrapper" id="leads">
       <section className="page-title-row"><div><span className="eyebrow">CENTRUS PHARMALEADS</span><h1>Prospecção e Gestão de Contas Farmacêuticas</h1><p>Estabelecimentos encontrados no Google Maps.</p></div>{session && <button className="btn btn-primary" onClick={refresh} disabled={loading}><RefreshCw size={16}/> Atualizar leads</button>}</section>
