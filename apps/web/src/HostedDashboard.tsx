@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Activity, ChevronRight, Database, Download, Filter, RefreshCw, Search, Users, X } from "lucide-react";
 import type { Lead } from "./lib/crm";
 import logo from "./assets/centrus-logo-original.png";
@@ -13,6 +13,7 @@ const COLUMNS = "chave,nome,segmento,categoria,endereco,local_busca,telefone,tel
 
 type Session = { access_token: string; refresh_token: string; expires_at: number };
 type AuthResponse = { access_token?: string; refresh_token?: string; expires_in?: number; user?: { id?: string }; error_description?: string; msg?: string };
+type CollectorRun = { id: number; status: string; conclusion: string | null; url: string; created_at: string; title: string };
 class AccessError extends Error {}
 
 function savedSession(): Session | null {
@@ -97,6 +98,14 @@ export function HostedDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  const [collectionLocals, setCollectionLocals] = useState("");
+  const [collectionSegments, setCollectionSegments] = useState<string[]>(["varejo", "manipulacao"]);
+  const [collectionDepth, setCollectionDepth] = useState(1);
+  const [collectionEmails, setCollectionEmails] = useState(false);
+  const [collectionRun, setCollectionRun] = useState<CollectorRun | null>(null);
+  const [collectionError, setCollectionError] = useState("");
+  const [collectionBusy, setCollectionBusy] = useState(false);
+  const lastCompleted = useRef(0);
 
   useEffect(() => {
     if (!session) return;
@@ -128,6 +137,53 @@ export function HostedDashboard() {
   const states = useMemo(() => [...new Set(rows.map(ufOf).filter(Boolean))].sort(), [rows]);
   const refresh = useCallback(() => { setRevision(value => value + 1); }, []);
 
+  const refreshCollector = useCallback(async (override?: Session) => {
+    const current = override || session;
+    if (!current) return;
+    try {
+      const active = await validSession(current);
+      if (active !== current) setSession(active);
+      const response = await fetch("/api/collector", { headers: { Authorization: `Bearer ${active.access_token}` } });
+      const body = await response.json() as { run?: CollectorRun | null; error?: string };
+      if (!response.ok) throw new Error(body.error || `Coleta indisponível (HTTP ${response.status}).`);
+      setCollectionRun(body.run || null);
+      setCollectionError("");
+      if (body.run?.status === "completed" && lastCompleted.current !== body.run.id) {
+        lastCompleted.current = body.run.id;
+        refresh();
+      }
+    } catch (reason) {
+      setCollectionError(reason instanceof Error ? reason.message : "Não foi possível consultar a coleta online.");
+    }
+  }, [session, refresh]);
+
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    queueMicrotask(() => { if (!cancelled) void refreshCollector(); });
+    const timer = window.setInterval(() => void refreshCollector(), 10000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [session, refreshCollector]);
+
+  const collectionAction = async (action: "start" | "stop") => {
+    if (!session) return;
+    setCollectionBusy(true); setCollectionError("");
+    try {
+      const active = await validSession(session);
+      if (active !== session) setSession(active);
+      const response = await fetch("/api/collector", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${active.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ action, locais: collectionLocals, segmentos: collectionSegments, profundidade: collectionDepth, emails: collectionEmails }),
+      });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(body.error || `Falha ao ${action === "start" ? "iniciar" : "parar"} a coleta.`);
+      window.setTimeout(() => void refreshCollector(active), 1500);
+    } catch (reason) {
+      setCollectionError(reason instanceof Error ? reason.message : "Falha ao controlar a coleta.");
+    } finally { setCollectionBusy(false); }
+  };
+
   const signIn = async (event: FormEvent) => {
     event.preventDefault(); setLoading(true); setError("");
     try {
@@ -136,7 +192,7 @@ export function HostedDashboard() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Falha no login."); }
     finally { setLoading(false); }
   };
-  const signOut = () => { sessionStorage.removeItem(SESSION_KEY); setSession(null); setRows([]); setSelected(null); setError(""); };
+  const signOut = () => { sessionStorage.removeItem(SESSION_KEY); setSession(null); setRows([]); setSelected(null); setError(""); setCollectionRun(null); setCollectionError(""); };
   const exportCsv = () => {
     const columns: (keyof Lead)[] = ["chave", "nome", "segmento", "categoria", "endereco", "local_busca", "telefone", "site", "emails", "situacao", "avaliacao", "qtd_avaliacoes", "link"];
     const csv = "\uFEFF" + [columns.join(";"), ...filtered.map(row => columns.map(column => csvCell(row[column])).join(";"))].join("\r\n");
@@ -148,14 +204,20 @@ export function HostedDashboard() {
   return <div className="app-shell">
     <header className="app-header"><div className="header-container">
       <a className="brand-section" href="#leads"><img className="brand-logo-img" src={logo} alt="Centrus AI"/><span><strong className="brand-name">Centrus <b>PharmaLeads</b></strong><small className="brand-subtitle">Inteligência Farmacêutica · B2B</small></span></a>
-      <nav className="header-nav" aria-label="Navegação principal"><a className="nav-link active" href="#leads"><Users size={17}/> Leads</a></nav>
+      <nav className="header-nav" aria-label="Navegação principal"><a className="nav-link active" href="#leads"><Users size={17}/> Leads</a>{session && <a className="nav-link" href="#coleta">Coleta</a>}</nav>
       <span className="connection-status"><span className={session && rows.length && !error ? "status-dot online" : "status-dot"}/>{session && rows.length && !error ? "Supabase conectado" : "Acesso protegido"}</span>
     </div></header>
     <main className="main-wrapper" id="leads">
       <section className="page-title-row"><div><span className="eyebrow">CENTRUS PHARMALEADS</span><h1>Prospecção e Gestão de Contas Farmacêuticas</h1><p>Estabelecimentos encontrados no Google Maps.</p></div>{session && <button className="btn btn-primary" onClick={refresh} disabled={loading}><RefreshCw size={16}/> Atualizar leads</button>}</section>
       {!session ? <section className="leads-panel hosted-login"><div className="panel-heading"><div><span className="eyebrow">ACESSO À BASE</span><h2>Entrar com sua conta Supabase</h2><p>Use a conta que já tem permissão na tabela pharmaleads.</p></div></div><form onSubmit={event => void signIn(event)} className="hosted-login-form"><label>E-mail<input type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} required/></label><label>Senha<input type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required/></label>{error && <div className="error-message" role="alert">{error}</div>}<button className="btn btn-primary" type="submit" disabled={loading}>{loading ? "Entrando…" : "Entrar"}</button></form></section> : <>
         <section className="kpi-section" aria-label="Resumo"><article className="kpi-card highlight"><div className="kpi-header"><span>Leads no Supabase</span><Users size={19}/></div><strong className="kpi-value">{loading && !rows.length ? "…" : rows.length}</strong><p>Estabelecimentos únicos</p></article><article className="kpi-card"><div className="kpi-header"><span>Resultados filtrados</span><Search size={19}/></div><strong className="kpi-value">{filtered.length}</strong><p>Consulta na base completa</p></article><article className="kpi-card source-card"><div className="kpi-header"><span>Fonte dos dados</span><Database size={19}/></div><strong>Supabase</strong><p>public.pharmaleads</p></article></section>
-        <section className="leads-panel hosted-note"><div className="panel-heading"><div><span className="eyebrow">COLETA</span><h2>Leads sincronizados</h2><p>Esta página consulta a tabela online. A coleta com Gosom precisa de um worker ativo fora da Vercel para adicionar novos leads.</p></div><button className="btn btn-secondary" onClick={signOut}>Sair</button></div></section>
+        <section className="leads-panel hosted-note" id="coleta"><div className="panel-heading"><div><span className="eyebrow">COLETA ONLINE</span><h2>Iniciar busca no Google Maps</h2><p>O job roda no GitHub Actions e envia cada resultado ao Supabase.</p></div><button className="btn btn-secondary" onClick={signOut}>Sair</button></div>
+          <div className="collection-body"><div className="collection-grid"><label className="field-label">Cidades ou regiões<textarea aria-label="Cidades ou regiões" rows={4} value={collectionLocals} onChange={event => setCollectionLocals(event.target.value)} placeholder={"Curitiba, PR\nFlorianópolis, SC"}/></label><div><fieldset className="segment-options"><legend>Segmentos</legend>{[["varejo","Farmácias e drogarias"],["manipulacao","Manipulação"],["homeopatia","Homeopatia"],["veterinaria","Veterinária"],["distribuidoras","Distribuidoras"]].map(([id,label]) => <label key={id}><input type="checkbox" checked={collectionSegments.includes(id)} onChange={event => setCollectionSegments(current => event.target.checked ? [...current,id] : current.filter(x => x !== id))}/>{label}</label>)}</fieldset><div className="collection-options"><label>Profundidade <input aria-label="Profundidade online" type="number" min="1" max="10" value={collectionDepth} onChange={event => setCollectionDepth(Number(event.target.value))}/></label><label><input type="checkbox" checked={collectionEmails} onChange={event => setCollectionEmails(event.target.checked)}/> Buscar e-mails nos sites</label></div></div></div>
+          {collectionError && <div className="error-message" role="alert">{collectionError}</div>}
+          <div className="run-actions"><button className="btn btn-primary" disabled={collectionBusy || !collectionLocals.trim() || !collectionSegments.length || !!(collectionRun && ["queued","in_progress","waiting","pending","requested"].includes(collectionRun.status))} onClick={() => void collectionAction("start")}>Iniciar coleta</button><button className="btn btn-secondary" disabled={collectionBusy || !collectionRun || !["queued","in_progress","waiting","pending","requested"].includes(collectionRun.status)} onClick={() => void collectionAction("stop")}>Parar coleta</button><span>Até 20 buscas por execução</span></div>
+          {collectionRun && <div className="run-progress"><strong>Última execução: {collectionRun.status === "completed" ? collectionRun.conclusion === "success" ? "Concluída" : collectionRun.conclusion === "cancelled" ? "Cancelada" : "Falhou" : collectionRun.status === "in_progress" ? "Em andamento" : "Na fila"}</strong><p><a href={collectionRun.url} target="_blank" rel="noreferrer">Acompanhar no GitHub Actions</a></p></div>}
+          </div>
+        </section>
         <section className="leads-panel lead-list"><div className="panel-heading"><div><span className="eyebrow">CARTEIRA DE PROSPECÇÃO</span><h2>Estabelecimentos</h2><p>Filtre os leads e abra a ficha para mais detalhes.</p></div><button className="btn btn-secondary" onClick={exportCsv} disabled={loading || !filtered.length}><Download size={16}/> Exportar CSV</button></div>
           <div className="filters"><label className="search-field"><Search size={18}/><input aria-label="Buscar estabelecimentos" value={query} onChange={event => { setQuery(event.target.value); setVisible(50); }} placeholder="Buscar por nome, endereço ou telefone"/>{query && <button aria-label="Limpar busca" onClick={() => setQuery("")}><X size={16}/></button>}</label><label className="select-field"><Filter size={17}/><select aria-label="Filtrar por UF" value={uf} onChange={event => {setUf(event.target.value);setVisible(50);}}><option value="">Todas as UFs</option>{states.map(state => <option key={state}>{state}</option>)}</select></label><label className="select-field"><select aria-label="Filtrar por segmento" value={segmento} onChange={event => {setSegmento(event.target.value);setVisible(50);}}><option value="">Todos os segmentos</option><option value="varejo">Varejo</option><option value="manipulacao">Manipulação</option></select></label><label className="select-field"><select aria-label="Filtrar por situação" value={stateFilter} onChange={event => {setStateFilter(event.target.value);setVisible(50);}}><option value="">Todas as situações</option><option value="ativa_ou_desconhecida">Ativa ou desconhecida</option><option value="fechada_temporariamente">Fechada temporariamente</option><option value="fechada_permanentemente">Fechada permanentemente</option></select></label></div>
           {error && <div className="error-message" role="alert"><Activity size={18}/>{error}</div>}
