@@ -2,7 +2,7 @@ export type Lead = { chave: string; nome: string; segmento: string; categoria: s
 export type Page = { items: Lead[]; total: number; next_offset: number | null };
 export type Segmento = { id: string; descricao: string };
 export type Execucao = { id: number; estado: string; criado_em: string; terminado_em: string | null; total: number; concluidas: number; falhas: number; erro: string | null };
-export type Status = { total_leads: number; execucao: Execucao | null; consulta_atual: string | null };
+export type Status = { total_leads: number; sync_pendente?: number; execucao: Execucao | null; consulta_atual: string | null };
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(path, options);
