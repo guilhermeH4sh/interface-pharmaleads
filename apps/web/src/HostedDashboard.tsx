@@ -120,6 +120,8 @@ export function HostedDashboard() {
   const [collectorReady, setCollectorReady] = useState(false);
   const lastCompleted = useRef(0);
   const awaitingRun = useRef(false);
+  const actionGen = useRef(0);
+  const filaLocal = (): CollectorRun => ({ id: 0, status: "queued", conclusion: null, url: "https://github.com/guilhermeH4sh/interface-pharmaleads/actions", created_at: new Date().toISOString(), title: "Na fila" });
 
   useEffect(() => {
     if (!session) return;
@@ -193,15 +195,21 @@ export function HostedDashboard() {
     if (!session) return;
     let cancelled = false;
     queueMicrotask(() => { if (!cancelled) void refreshCollector(); });
-    const timer = window.setInterval(() => void refreshCollector(), 10000);
+    const timer = window.setInterval(() => void refreshCollector(), coletaAtiva ? 3000 : 10000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [session, refreshCollector]);
+  }, [session, refreshCollector, coletaAtiva]);
 
   const collectionAction = async (action: "start" | "stop", cobertura?: "nacional") => {
     if (!session) return;
+    const gen = ++actionGen.current;
+    const anterior = collectionRun;
+    if (action === "start") {
+      awaitingRun.current = true;
+      setCollectionRun(filaLocal());
+    }
     setCollectionBusy(true); setCollectionError("");
-    const rodada = cobertura && coberturaAtual && collectionRun?.status === "completed"
-      ? collectionRun.conclusion === "success" && coberturaAtual.rodada < coberturaAtual.total ? coberturaAtual.rodada + 1 : coberturaAtual.rodada
+    const rodada = cobertura && coberturaAtual && anterior?.status === "completed"
+      ? anterior.conclusion === "success" && coberturaAtual.rodada < coberturaAtual.total ? coberturaAtual.rodada + 1 : coberturaAtual.rodada
       : 1;
     try {
       const active = await validSession(session);
@@ -212,18 +220,30 @@ export function HostedDashboard() {
         body: JSON.stringify({ action, ...(cobertura ? { cobertura, rodada } : {}), locais: collectionLocals, segmentos: collectionSegments, profundidade: collectionDepth, emails: cobertura ? false : collectionEmails, enriquecerSites: cobertura ? false : collectionEnrichment }),
       });
       const body = await response.json() as { error?: string; run?: CollectorRun | null };
-      if (!response.ok) throw new Error(body.error || `Falha ao ${action === "start" ? "iniciar" : "parar"} a coleta.`);
+      if (gen !== actionGen.current) return;
+      const runAtiva = !!(body.run && COLETA_ATIVA.includes(body.run.status));
+      if (!response.ok) {
+        if (runAtiva) {
+          awaitingRun.current = true;
+          setCollectionRun(body.run || filaLocal());
+        } else if (action === "start") {
+          awaitingRun.current = false;
+          setCollectionRun(anterior);
+        }
+        throw new Error(body.error || `Falha ao ${action === "start" ? "iniciar" : "parar"} a coleta.`);
+      }
       if (action === "start") {
         awaitingRun.current = true;
-        setCollectionRun(body.run || { id: 0, status: "queued", conclusion: null, url: "https://github.com/guilhermeH4sh/interface-pharmaleads/actions", created_at: new Date().toISOString(), title: "Na fila" });
+        setCollectionRun(body.run || filaLocal());
       } else {
         awaitingRun.current = false;
         setCollectionRun(current => current ? { ...current, ...(body.run || {}), status: "completed", conclusion: "cancelled" } : body.run || null);
       }
-      window.setTimeout(() => void refreshCollector(active), 1500);
+      window.setTimeout(() => { if (gen === actionGen.current) void refreshCollector(active); }, 1500);
     } catch (reason) {
+      if (gen !== actionGen.current) return;
       setCollectionError(reason instanceof Error ? reason.message : "Falha ao controlar a coleta.");
-    } finally { setCollectionBusy(false); }
+    } finally { if (gen === actionGen.current) setCollectionBusy(false); }
   };
 
   const signIn = async (event: FormEvent) => {
@@ -256,7 +276,7 @@ export function HostedDashboard() {
         <section className="leads-panel hosted-note" id="coleta"><div className="panel-heading"><div><span className="eyebrow">COLETA ONLINE</span><h2>Iniciar busca no Google Maps</h2><p>O job roda no GitHub Actions e envia cada resultado ao Supabase.</p></div><button className="btn btn-secondary" onClick={signOut}>Sair</button></div>
           <div className="collection-body"><div className="collection-grid"><label className="field-label">Cidades ou regiões<textarea aria-label="Cidades ou regiões" rows={4} value={collectionLocals} onChange={event => setCollectionLocals(event.target.value)} placeholder={"Curitiba, PR\nFlorianópolis, SC"}/></label><div><fieldset className="segment-options"><legend>Segmentos</legend>{[["varejo","Farmácias e drogarias"],["manipulacao","Manipulação"],["homeopatia","Homeopatia"],["veterinaria","Veterinária"],["distribuidoras","Distribuidoras"]].map(([id,label]) => <label key={id}><input type="checkbox" checked={collectionSegments.includes(id)} onChange={event => setCollectionSegments(current => event.target.checked ? [...current,id] : current.filter(x => x !== id))}/>{label}</label>)}</fieldset><div className="collection-options"><label>Profundidade <input aria-label="Profundidade online" type="number" min="1" max="10" value={collectionDepth} onChange={event => setCollectionDepth(Number(event.target.value))}/></label><label><input type="checkbox" checked={collectionEmails} onChange={event => setCollectionEmails(event.target.checked)}/> Buscar e-mails nos sites</label><label><input type="checkbox" checked={collectionEnrichment} onChange={event => setCollectionEnrichment(event.target.checked)}/> Enriquecer sites de leads novos (mais lento)</label></div></div></div>
           {collectionError && <div className="error-message" role="alert">{collectionError}</div>}
-          <div className="run-actions"><button className="btn btn-primary" disabled={!collectorReady || collectionBusy || !collectionLocals.trim() || !collectionSegments.length || coletaAtiva} onClick={() => void collectionAction("start")}>Iniciar coleta</button><button className="btn btn-secondary" disabled={!collectorReady || collectionBusy || !collectionSegments.length || coletaAtiva} onClick={() => void collectionAction("start", "nacional")}>{rotuloCobertura}</button><button className="btn btn-secondary" disabled={!collectorReady || collectionBusy || !coletaAtiva} onClick={() => void collectionAction("stop")}>Parar coleta</button><span>Até 20 buscas por execução. A cobertura nacional continua sozinha, uma rodada por vez.</span></div>
+          <div className="run-actions"><button className="btn btn-primary" disabled={!collectorReady || collectionBusy || !collectionLocals.trim() || !collectionSegments.length || coletaAtiva} onClick={() => void collectionAction("start")}>{coletaAtiva ? "Coleta em andamento" : "Iniciar coleta"}</button><button className="btn btn-secondary" disabled={!collectorReady || collectionBusy || !collectionSegments.length || coletaAtiva} onClick={() => void collectionAction("start", "nacional")}>{rotuloCobertura}</button><button className="btn btn-secondary" disabled={!collectorReady || !coletaAtiva} onClick={() => void collectionAction("stop")}>Parar coleta</button><span>Até 20 buscas por execução. A cobertura nacional continua sozinha, uma rodada por vez.</span></div>
           {collectionRun && <div className="run-progress"><strong>Última execução: {collectionRun.status === "completed" ? collectionRun.conclusion === "success" ? "Concluída" : collectionRun.conclusion === "cancelled" ? "Cancelada" : "Falhou" : collectionRun.status === "in_progress" ? "Em andamento" : "Na fila"}{coberturaAtual ? ` · rodada ${coberturaAtual.rodada} de ${coberturaAtual.total}` : ""}</strong>{coberturaAtual?.resumo ? <p>{coberturaAtual.resumo}</p> : null}<p><a href={collectionRun.url} target="_blank" rel="noreferrer">Acompanhar no GitHub Actions</a></p></div>}
           <div className="uf-coverage" role="region" aria-label="Cobertura por UF">{coberturaUfs.map(item => <article key={item.sigla}><strong>{item.sigla}</strong><span>{item.total === 1 ? "1 lead" : `${item.total} leads`}</span><span>{dataCobertura(item.ultima)}</span></article>)}</div>
           </div>

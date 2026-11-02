@@ -66,6 +66,20 @@ test('despacha uma rodada da cobertura nacional dentro do limite', async () => {
   assert.ok(!JSON.stringify(res.body).includes('github-token-de-teste'));
 });
 
+test('quando já há job, devolve a execução ativa para o painel poder parar', async () => {
+  process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
+  globalThis.fetch = async (url) => {
+    if (url.includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: '677ed1e4-3e73-4f2c-951f-e77386f305da' }) };
+    if (url.includes('/runs?')) return { ok: true, status: 200, json: async () => ({ workflow_runs: [{ id: 44, status: 'in_progress', conclusion: null, html_url: 'https://example.test/44', created_at: '', display_title: 'Atual' }] }) };
+    throw new Error('URL inesperada');
+  };
+  const res = response();
+  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'start', locais: 'Curitiba, PR', segmentos: ['varejo'], profundidade: 1 } }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.run.id, 44);
+  assert.equal(res.body.run.status, 'in_progress');
+});
+
 test('parar a coleta espera o job aparecer no GitHub e então cancela', async () => {
   process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
   process.env.COLETA_STOP_RETRY_MS = '0';

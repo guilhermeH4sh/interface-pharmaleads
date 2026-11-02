@@ -1,9 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 import { HostedDashboard } from "./HostedDashboard";
 
-afterEach(() => { vi.unstubAllGlobals(); sessionStorage.clear(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); });
 
 test("autentica a conta existente e lê os leads protegidos do Supabase", async () => {
   const fetcher = vi.fn(async (url: string, options?: RequestInit) => {
