@@ -1,38 +1,14 @@
-# Dependências e caches
-node_modules/
-.DS_Store
-Thumbs.db
-
-# Vercel
-.vercel
-
-# Logs
-*.log
-
-# Variáveis de ambiente
+dados/
+bin/google-maps-scraper
+bin/google-maps-scraper.exe
+__pycache__/
+*.pyc
+leads*.csv
 .env
-.env.local
 .env.*
 !.env.example
-dist/
-coverage/
-.tmp/
-
-backup-*.json
-
-# Fundação Python / ferramentas locais
-.venv/
-.uv-cache/
-.npm-cache/
-__pycache__/
-*.py[cod]
-*.egg-info/
-.pytest_cache/
-.tmp-pytest-pilot/
-.ruff_cache/
-.mypy_cache/
-playwright-report/
-test-results/
-.local/
-.m05-stage/
-.m05-downloads/
+supabase/*.csv
+apps/web/node_modules/
+apps/web/dist/
+apps/web/test-results/
+apps/web/playwright-report/

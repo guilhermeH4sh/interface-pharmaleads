@@ -1,0 +1,33 @@
+BEGIN;
+
+-- Substitui somente public.pharmaleads. Sem CASCADE: se outra tabela depender
+-- dela, o PostgreSQL interrompe a operação em vez de alterar essa dependência.
+DROP TABLE IF EXISTS public.pharmaleads;
+
+CREATE TABLE public.pharmaleads (
+  chave text PRIMARY KEY,
+  nome text NOT NULL DEFAULT '',
+  segmento text NOT NULL DEFAULT '',
+  categoria text NOT NULL DEFAULT '',
+  endereco text NOT NULL DEFAULT '',
+  local_busca text NOT NULL DEFAULT '',
+  telefone text NOT NULL DEFAULT '',
+  telefone_normalizado text NOT NULL DEFAULT '',
+  celular integer NOT NULL DEFAULT 0,
+  whatsapp_link text NOT NULL DEFAULT '',
+  site text NOT NULL DEFAULT '',
+  emails text NOT NULL DEFAULT '',
+  score_contato integer NOT NULL DEFAULT 0,
+  latitude text NOT NULL DEFAULT '',
+  longitude text NOT NULL DEFAULT '',
+  avaliacao text NOT NULL DEFAULT '',
+  qtd_avaliacoes text NOT NULL DEFAULT '',
+  status_maps text NOT NULL DEFAULT '',
+  situacao text NOT NULL DEFAULT '',
+  link text NOT NULL DEFAULT '',
+  dados_brutos jsonb NOT NULL DEFAULT '{}'::jsonb,
+  primeira_coleta timestamptz,
+  ultima_coleta timestamptz
+);
+
+COMMIT;

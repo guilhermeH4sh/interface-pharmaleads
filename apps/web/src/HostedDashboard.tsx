@@ -9,7 +9,9 @@ const SUPABASE_URL = "https://qxsdcrywsjkrpcbfgbxb.supabase.co";
 const PUBLISHABLE_KEY = "sb_publishable_9AdBAjeEHFysAVpC7VCLMw_cDgQ4Fl0";
 const AUTHORIZED_USER_ID = "677ed1e4-3e73-4f2c-951f-e77386f305da";
 const SESSION_KEY = "pharmaleads-supabase-session";
-const COLUMNS = "chave,nome,segmento,categoria,endereco,local_busca,telefone,telefone_normalizado,celular,whatsapp_link,site,emails,situacao,avaliacao,qtd_avaliacoes,latitude,longitude,link";
+const COLUMNS = "chave,nome,segmento,categoria,endereco,local_busca,telefone,telefone_normalizado,celular,whatsapp_link,site,emails,situacao,avaliacao,qtd_avaliacoes,latitude,longitude,link,ultima_coleta";
+const UFS = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO"];
+const COLETA_ATIVA = ["queued", "in_progress", "waiting", "pending", "requested"];
 
 type Session = { access_token: string; refresh_token: string; expires_at: number };
 type AuthResponse = { access_token?: string; refresh_token?: string; expires_in?: number; user?: { id?: string }; error_description?: string; msg?: string };
@@ -77,6 +79,15 @@ async function fetchLeads(session: Session): Promise<{ session: Session; rows: L
 
 const display = (value: string | number | null | undefined) => String(value ?? "").trim() || "Não informado";
 const situacao = (value: string) => ({ ativa_ou_desconhecida: "Ativa ou desconhecida", fechada_temporariamente: "Fechada temporariamente", fechada_permanentemente: "Fechada permanentemente", fechada: "Fechada" }[value] || display(value));
+const dataCobertura = (valor: string) => {
+  if (!valor) return "Sem coleta";
+  const data = new Date(valor);
+  return Number.isNaN(data.getTime()) ? "Sem coleta" : data.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+};
+const lerCobertura = (title: string) => {
+  const match = /^Nacional (\d+)\/(\d+)(?: · (.*))?$/.exec(title || "");
+  return match ? { rodada: Number(match[1]), total: Number(match[2]), resumo: match[3] || "" } : null;
+};
 const ufOf = (row: Lead) => /(?:,|\s)([A-Z]{2})(?:\b|$)/.exec(row.local_busca)?.[1] || /- ([A-Z]{2})(?:,|$)/.exec(row.endereco)?.[1] || "";
 const csvCell = (value: unknown) => {
   const raw = String(value ?? "");
@@ -102,11 +113,13 @@ export function HostedDashboard() {
   const [collectionSegments, setCollectionSegments] = useState<string[]>(["varejo", "manipulacao"]);
   const [collectionDepth, setCollectionDepth] = useState(1);
   const [collectionEmails, setCollectionEmails] = useState(false);
+  const [collectionEnrichment, setCollectionEnrichment] = useState(false);
   const [collectionRun, setCollectionRun] = useState<CollectorRun | null>(null);
   const [collectionError, setCollectionError] = useState("");
   const [collectionBusy, setCollectionBusy] = useState(false);
   const [collectorReady, setCollectorReady] = useState(false);
   const lastCompleted = useRef(0);
+  const awaitingRun = useRef(false);
 
   useEffect(() => {
     if (!session) return;
@@ -136,7 +149,15 @@ export function HostedDashboard() {
   }), [rows, query, uf, segmento, stateFilter]);
   const page = filtered.slice(0, visible);
   const states = useMemo(() => [...new Set(rows.map(ufOf).filter(Boolean))].sort(), [rows]);
+  const coberturaUfs = useMemo(() => UFS.map(sigla => {
+    const doEstado = rows.filter(row => ufOf(row) === sigla);
+    const ultima = doEstado.reduce((maior, row) => (row.ultima_coleta || "") > maior ? row.ultima_coleta || "" : maior, "");
+    return { sigla, total: doEstado.length, ultima };
+  }), [rows]);
   const refresh = useCallback(() => { setRevision(value => value + 1); }, []);
+  const coletaAtiva = !!(collectionRun && COLETA_ATIVA.includes(collectionRun.status));
+  const coberturaAtual = lerCobertura(collectionRun?.title || "");
+  const rotuloCobertura = !coberturaAtual || coletaAtiva || collectionRun?.status !== "completed" ? "Iniciar cobertura nacional" : collectionRun.conclusion !== "success" ? `Retomar rodada ${coberturaAtual.rodada}` : coberturaAtual.rodada < coberturaAtual.total ? `Continuar da rodada ${coberturaAtual.rodada + 1}` : "Iniciar cobertura nacional";
 
   const refreshCollector = useCallback(async (override?: Session) => {
     const current = override || session;
@@ -147,11 +168,19 @@ export function HostedDashboard() {
       const response = await fetch("/api/collector", { headers: { Authorization: `Bearer ${active.access_token}` } });
       const body = await response.json() as { run?: CollectorRun | null; error?: string };
       if (!response.ok) throw new Error(body.error || `Coleta indisponível (HTTP ${response.status}).`);
-      setCollectionRun(body.run || null);
+      const run = body.run || null;
+      const ativa = !!(run && COLETA_ATIVA.includes(run.status));
+      if (awaitingRun.current && !ativa && !(run?.status === "completed" && run.id && run.id !== lastCompleted.current)) {
+        setCollectionError("");
+        setCollectorReady(true);
+        return;
+      }
+      awaitingRun.current = ativa;
+      setCollectionRun(run);
       setCollectionError("");
       setCollectorReady(true);
-      if (body.run?.status === "completed" && lastCompleted.current !== body.run.id) {
-        lastCompleted.current = body.run.id;
+      if (run?.status === "completed" && lastCompleted.current !== run.id) {
+        lastCompleted.current = run.id;
         refresh();
       }
     } catch (reason) {
@@ -168,19 +197,29 @@ export function HostedDashboard() {
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [session, refreshCollector]);
 
-  const collectionAction = async (action: "start" | "stop") => {
+  const collectionAction = async (action: "start" | "stop", cobertura?: "nacional") => {
     if (!session) return;
     setCollectionBusy(true); setCollectionError("");
+    const rodada = cobertura && coberturaAtual && collectionRun?.status === "completed"
+      ? collectionRun.conclusion === "success" && coberturaAtual.rodada < coberturaAtual.total ? coberturaAtual.rodada + 1 : coberturaAtual.rodada
+      : 1;
     try {
       const active = await validSession(session);
       if (active !== session) setSession(active);
       const response = await fetch("/api/collector", {
         method: "POST",
         headers: { Authorization: `Bearer ${active.access_token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ action, locais: collectionLocals, segmentos: collectionSegments, profundidade: collectionDepth, emails: collectionEmails }),
+        body: JSON.stringify({ action, ...(cobertura ? { cobertura, rodada } : {}), locais: collectionLocals, segmentos: collectionSegments, profundidade: collectionDepth, emails: cobertura ? false : collectionEmails, enriquecerSites: cobertura ? false : collectionEnrichment }),
       });
-      const body = await response.json() as { error?: string };
+      const body = await response.json() as { error?: string; run?: CollectorRun | null };
       if (!response.ok) throw new Error(body.error || `Falha ao ${action === "start" ? "iniciar" : "parar"} a coleta.`);
+      if (action === "start") {
+        awaitingRun.current = true;
+        setCollectionRun(body.run || { id: 0, status: "queued", conclusion: null, url: "https://github.com/guilhermeH4sh/interface-pharmaleads/actions", created_at: new Date().toISOString(), title: "Na fila" });
+      } else {
+        awaitingRun.current = false;
+        setCollectionRun(current => current ? { ...current, ...(body.run || {}), status: "completed", conclusion: "cancelled" } : body.run || null);
+      }
       window.setTimeout(() => void refreshCollector(active), 1500);
     } catch (reason) {
       setCollectionError(reason instanceof Error ? reason.message : "Falha ao controlar a coleta.");
@@ -215,10 +254,11 @@ export function HostedDashboard() {
       {!session ? <section className="leads-panel hosted-login"><div className="panel-heading"><div><span className="eyebrow">ACESSO À BASE</span><h2>Entrar com sua conta Supabase</h2><p>Use a conta que já tem permissão na tabela pharmaleads.</p></div></div><form onSubmit={event => void signIn(event)} className="hosted-login-form"><label>E-mail<input type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} required/></label><label>Senha<input type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required/></label>{error && <div className="error-message" role="alert">{error}</div>}<button className="btn btn-primary" type="submit" disabled={loading}>{loading ? "Entrando…" : "Entrar"}</button></form></section> : <>
         <section className="kpi-section" aria-label="Resumo"><article className="kpi-card highlight"><div className="kpi-header"><span>Leads no Supabase</span><Users size={19}/></div><strong className="kpi-value">{loading && !rows.length ? "…" : rows.length}</strong><p>Estabelecimentos únicos</p></article><article className="kpi-card"><div className="kpi-header"><span>Resultados filtrados</span><Search size={19}/></div><strong className="kpi-value">{filtered.length}</strong><p>Consulta na base completa</p></article><article className="kpi-card source-card"><div className="kpi-header"><span>Fonte dos dados</span><Database size={19}/></div><strong>Supabase</strong><p>public.pharmaleads</p></article></section>
         <section className="leads-panel hosted-note" id="coleta"><div className="panel-heading"><div><span className="eyebrow">COLETA ONLINE</span><h2>Iniciar busca no Google Maps</h2><p>O job roda no GitHub Actions e envia cada resultado ao Supabase.</p></div><button className="btn btn-secondary" onClick={signOut}>Sair</button></div>
-          <div className="collection-body"><div className="collection-grid"><label className="field-label">Cidades ou regiões<textarea aria-label="Cidades ou regiões" rows={4} value={collectionLocals} onChange={event => setCollectionLocals(event.target.value)} placeholder={"Curitiba, PR\nFlorianópolis, SC"}/></label><div><fieldset className="segment-options"><legend>Segmentos</legend>{[["varejo","Farmácias e drogarias"],["manipulacao","Manipulação"],["homeopatia","Homeopatia"],["veterinaria","Veterinária"],["distribuidoras","Distribuidoras"]].map(([id,label]) => <label key={id}><input type="checkbox" checked={collectionSegments.includes(id)} onChange={event => setCollectionSegments(current => event.target.checked ? [...current,id] : current.filter(x => x !== id))}/>{label}</label>)}</fieldset><div className="collection-options"><label>Profundidade <input aria-label="Profundidade online" type="number" min="1" max="10" value={collectionDepth} onChange={event => setCollectionDepth(Number(event.target.value))}/></label><label><input type="checkbox" checked={collectionEmails} onChange={event => setCollectionEmails(event.target.checked)}/> Buscar e-mails nos sites</label></div></div></div>
+          <div className="collection-body"><div className="collection-grid"><label className="field-label">Cidades ou regiões<textarea aria-label="Cidades ou regiões" rows={4} value={collectionLocals} onChange={event => setCollectionLocals(event.target.value)} placeholder={"Curitiba, PR\nFlorianópolis, SC"}/></label><div><fieldset className="segment-options"><legend>Segmentos</legend>{[["varejo","Farmácias e drogarias"],["manipulacao","Manipulação"],["homeopatia","Homeopatia"],["veterinaria","Veterinária"],["distribuidoras","Distribuidoras"]].map(([id,label]) => <label key={id}><input type="checkbox" checked={collectionSegments.includes(id)} onChange={event => setCollectionSegments(current => event.target.checked ? [...current,id] : current.filter(x => x !== id))}/>{label}</label>)}</fieldset><div className="collection-options"><label>Profundidade <input aria-label="Profundidade online" type="number" min="1" max="10" value={collectionDepth} onChange={event => setCollectionDepth(Number(event.target.value))}/></label><label><input type="checkbox" checked={collectionEmails} onChange={event => setCollectionEmails(event.target.checked)}/> Buscar e-mails nos sites</label><label><input type="checkbox" checked={collectionEnrichment} onChange={event => setCollectionEnrichment(event.target.checked)}/> Enriquecer sites de leads novos (mais lento)</label></div></div></div>
           {collectionError && <div className="error-message" role="alert">{collectionError}</div>}
-          <div className="run-actions"><button className="btn btn-primary" disabled={!collectorReady || collectionBusy || !collectionLocals.trim() || !collectionSegments.length || !!(collectionRun && ["queued","in_progress","waiting","pending","requested"].includes(collectionRun.status))} onClick={() => void collectionAction("start")}>Iniciar coleta</button><button className="btn btn-secondary" disabled={!collectorReady || collectionBusy || !collectionRun || !["queued","in_progress","waiting","pending","requested"].includes(collectionRun.status)} onClick={() => void collectionAction("stop")}>Parar coleta</button><span>Até 20 buscas por execução</span></div>
-          {collectionRun && <div className="run-progress"><strong>Última execução: {collectionRun.status === "completed" ? collectionRun.conclusion === "success" ? "Concluída" : collectionRun.conclusion === "cancelled" ? "Cancelada" : "Falhou" : collectionRun.status === "in_progress" ? "Em andamento" : "Na fila"}</strong><p><a href={collectionRun.url} target="_blank" rel="noreferrer">Acompanhar no GitHub Actions</a></p></div>}
+          <div className="run-actions"><button className="btn btn-primary" disabled={!collectorReady || collectionBusy || !collectionLocals.trim() || !collectionSegments.length || coletaAtiva} onClick={() => void collectionAction("start")}>Iniciar coleta</button><button className="btn btn-secondary" disabled={!collectorReady || collectionBusy || !collectionSegments.length || coletaAtiva} onClick={() => void collectionAction("start", "nacional")}>{rotuloCobertura}</button><button className="btn btn-secondary" disabled={!collectorReady || collectionBusy || !coletaAtiva} onClick={() => void collectionAction("stop")}>Parar coleta</button><span>Até 20 buscas por execução. A cobertura nacional continua sozinha, uma rodada por vez.</span></div>
+          {collectionRun && <div className="run-progress"><strong>Última execução: {collectionRun.status === "completed" ? collectionRun.conclusion === "success" ? "Concluída" : collectionRun.conclusion === "cancelled" ? "Cancelada" : "Falhou" : collectionRun.status === "in_progress" ? "Em andamento" : "Na fila"}{coberturaAtual ? ` · rodada ${coberturaAtual.rodada} de ${coberturaAtual.total}` : ""}</strong>{coberturaAtual?.resumo ? <p>{coberturaAtual.resumo}</p> : null}<p><a href={collectionRun.url} target="_blank" rel="noreferrer">Acompanhar no GitHub Actions</a></p></div>}
+          <div className="uf-coverage" role="region" aria-label="Cobertura por UF">{coberturaUfs.map(item => <article key={item.sigla}><strong>{item.sigla}</strong><span>{item.total === 1 ? "1 lead" : `${item.total} leads`}</span><span>{dataCobertura(item.ultima)}</span></article>)}</div>
           </div>
         </section>
         <section className="leads-panel lead-list"><div className="panel-heading"><div><span className="eyebrow">CARTEIRA DE PROSPECÇÃO</span><h2>Estabelecimentos</h2><p>Filtre os leads e abra a ficha para mais detalhes.</p></div><button className="btn btn-secondary" onClick={exportCsv} disabled={loading || !filtered.length}><Download size={16}/> Exportar CSV</button></div>

@@ -6,3 +6,7 @@
 .hosted-login-form input { width: 100%; border: 1px solid #d9d5e3; border-radius: 8px; padding: 12px 14px; font: inherit; }
 .hosted-login-form .btn { justify-self: start; }
 .hosted-note { margin-bottom: 24px; }
+.uf-coverage { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; margin-top: 18px; }
+.uf-coverage article { border: 1px solid #edf0f5; border-radius: 8px; padding: 8px 10px; display: grid; gap: 2px; }
+.uf-coverage strong { font-size: 13px; }
+.uf-coverage span { color: #64748b; font-size: 11px; }

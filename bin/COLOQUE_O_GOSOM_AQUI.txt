@@ -1,0 +1,7 @@
+Coloque nesta pasta o programa gosom (o motor que acessa o Google Maps).
+
+1. Abra https://github.com/gosom/google-maps-scraper/releases
+2. Baixe o arquivo do seu sistema (Windows, Mac ou Linux), versão mais recente.
+3. Salve aqui com o nome:  google-maps-scraper   (no Windows: google-maps-scraper.exe)
+4. Mac/Linux: no terminal, rode  chmod +x bin/google-maps-scraper
+5. Confira:  python -m pharmaleads verificar
