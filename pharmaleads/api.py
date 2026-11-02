@@ -25,6 +25,24 @@ MAX_BODY = 65536
 DIST = config.raiz() / 'apps' / 'web' / 'dist'
 
 
+def _encerrar_processo(proc: subprocess.Popen) -> None:
+    if proc.poll() is not None:
+        return
+    if os.name == 'nt':
+        subprocess.run(['taskkill', '/PID', str(proc.pid), '/T', '/F'], capture_output=True, check=False)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        return
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+
+
 class Controlador:
     def __init__(self):
         self.lock = threading.Lock()
@@ -100,9 +118,7 @@ class Controlador:
                                 inicio = time.monotonic()
                                 while proc.poll() is None:
                                     if self.parar.wait(0.5) or time.monotonic() - inicio > 1800:
-                                        proc.terminate()
-                                        try: proc.wait(timeout=5)
-                                        except subprocess.TimeoutExpired: proc.kill(); proc.wait()
+                                        _encerrar_processo(proc)
                                         if not self.parar.is_set(): erro = 'Tempo limite de 30 minutos atingido.'
                                         break
                             if self.parar.is_set(): break

@@ -58,6 +58,8 @@ test("autentica a conta existente e lê os leads protegidos do Supabase", async 
   expect(screen.getByRole("button", { name: "Parar coleta" })).toBeEnabled();
   await userEvent.click(screen.getByRole("button", { name: "Parar coleta" }));
   expect(fetcher.mock.calls.some(call => call[0] === "/api/collector" && String(call[1]?.body).includes('"stop"'))).toBe(true);
+  expect(screen.getAllByRole("button", { name: "Parando…" }).length).toBeGreaterThan(0);
+  expect(await screen.findByRole("button", { name: "Iniciar coleta" }, { timeout: 4000 })).toBeEnabled();
   await userEvent.click(screen.getByRole("button", { name: "Iniciar cobertura nacional" }));
   const cobertura = fetcher.mock.calls.find(call => call[0] === "/api/collector" && String(call[1]?.body).includes("nacional"));
   expect(JSON.parse(String(cobertura?.[1]?.body))).toMatchObject({ action: "start", cobertura: "nacional", rodada: 1, emails: false, enriquecerSites: false });

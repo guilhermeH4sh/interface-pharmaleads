@@ -80,6 +80,21 @@ test('quando já há job, devolve a execução ativa para o painel poder parar',
   assert.equal(res.body.run.status, 'in_progress');
 });
 
+test('parar sem job ativo não falha', async () => {
+  process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
+  process.env.COLETA_STOP_RETRY_MS = '0';
+  globalThis.fetch = async (url) => {
+    if (url.includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: '677ed1e4-3e73-4f2c-951f-e77386f305da' }) };
+    if (url.includes('/runs?')) return { ok: true, status: 200, json: async () => ({ workflow_runs: [] }) };
+    throw new Error('URL inesperada');
+  };
+  const res = response();
+  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'stop' } }, res);
+  assert.equal(res.statusCode, 202);
+  assert.equal(res.body.cancelling, false);
+  delete process.env.COLETA_STOP_RETRY_MS;
+});
+
 test('parar a coleta espera o job aparecer no GitHub e então cancela', async () => {
   process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
   process.env.COLETA_STOP_RETRY_MS = '0';

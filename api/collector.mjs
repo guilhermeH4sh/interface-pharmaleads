@@ -111,8 +111,8 @@ export default async function handler(req, res) {
     }
     if (body?.action === 'stop') {
       const ativos = await cancelarAtivas(token);
-      if (!ativos.length) return respond(res, 409, { error: 'Não há coleta online para parar.' });
-      return respond(res, 202, { cancelling: true, run: resumir(ativos.find(run => run.status === 'in_progress') || ativos[0]) });
+      const run = resumir(ativos.find(run => run.status === 'in_progress') || ativos[0] || escolherRun(await runsRecentes(token)));
+      return respond(res, 202, { cancelling: Boolean(ativos.length), run });
     }
     return respond(res, 400, { error: 'Ação inválida.' });
   } catch (error) {

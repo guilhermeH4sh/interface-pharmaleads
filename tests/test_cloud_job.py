@@ -40,7 +40,7 @@ class TestCloudJob(unittest.TestCase):
                     writer.writerow({'cid':'cid-cloud-1','title':'Farmácia real',
                                      'address':'Curitiba, PR','input_id':'manipulacao|Curitiba, PR'})
 
-            with patch.dict(os.environ, config, clear=True), patch('pharmaleads.cloud_job.subprocess.run', side_effect=docker), patch('pharmaleads.supabase.ler_configuracao', return_value=fake_config), patch('pharmaleads.supabase.Supabase', return_value=fake_client):
+            with patch.dict(os.environ, config, clear=True), patch('pharmaleads.cloud_job._rodar_docker', side_effect=docker), patch('pharmaleads.supabase.ler_configuracao', return_value=fake_config), patch('pharmaleads.supabase.Supabase', return_value=fake_client):
                 self.assertEqual(cloud_job.main(), 0)
             records = fake_client.salvar.call_args.args[0]
             self.assertEqual(records[0]['chave'], 'cid-cloud-1')

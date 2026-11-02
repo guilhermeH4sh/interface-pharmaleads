@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -36,6 +37,41 @@ def configuracao() -> tuple[list[str], int, bool, bool]:
             os.environ.get('EMAILS') == 'true', os.environ.get('ENRIQUECER_SITES') == 'true')
 
 
+def _encerrar(proc: subprocess.Popen) -> None:
+    if proc.poll() is not None:
+        return
+    proc.terminate()
+    try:
+        proc.wait(timeout=8)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=5)
+
+
+def _rodar_docker(comando: list[str], timeout: int = 900) -> None:
+    """Roda o Gosom e encerra o contêiner se o job do Actions for cancelado."""
+    proc = subprocess.Popen(comando)
+    anterior = signal.getsignal(signal.SIGTERM) if hasattr(signal, 'SIGTERM') else None
+
+    def _parar(_signum=None, _frame=None):
+        _encerrar(proc)
+
+    try:
+        if hasattr(signal, 'SIGTERM'):
+            signal.signal(signal.SIGTERM, _parar)
+        codigo = proc.wait(timeout=timeout)
+        if codigo:
+            raise subprocess.CalledProcessError(codigo, comando)
+    except subprocess.TimeoutExpired:
+        _encerrar(proc)
+        raise
+    finally:
+        if hasattr(signal, 'SIGTERM') and anterior is not None:
+            signal.signal(signal.SIGTERM, anterior)
+        if proc.poll() is None:
+            _encerrar(proc)
+
+
 def main() -> int:
     try:
         consultas, profundidade, emails, enriquecer = configuracao()
@@ -60,7 +96,7 @@ def main() -> int:
                 for tentativa in range(1, 3):
                     saida.unlink(missing_ok=True)
                     try:
-                        subprocess.run(comando, check=True, timeout=900)
+                        _rodar_docker(comando, timeout=900)
                         if not saida.is_file() or saida.stat().st_size < 10:
                             raise ErroPharmaLeads('Gosom retornou um CSV vazio.')
                         novos, existentes = banco.importar_csv(saida)

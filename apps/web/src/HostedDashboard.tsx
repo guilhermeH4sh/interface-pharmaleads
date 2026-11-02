@@ -120,6 +120,8 @@ export function HostedDashboard() {
   const [collectorReady, setCollectorReady] = useState(false);
   const lastCompleted = useRef(0);
   const awaitingRun = useRef(false);
+  const stoppingRef = useRef(false);
+  const stoppingSince = useRef(0);
   const actionGen = useRef(0);
   const filaLocal = (): CollectorRun => ({ id: 0, status: "queued", conclusion: null, url: "https://github.com/guilhermeH4sh/interface-pharmaleads/actions", created_at: new Date().toISOString(), title: "Na fila" });
 
@@ -157,7 +159,8 @@ export function HostedDashboard() {
     return { sigla, total: doEstado.length, ultima };
   }), [rows]);
   const refresh = useCallback(() => { setRevision(value => value + 1); }, []);
-  const coletaAtiva = !!(collectionRun && COLETA_ATIVA.includes(collectionRun.status));
+  const parando = collectionRun?.status === "cancelling";
+  const coletaAtiva = parando || !!(collectionRun && COLETA_ATIVA.includes(collectionRun.status));
   const coberturaAtual = lerCobertura(collectionRun?.title || "");
   const rotuloCobertura = !coberturaAtual || coletaAtiva || collectionRun?.status !== "completed" ? "Iniciar cobertura nacional" : collectionRun.conclusion !== "success" ? `Retomar rodada ${coberturaAtual.rodada}` : coberturaAtual.rodada < coberturaAtual.total ? `Continuar da rodada ${coberturaAtual.rodada + 1}` : "Iniciar cobertura nacional";
 
@@ -172,6 +175,20 @@ export function HostedDashboard() {
       if (!response.ok) throw new Error(body.error || `Coleta indisponível (HTTP ${response.status}).`);
       const run = body.run || null;
       const ativa = !!(run && COLETA_ATIVA.includes(run.status));
+      const paradaExpirou = stoppingRef.current && stoppingSince.current > 0 && Date.now() - stoppingSince.current > 45_000;
+      if (stoppingRef.current) {
+        setCollectionError("");
+        setCollectorReady(true);
+        if (ativa && !paradaExpirou) return;
+        stoppingRef.current = false;
+        awaitingRun.current = false;
+        setCollectionRun(run?.status === "completed" ? run : { ...(run || filaLocal()), status: "completed", conclusion: "cancelled" });
+        if (run?.status === "completed" && lastCompleted.current !== run.id) {
+          lastCompleted.current = run.id;
+          refresh();
+        }
+        return;
+      }
       if (awaitingRun.current && !ativa && !(run?.status === "completed" && run.id && run.id !== lastCompleted.current)) {
         setCollectionError("");
         setCollectorReady(true);
@@ -204,8 +221,14 @@ export function HostedDashboard() {
     const gen = ++actionGen.current;
     const anterior = collectionRun;
     if (action === "start") {
+      stoppingRef.current = false;
       awaitingRun.current = true;
       setCollectionRun(filaLocal());
+    } else {
+      stoppingRef.current = true;
+      stoppingSince.current = Date.now();
+      awaitingRun.current = true;
+      setCollectionRun(current => ({ ...(current || filaLocal()), status: "cancelling", conclusion: null }));
     }
     setCollectionBusy(true); setCollectionError("");
     const rodada = cobertura && coberturaAtual && anterior?.status === "completed"
@@ -236,8 +259,7 @@ export function HostedDashboard() {
         awaitingRun.current = true;
         setCollectionRun(body.run || filaLocal());
       } else {
-        awaitingRun.current = false;
-        setCollectionRun(current => current ? { ...current, ...(body.run || {}), status: "completed", conclusion: "cancelled" } : body.run || null);
+        setCollectionRun(current => ({ ...(current || body.run || filaLocal()), ...(body.run || {}), status: "cancelling", conclusion: null }));
       }
       window.setTimeout(() => { if (gen === actionGen.current) void refreshCollector(active); }, 1500);
     } catch (reason) {
@@ -254,7 +276,7 @@ export function HostedDashboard() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Falha no login."); }
     finally { setLoading(false); }
   };
-  const signOut = () => { sessionStorage.removeItem(SESSION_KEY); setSession(null); setRows([]); setSelected(null); setError(""); setCollectionRun(null); setCollectionError(""); setCollectorReady(false); };
+  const signOut = () => { stoppingRef.current = false; awaitingRun.current = false; sessionStorage.removeItem(SESSION_KEY); setSession(null); setRows([]); setSelected(null); setError(""); setCollectionRun(null); setCollectionError(""); setCollectorReady(false); };
   const exportCsv = () => {
     const columns: (keyof Lead)[] = ["chave", "nome", "segmento", "categoria", "endereco", "local_busca", "telefone", "site", "emails", "situacao", "avaliacao", "qtd_avaliacoes", "link"];
     const csv = "\uFEFF" + [columns.join(";"), ...filtered.map(row => columns.map(column => csvCell(row[column])).join(";"))].join("\r\n");
@@ -276,8 +298,8 @@ export function HostedDashboard() {
         <section className="leads-panel hosted-note" id="coleta"><div className="panel-heading"><div><span className="eyebrow">COLETA ONLINE</span><h2>Iniciar busca no Google Maps</h2><p>O job roda no GitHub Actions e envia cada resultado ao Supabase.</p></div><button className="btn btn-secondary" onClick={signOut}>Sair</button></div>
           <div className="collection-body"><div className="collection-grid"><label className="field-label">Cidades ou regiões<textarea aria-label="Cidades ou regiões" rows={4} value={collectionLocals} onChange={event => setCollectionLocals(event.target.value)} placeholder={"Curitiba, PR\nFlorianópolis, SC"}/></label><div><fieldset className="segment-options"><legend>Segmentos</legend>{[["varejo","Farmácias e drogarias"],["manipulacao","Manipulação"],["homeopatia","Homeopatia"],["veterinaria","Veterinária"],["distribuidoras","Distribuidoras"]].map(([id,label]) => <label key={id}><input type="checkbox" checked={collectionSegments.includes(id)} onChange={event => setCollectionSegments(current => event.target.checked ? [...current,id] : current.filter(x => x !== id))}/>{label}</label>)}</fieldset><div className="collection-options"><label>Profundidade <input aria-label="Profundidade online" type="number" min="1" max="10" value={collectionDepth} onChange={event => setCollectionDepth(Number(event.target.value))}/></label><label><input type="checkbox" checked={collectionEmails} onChange={event => setCollectionEmails(event.target.checked)}/> Buscar e-mails nos sites</label><label><input type="checkbox" checked={collectionEnrichment} onChange={event => setCollectionEnrichment(event.target.checked)}/> Enriquecer sites de leads novos (mais lento)</label></div></div></div>
           {collectionError && <div className="error-message" role="alert">{collectionError}</div>}
-          <div className="run-actions"><button className="btn btn-primary" disabled={!collectorReady || collectionBusy || !collectionLocals.trim() || !collectionSegments.length || coletaAtiva} onClick={() => void collectionAction("start")}>{coletaAtiva ? "Coleta em andamento" : "Iniciar coleta"}</button><button className="btn btn-secondary" disabled={!collectorReady || collectionBusy || !collectionSegments.length || coletaAtiva} onClick={() => void collectionAction("start", "nacional")}>{rotuloCobertura}</button><button className="btn btn-secondary" disabled={!collectorReady || !coletaAtiva} onClick={() => void collectionAction("stop")}>Parar coleta</button><span>Até 20 buscas por execução. A cobertura nacional continua sozinha, uma rodada por vez.</span></div>
-          {collectionRun && <div className="run-progress"><strong>Última execução: {collectionRun.status === "completed" ? collectionRun.conclusion === "success" ? "Concluída" : collectionRun.conclusion === "cancelled" ? "Cancelada" : "Falhou" : collectionRun.status === "in_progress" ? "Em andamento" : "Na fila"}{coberturaAtual ? ` · rodada ${coberturaAtual.rodada} de ${coberturaAtual.total}` : ""}</strong>{coberturaAtual?.resumo ? <p>{coberturaAtual.resumo}</p> : null}<p><a href={collectionRun.url} target="_blank" rel="noreferrer">Acompanhar no GitHub Actions</a></p></div>}
+          <div className="run-actions"><button className="btn btn-primary" aria-busy={collectionBusy || coletaAtiva} disabled={!collectorReady || collectionBusy || !collectionLocals.trim() || !collectionSegments.length || coletaAtiva} onClick={() => void collectionAction("start")}>{parando ? "Parando…" : coletaAtiva ? "Coleta em andamento" : "Iniciar coleta"}</button><button className="btn btn-secondary" disabled={!collectorReady || collectionBusy || !collectionSegments.length || coletaAtiva} onClick={() => void collectionAction("start", "nacional")}>{rotuloCobertura}</button><button className="btn btn-secondary" disabled={!collectorReady || !coletaAtiva || parando} onClick={() => void collectionAction("stop")}>{parando ? "Parando…" : "Parar coleta"}</button><span>Até 20 buscas por execução. A cobertura nacional continua sozinha, uma rodada por vez.</span></div>
+          {collectionRun && <div className="run-progress"><strong>Última execução: {collectionRun.status === "completed" ? collectionRun.conclusion === "success" ? "Concluída" : collectionRun.conclusion === "cancelled" ? "Cancelada" : "Falhou" : collectionRun.status === "cancelling" ? "Parando" : collectionRun.status === "in_progress" ? "Em andamento" : "Na fila"}{coberturaAtual ? ` · rodada ${coberturaAtual.rodada} de ${coberturaAtual.total}` : ""}</strong>{coberturaAtual?.resumo ? <p>{coberturaAtual.resumo}</p> : null}<p><a href={collectionRun.url} target="_blank" rel="noreferrer">Acompanhar no GitHub Actions</a></p></div>}
           <div className="uf-coverage" role="region" aria-label="Cobertura por UF">{coberturaUfs.map(item => <article key={item.sigla}><strong>{item.sigla}</strong><span>{item.total === 1 ? "1 lead" : `${item.total} leads`}</span><span>{dataCobertura(item.ultima)}</span></article>)}</div>
           </div>
         </section>
