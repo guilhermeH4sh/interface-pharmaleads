@@ -28,7 +28,8 @@ test("exibe leads reais retornados pela API e filtros", async () => {
 test("envia locais e segmentos para iniciar coleta", async () => {
   const fetcher=fakeApi(); vi.stubGlobal("fetch",fetcher); render(<App />);
   await screen.findByText("Farmácia teste");
-  await userEvent.type(screen.getByLabelText("Cidades ou regiões"),"Curitiba, PR");
+  await userEvent.type(screen.getByLabelText("Pesquisar cidade, estado ou bairro"),"Curitiba, PR");
+  await userEvent.click(screen.getByRole("button",{name:"Adicionar local"}));
   await userEvent.click(screen.getByRole("button",{name:/Iniciar coleta/}));
   await waitFor(()=>expect(fetcher.mock.calls.some(call=>call[0] === "/api/coletas" && call[1]?.method === "POST")).toBe(true));
   const chamada=fetcher.mock.calls.find(call=>call[0] === "/api/coletas");

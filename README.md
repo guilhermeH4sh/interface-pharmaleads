@@ -51,12 +51,12 @@ links de WhatsApp e redes sociais. E-mails e WhatsApp complementam o registro ex
 as redes sociais ficam em `dados_brutos`. Esta opção aumenta a duração da rodada e não
 visita sites de leads que já estavam na base.
 
-O botão **Iniciar cobertura nacional** percorre as 27 capitais, intercalando as regiões,
+Em **Filtros da coleta**, marque **Cobertura nacional** e use **Iniciar coleta** para
+percorrer as 27 capitais, intercalando as regiões,
 e depois uma cidade do interior nos estados grandes — São Paulo entra com duas. Cada
 rodada continua limitada a 20 buscas. Se ela termina bem, o GitHub Actions agenda a
 próxima; **Parar coleta** cancela a rodada em andamento e qualquer rodada seguinte que
-já esteja na fila. Uma falha interrompe a fila, e o mesmo botão passa a oferecer a
-retomada daquela rodada. Busca de e-mails e enriquecimento ficam desligados nessa fila,
+já esteja na fila. Uma falha interrompe a fila. Busca de e-mails e enriquecimento ficam desligados nessa fila,
 para a rodada caber no tempo do job. A grade **Cobertura por UF** lê `ultima_coleta`
 dos leads já salvos em `public.pharmaleads` e mostra a data mais recente de cada estado.
 
@@ -101,10 +101,10 @@ comandos Python podem variar; não há necessidade de iniciar o Vite no uso norm
 
 ## Como usar
 
-1. Na seção **Configurar busca**, informe uma cidade ou bairro por linha, por exemplo
-   `Curitiba, PR`. O limite é 100 locais por execução.
-2. Marque os segmentos desejados, escolha profundidade entre 1 e 10 e, opcionalmente,
-   marque a busca de e-mails em sites. Clique em **Iniciar coleta**.
+1. Na barra acima das métricas, pesquise uma cidade ou bairro, por exemplo
+   `Curitiba, PR`, e adicione o local. O limite é 100 locais por execução local.
+2. Abra **Filtros da coleta**, marque os segmentos desejados, escolha profundidade
+   entre 1 e 10 e, opcionalmente, marque a busca de e-mails. Clique em **Iniciar coleta**.
 3. A API gera os termos a partir dos segmentos escolhidos, executa uma busca por vez,
    salva o CSV real do Gosom e importa os leads em SQLite. A tela acompanha consultas
    concluídas, falhas e a busca atual. Há duas tentativas por consulta e intervalo entre elas.

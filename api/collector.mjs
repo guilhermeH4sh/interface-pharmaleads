@@ -109,7 +109,7 @@ export default async function handler(req, res) {
       const runs = await runsRecentes(token);
       const active = escolherRun(runs.filter(run => ACTIVE.has(run.status)));
       if (active) return respond(res, 409, { error: 'Já existe uma coleta online em andamento.', run: resumir(active) });
-      if (body.cobertura === 'nacional' && coberturaConcluida(escolherRun(runs))) {
+      if (body.cobertura === 'nacional' && body.rodada != null && coberturaConcluida(escolherRun(runs))) {
         return respond(res, 409, { error: 'A cobertura nacional já foi concluída. Para coletar de novo, inicie buscas avulsas ou solicite uma nova cobertura.' });
       }
       let input;

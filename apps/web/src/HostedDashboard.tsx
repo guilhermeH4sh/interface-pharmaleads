@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Activity, ChevronRight, Database, Download, Filter, RefreshCw, Search, Users, X } from "lucide-react";
 import type { Lead } from "./lib/crm";
+import { corrigirLocal } from "./lib/locations";
 import logo from "./assets/centrus-logo-original.png";
 import "./crm.css";
 
@@ -110,10 +111,13 @@ export function HostedDashboard() {
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const [collectionLocals, setCollectionLocals] = useState("");
+  const [localDraft, setLocalDraft] = useState("");
+  const [localSuggestion, setLocalSuggestion] = useState("");
   const [collectionSegments, setCollectionSegments] = useState<string[]>(["varejo", "manipulacao"]);
   const [collectionDepth, setCollectionDepth] = useState(1);
   const [collectionEmails, setCollectionEmails] = useState(false);
   const [collectionEnrichment, setCollectionEnrichment] = useState(false);
+  const [collectionNational, setCollectionNational] = useState(false);
   const [collectionRun, setCollectionRun] = useState<CollectorRun | null>(null);
   const [collectionError, setCollectionError] = useState("");
   const [collectionBusy, setCollectionBusy] = useState(false);
@@ -162,8 +166,6 @@ export function HostedDashboard() {
   const parando = collectionRun?.status === "cancelling";
   const coletaAtiva = parando || !!(collectionRun && COLETA_ATIVA.includes(collectionRun.status));
   const coberturaAtual = lerCobertura(collectionRun?.title || "");
-  const coberturaConcluida = !!(coberturaAtual && collectionRun?.status === "completed" && collectionRun.conclusion === "success" && coberturaAtual.rodada >= coberturaAtual.total);
-  const rotuloCobertura = coberturaConcluida ? "Cobertura nacional concluída" : !coberturaAtual || coletaAtiva || collectionRun?.status !== "completed" ? "Iniciar cobertura nacional" : collectionRun.conclusion !== "success" ? `Retomar rodada ${coberturaAtual.rodada}` : `Continuar da rodada ${coberturaAtual.rodada + 1}`;
 
   const refreshCollector = useCallback(async (override?: Session) => {
     const current = override || session;
@@ -217,7 +219,7 @@ export function HostedDashboard() {
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [session, refreshCollector, coletaAtiva]);
 
-  const collectionAction = async (action: "start" | "stop", cobertura?: "nacional") => {
+  const collectionAction = async (action: "start" | "stop") => {
     if (!session) return;
     const gen = ++actionGen.current;
     const anterior = collectionRun;
@@ -232,16 +234,13 @@ export function HostedDashboard() {
       setCollectionRun(current => ({ ...(current || filaLocal()), status: "cancelling", conclusion: null }));
     }
     setCollectionBusy(true); setCollectionError("");
-    const rodada = cobertura && coberturaAtual && anterior?.status === "completed"
-      ? anterior.conclusion === "success" && coberturaAtual.rodada < coberturaAtual.total ? coberturaAtual.rodada + 1 : coberturaAtual.rodada
-      : 1;
     try {
       const active = await validSession(session);
       if (active !== session) setSession(active);
       const response = await fetch("/api/collector", {
         method: "POST",
         headers: { Authorization: `Bearer ${active.access_token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ action, ...(cobertura ? { cobertura, rodada } : {}), locais: collectionLocals, segmentos: collectionSegments, profundidade: collectionDepth, emails: cobertura ? false : collectionEmails, enriquecerSites: cobertura ? false : collectionEnrichment }),
+        body: JSON.stringify({ action, ...(collectionNational ? { cobertura: "nacional" } : {}), locais: collectionLocals, segmentos: collectionSegments, profundidade: collectionDepth, emails: collectionNational ? false : collectionEmails, enriquecerSites: collectionNational ? false : collectionEnrichment }),
       });
       const body = await response.json() as { error?: string; run?: CollectorRun | null };
       if (gen !== actionGen.current) return;
@@ -269,6 +268,19 @@ export function HostedDashboard() {
     } finally { if (gen === actionGen.current) setCollectionBusy(false); }
   };
 
+  const adicionarLocal = () => {
+    const digitado = localDraft.trim().replace(/\s+/g, " ");
+    if (!digitado) return;
+    const corrigido = corrigirLocal(digitado);
+    if (corrigido !== digitado) { setLocalSuggestion(corrigido); return; }
+    setCollectionLocals(current => [...new Set([...current.split(/\r?\n/).filter(Boolean), corrigido])].join("\n"));
+    setLocalDraft(""); setLocalSuggestion("");
+  };
+  const aceitarSugestaoLocal = () => {
+    if (localSuggestion) setCollectionLocals(current => [...new Set([...current.split(/\r?\n/).filter(Boolean), localSuggestion])].join("\n"));
+    setLocalDraft(""); setLocalSuggestion("");
+  };
+
   const signIn = async (event: FormEvent) => {
     event.preventDefault(); setLoading(true); setError("");
     try {
@@ -293,13 +305,28 @@ export function HostedDashboard() {
       <span className="connection-status"><span className={session && rows.length && !error ? "status-dot online" : "status-dot"}/>{session && rows.length && !error ? "Supabase conectado" : "Acesso protegido"}</span>
     </div></header>
     <main className="main-wrapper" id="leads">
+      <section className="hero-section">
       <section className="page-title-row"><div><span className="eyebrow">CENTRUS PHARMALEADS</span><h1>Prospecção e Gestão de Contas Farmacêuticas</h1><p>Estabelecimentos encontrados no Google Maps.</p></div>{session && <button className="btn btn-primary" onClick={refresh} disabled={loading}><RefreshCw size={16}/> Atualizar leads</button>}</section>
+      {session && (
+        <section className="hero-search" aria-label="Pesquisar locais para coleta">
+          <form className="location-search" onSubmit={event => { event.preventDefault(); adicionarLocal(); }}>
+            <Search size={18} aria-hidden="true"/>
+            <input aria-label="Pesquisar cidade, estado ou bairro" value={localDraft} onChange={event => { setLocalDraft(event.target.value); setLocalSuggestion(""); }} placeholder="Pesquisar"/>
+            <button className="location-add" type="submit" aria-label="Adicionar local"><ChevronRight size={19}/></button>
+          </form>
+          {localSuggestion && <div className="location-suggestion">Você quis dizer <button type="button" onClick={aceitarSugestaoLocal}>{localSuggestion}</button>? <button type="button" onClick={() => { setCollectionLocals(current => [...new Set([...current.split(/\r?\n/).filter(Boolean), localDraft.trim()])].join("\n")); setLocalDraft(""); setLocalSuggestion(""); }}>Manter texto digitado</button></div>}
+          {!!collectionLocals && <div className="location-chips">{collectionLocals.split(/\r?\n/).filter(Boolean).map(local => <button type="button" key={local} aria-label={`Remover ${local}`} onClick={() => setCollectionLocals(current => current.split(/\r?\n/).filter(item => item !== local).join("\n"))}>{local} <span aria-hidden="true">×</span></button>)}</div>}
+          <details className="hero-filters"><summary>Filtros da coleta</summary><div className="compact-filters"><label><input type="checkbox" checked={collectionNational} onChange={event => setCollectionNational(event.target.checked)}/> Cobertura nacional</label><fieldset className="segment-options compact-segments"><legend>Segmentos</legend>{[["varejo","Varejo"],["manipulacao","Manipulação"],["homeopatia","Homeopatia"],["veterinaria","Veterinária"],["distribuidoras","Distribuidoras"]].map(([id,label]) => <label key={id}><input type="checkbox" checked={collectionSegments.includes(id)} onChange={event => setCollectionSegments(current => event.target.checked ? [...current,id] : current.filter(x => x !== id))}/>{label}</label>)}</fieldset><label>Profundidade<input aria-label="Profundidade online" type="number" min="1" max="10" value={collectionDepth} onChange={event => setCollectionDepth(Number(event.target.value))}/></label><label><input type="checkbox" checked={collectionEnrichment} onChange={event => setCollectionEnrichment(event.target.checked)}/> Enriquecer sites (mais lento)</label><label><input type="checkbox" checked={collectionEmails} onChange={event => setCollectionEmails(event.target.checked)}/> Buscar e-mails</label></div></details>
+          <button className="btn btn-primary hero-start" aria-busy={collectionBusy || coletaAtiva} disabled={!collectorReady || collectionBusy || (!collectionNational && !collectionLocals.trim()) || !collectionSegments.length || coletaAtiva} onClick={() => void collectionAction("start")}>{parando ? "Parando…" : coletaAtiva ? "Coleta em andamento" : "Iniciar coleta"}</button>
+        </section>
+      )}
+      </section>
       {!session ? <section className="leads-panel hosted-login"><div className="panel-heading"><div><span className="eyebrow">ACESSO À BASE</span><h2>Entrar com sua conta Supabase</h2><p>Use a conta que já tem permissão na tabela pharmaleads.</p></div></div><form onSubmit={event => void signIn(event)} className="hosted-login-form"><label>E-mail<input type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} required/></label><label>Senha<input type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required/></label>{error && <div className="error-message" role="alert">{error}</div>}<button className="btn btn-primary" type="submit" disabled={loading}>{loading ? "Entrando…" : "Entrar"}</button></form></section> : <>
         <section className="kpi-section" aria-label="Resumo"><article className="kpi-card highlight"><div className="kpi-header"><span>Leads no Supabase</span><Users size={19}/></div><strong className="kpi-value">{loading && !rows.length ? "…" : rows.length}</strong><p>Estabelecimentos únicos</p></article><article className="kpi-card"><div className="kpi-header"><span>Resultados filtrados</span><Search size={19}/></div><strong className="kpi-value">{filtered.length}</strong><p>Consulta na base completa</p></article><article className="kpi-card source-card"><div className="kpi-header"><span>Fonte dos dados</span><Database size={19}/></div><strong>Supabase</strong><p>public.pharmaleads</p></article></section>
         <section className="leads-panel hosted-note" id="coleta"><div className="panel-heading"><div><span className="eyebrow">COLETA ONLINE</span><h2>Iniciar busca no Google Maps</h2><p>O job roda no GitHub Actions e envia cada resultado ao Supabase.</p></div><button className="btn btn-secondary" onClick={signOut}>Sair</button></div>
-          <div className="collection-body"><div className="collection-grid"><label className="field-label">Cidades ou regiões<textarea aria-label="Cidades ou regiões" rows={4} value={collectionLocals} onChange={event => setCollectionLocals(event.target.value)} placeholder={"Curitiba, PR\nFlorianópolis, SC"}/></label><div><fieldset className="segment-options"><legend>Segmentos</legend>{[["varejo","Farmácias e drogarias"],["manipulacao","Manipulação"],["homeopatia","Homeopatia"],["veterinaria","Veterinária"],["distribuidoras","Distribuidoras"]].map(([id,label]) => <label key={id}><input type="checkbox" checked={collectionSegments.includes(id)} onChange={event => setCollectionSegments(current => event.target.checked ? [...current,id] : current.filter(x => x !== id))}/>{label}</label>)}</fieldset><div className="collection-options"><label>Profundidade <input aria-label="Profundidade online" type="number" min="1" max="10" value={collectionDepth} onChange={event => setCollectionDepth(Number(event.target.value))}/></label><label><input type="checkbox" checked={collectionEmails} onChange={event => setCollectionEmails(event.target.checked)}/> Buscar e-mails nos sites</label><label><input type="checkbox" checked={collectionEnrichment} onChange={event => setCollectionEnrichment(event.target.checked)}/> Enriquecer sites de leads novos (mais lento)</label></div></div></div>
+          <div className="collection-body">
           {collectionError && <div className="error-message" role="alert">{collectionError}</div>}
-          <div className="run-actions"><button className="btn btn-primary" aria-busy={collectionBusy || coletaAtiva} disabled={!collectorReady || collectionBusy || !collectionLocals.trim() || !collectionSegments.length || coletaAtiva} onClick={() => void collectionAction("start")}>{parando ? "Parando…" : coletaAtiva ? "Coleta em andamento" : "Iniciar coleta"}</button><button className="btn btn-secondary" disabled={!collectorReady || collectionBusy || !collectionSegments.length || coletaAtiva || coberturaConcluida} onClick={() => void collectionAction("start", "nacional")}>{rotuloCobertura}</button><button className="btn btn-secondary" disabled={!collectorReady || !coletaAtiva || parando} onClick={() => void collectionAction("stop")}>{parando ? "Parando…" : "Parar coleta"}</button><span>Até 20 buscas por execução. A cobertura nacional continua sozinha, uma rodada por vez.</span></div>
+          <div className="run-actions"><button className="btn btn-secondary" disabled={!collectorReady || !coletaAtiva || parando} onClick={() => void collectionAction("stop")}>{parando ? "Parando…" : "Parar coleta"}</button><span>Até 20 buscas por execução.</span></div>
           {collectionRun && <div className="run-progress"><strong>Última execução: {collectionRun.status === "completed" ? collectionRun.conclusion === "success" ? "Concluída" : collectionRun.conclusion === "cancelled" ? "Cancelada" : "Falhou" : collectionRun.status === "cancelling" ? "Parando" : collectionRun.status === "in_progress" ? "Em andamento" : "Na fila"}{coberturaAtual ? ` · rodada ${coberturaAtual.rodada} de ${coberturaAtual.total}` : ""}</strong>{coberturaAtual?.resumo ? <p>{coberturaAtual.resumo}</p> : null}<p><a href={collectionRun.url} target="_blank" rel="noreferrer">Acompanhar no GitHub Actions</a></p></div>}
           <div className="uf-coverage" role="region" aria-label="Cobertura por UF">{coberturaUfs.map(item => <article key={item.sigla}><strong>{item.sigla}</strong><span>{item.total === 1 ? "1 lead" : `${item.total} leads`}</span><span>{dataCobertura(item.ultima)}</span></article>)}</div>
           </div>

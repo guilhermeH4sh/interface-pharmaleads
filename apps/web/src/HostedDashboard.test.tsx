@@ -2,8 +2,13 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 import { HostedDashboard } from "./HostedDashboard";
+import { corrigirLocal } from "./lib/locations";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); });
+
+test("corrige erro comum no nome da cidade", () => {
+  expect(corrigirLocal("sao pauli, sp")).toBe("São Paulo, SP");
+});
 
 test("autentica a conta existente e lê os leads protegidos do Supabase", async () => {
   const fetcher = vi.fn(async (url: string, options?: RequestInit) => {
@@ -51,7 +56,16 @@ test("autentica a conta existente e lê os leads protegidos do Supabase", async 
   expect(screen.getByText("1 lead")).toBeVisible();
   expect(screen.getAllByText("0 leads")).toHaveLength(26);
   expect(fetcher.mock.calls.some(call => call[0].includes("/rest/v1/pharmaleads") && (call[1]?.headers as Record<string, string>).Authorization === "Bearer jwt-de-teste")).toBe(true);
-  await userEvent.type(screen.getByLabelText("Cidades ou regiões"), "Curitiba, PR");
+  await userEvent.type(screen.getByLabelText("Buscar estabelecimentos"), "Farmácia real");
+  expect(screen.getByText("Farmácia real")).toBeVisible();
+  await userEvent.clear(screen.getByLabelText("Buscar estabelecimentos"));
+  await userEvent.type(screen.getByLabelText("Buscar estabelecimentos"), "inexistente");
+  expect(screen.getByText("Nenhum estabelecimento encontrado.")).toBeVisible();
+  await userEvent.clear(screen.getByLabelText("Buscar estabelecimentos"));
+  await userEvent.type(screen.getByLabelText("Pesquisar cidade, estado ou bairro"), "Curitiba, PR");
+  await userEvent.click(screen.getByRole("button", { name: "Adicionar local" }));
+  expect(screen.getByRole("button", { name: /Remover Curitiba, PR/ })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Iniciar cobertura nacional" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Parar coleta" })).toBeDisabled();
   await userEvent.click(screen.getByRole("button", { name: "Iniciar coleta" }));
   expect(fetcher.mock.calls.some(call => call[0] === "/api/collector" && call[1]?.method === "POST")).toBe(true);
@@ -60,9 +74,11 @@ test("autentica a conta existente e lê os leads protegidos do Supabase", async 
   expect(fetcher.mock.calls.some(call => call[0] === "/api/collector" && String(call[1]?.body).includes('"stop"'))).toBe(true);
   expect(screen.getAllByRole("button", { name: "Parando…" }).length).toBeGreaterThan(0);
   expect(await screen.findByRole("button", { name: "Iniciar coleta" }, { timeout: 4000 })).toBeEnabled();
-  await userEvent.click(screen.getByRole("button", { name: "Iniciar cobertura nacional" }));
-  const cobertura = fetcher.mock.calls.find(call => call[0] === "/api/collector" && String(call[1]?.body).includes("nacional"));
-  expect(JSON.parse(String(cobertura?.[1]?.body))).toMatchObject({ action: "start", cobertura: "nacional", rodada: 1, emails: false, enriquecerSites: false });
+  await userEvent.click(screen.getByText("Filtros da coleta"));
+  await userEvent.click(screen.getByLabelText("Cobertura nacional"));
+  await userEvent.click(screen.getByRole("button", { name: "Iniciar coleta" }));
+  const cobertura = fetcher.mock.calls.find(call => call[0] === "/api/collector" && String(call[1]?.body).includes('"cobertura":"nacional"'));
+  expect(JSON.parse(String(cobertura?.[1]?.body))).toMatchObject({ action: "start", cobertura: "nacional", emails: false, enriquecerSites: false });
   await userEvent.click(screen.getByRole("button", { name: "Sair" }));
   expect(screen.queryByText("Farmácia real")).not.toBeInTheDocument();
 });
