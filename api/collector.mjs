@@ -63,6 +63,12 @@ function escolherRun(runs) {
   return ativos.find(run => run.status === 'in_progress') || ativos[0] || runs[0] || null;
 }
 
+function coberturaConcluida(run) {
+  if (!run || run.status !== 'completed' || run.conclusion !== 'success') return false;
+  const match = /^Nacional (\d+)\/(\d+)(?: ·|$)/.exec(run.display_title || '');
+  return Boolean(match && Number(match[1]) === Number(match[2]));
+}
+
 function filaLocal() {
   return { id: 0, status: 'queued', conclusion: null, url: ACTIONS_URL, created_at: new Date().toISOString(), title: 'Na fila' };
 }
@@ -100,12 +106,15 @@ export default async function handler(req, res) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     if (JSON.stringify(body || {}).length > 10000) return respond(res, 413, { error: 'Configuração muito grande.' });
     if (body?.action === 'start') {
-      let input;
-      try { input = body.cobertura === 'nacional' ? entradaNacional(body, TERMS) : validateInput(body); }
-      catch (error) { return respond(res, 400, { error: error.message }); }
       const runs = await runsRecentes(token);
       const active = escolherRun(runs.filter(run => ACTIVE.has(run.status)));
       if (active) return respond(res, 409, { error: 'Já existe uma coleta online em andamento.', run: resumir(active) });
+      if (body.cobertura === 'nacional' && coberturaConcluida(escolherRun(runs))) {
+        return respond(res, 409, { error: 'A cobertura nacional já foi concluída. Para coletar de novo, inicie buscas avulsas ou solicite uma nova cobertura.' });
+      }
+      let input;
+      try { input = body.cobertura === 'nacional' ? entradaNacional(body, TERMS) : validateInput(body); }
+      catch (error) { return respond(res, 400, { error: error.message }); }
       await github(`/actions/workflows/${WORKFLOW}/dispatches`, token, 'POST', { ref: 'main', inputs: { ...input, request_id: crypto.randomUUID() } });
       return respond(res, 202, { queued: true, run: filaLocal() });
     }

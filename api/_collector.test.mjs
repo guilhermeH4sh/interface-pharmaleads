@@ -66,6 +66,24 @@ test('despacha uma rodada da cobertura nacional dentro do limite', async () => {
   assert.ok(!JSON.stringify(res.body).includes('github-token-de-teste'));
 });
 
+test('bloqueia nova cobertura nacional depois da rodada final concluída', async () => {
+  process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    if (url.includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: '677ed1e4-3e73-4f2c-951f-e77386f305da' }) };
+    if (url.includes('/runs?')) return { ok: true, status: 200, json: async () => ({ workflow_runs: [
+      { id: 25, status: 'completed', conclusion: 'success', html_url: 'https://example.test/25', created_at: '', display_title: 'Nacional 25/25 · Mossoró, RN · Arapiraca, AL' },
+    ] }) };
+    throw new Error('Não deveria despachar outra rodada');
+  };
+  const res = response();
+  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'start', cobertura: 'nacional', rodada: 25, segmentos: ['varejo', 'manipulacao'], profundidade: 5 } }, res);
+  assert.equal(res.statusCode, 409);
+  assert.match(res.body.error, /já foi concluída/);
+  assert.equal(calls.some(call => call.url.endsWith('/dispatches')), false);
+});
+
 test('quando já há job, devolve a execução ativa para o painel poder parar', async () => {
   process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
   globalThis.fetch = async (url) => {
