@@ -88,8 +88,8 @@ export function Sidebar({ activeTab, onSelectTab, onOpenHelp, isOpenMobile = fal
 
   return (
     <>
-      {/* Desktop: sidebar fixa de 260px */}
-      <aside className="hidden lg:flex flex-col w-[260px] h-dvh fixed left-0 top-0 bg-card border-r border-border z-30">
+      {/* Desktop: menu compacto para liberar espaço para a área de trabalho */}
+      <aside className="hidden lg:flex flex-col w-[220px] h-dvh fixed left-0 top-0 bg-card border-r border-border z-30">
         {content}
       </aside>
 
@@ -101,7 +101,7 @@ export function Sidebar({ activeTab, onSelectTab, onOpenHelp, isOpenMobile = fal
             role="dialog"
             aria-modal="true"
             aria-label="Menu de navegação"
-            className="relative w-[280px] max-w-[85vw] h-full bg-card border-r border-border shadow-[var(--shadow-pop)] animate-slide-in"
+            className="relative w-[248px] max-w-[85vw] h-full bg-card border-r border-border shadow-[var(--shadow-pop)] animate-slide-in"
           >
             {content}
           </aside>

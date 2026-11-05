@@ -273,6 +273,7 @@ export function ConfigTab({
         <ul className="space-y-2 text-xs text-muted-foreground">
           <li><strong className="text-foreground">Local:</strong> API Python, Gosom em <code className="text-brand">bin/google-maps-scraper</code> e banco SQLite.</li>
           <li><strong className="text-foreground">Nuvem:</strong> endpoint <code className="text-brand">/api/collector</code> valida a sessão Supabase e dispara o workflow <code className="text-brand">cloud-collect.yml</code> no GitHub Actions.</li>
+          <li><strong className="text-foreground">CRM:</strong> inclusão e etapa são gravadas na mesma tabela <code className="text-brand">public.pharmaleads</code>. Execute <code className="text-brand">supabase/03_crm_pharmaleads.sql</code> no SQL Editor do Supabase para habilitar essas colunas.</li>
           <li><strong className="text-foreground">Limites:</strong> buscas avulsas na nuvem aceitam até 20 consultas por rodada; profundidade e enriquecimento são escolhidos na Central de Prospecção.</li>
         </ul>
       </div>

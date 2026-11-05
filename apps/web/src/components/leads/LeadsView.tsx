@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Plus, AlertCircle, Lock } from "lucide-react";
 import { MetricsCards } from "./MetricsCards";
-import { FilterTabs } from "./FilterTabs";
 import { LeadsTable } from "./LeadsTable";
 import { FiltersSidebar } from "./FiltersSidebar";
 import { BatchActionsBar } from "./BatchActionsBar";
@@ -63,16 +62,16 @@ export function LeadsView({
     return urlParams.get(param) || fallback;
   };
 
-  const [activeStatusTab, setActiveStatusTab] = useState<"Todos" | LeadStatus>(
-    (getUrlParam("tab", "Todos") as "Todos" | LeadStatus) || "Todos"
-  );
+  const legacyStatusTab = getUrlParam("tab", "Todos");
   const [currentPage, setCurrentPage] = useState<number>(
     parseInt(getUrlParam("page", "1"), 10) || 1
   );
   const [selectedUF, setSelectedUF] = useState(getUrlParam("uf", ""));
   const [selectedMunicipio, setSelectedMunicipio] = useState(getUrlParam("municipio", ""));
   const [selectedBairro, setSelectedBairro] = useState(getUrlParam("bairro", ""));
-  const [selectedStatus, setSelectedStatus] = useState(getUrlParam("status", "Todos os status"));
+  const [selectedStatus, setSelectedStatus] = useState(
+    getUrlParam("status", legacyStatusTab === "Todos" ? "Todos os status" : legacyStatusTab)
+  );
   const [selectedOrigem, setSelectedOrigem] = useState(getUrlParam("origem", "Todas as origens"));
 
   // Estados do modo Mock
@@ -92,7 +91,6 @@ export function LeadsView({
     if (typeof window === "undefined") return;
     const params = new URLSearchParams();
     if (searchQuery.trim()) params.set("q", searchQuery.trim());
-    if (activeStatusTab !== "Todos") params.set("tab", activeStatusTab);
     if (currentPage > 1) params.set("page", String(currentPage));
     if (selectedUF) params.set("uf", selectedUF);
     if (selectedMunicipio) params.set("municipio", selectedMunicipio);
@@ -104,7 +102,6 @@ export function LeadsView({
     window.history.replaceState({}, "", newUrl);
   }, [
     searchQuery,
-    activeStatusTab,
     currentPage,
     selectedUF,
     selectedMunicipio,
@@ -119,7 +116,7 @@ export function LeadsView({
     try {
       const res = await fetchMockLeads({
         query: searchQuery,
-        statusTab: activeStatusTab,
+        statusTab: "Todos",
         uf: selectedUF,
         municipio: selectedMunicipio,
         bairro: selectedBairro,
@@ -132,7 +129,6 @@ export function LeadsView({
       setMockLeads(res.items);
       const hasSpecificFilter =
         Boolean(searchQuery) ||
-        activeStatusTab !== "Todos" ||
         Boolean(selectedUF) ||
         selectedStatus !== "Todos os status" ||
         selectedOrigem !== "Todas as origens";
@@ -147,7 +143,6 @@ export function LeadsView({
   }, [
     isRealMode,
     searchQuery,
-    activeStatusTab,
     selectedUF,
     selectedMunicipio,
     selectedBairro,
@@ -184,7 +179,7 @@ export function LeadsView({
       isRealMode
         ? filterAndPaginateItems(realLeads, {
             query: searchQuery,
-            statusTab: activeStatusTab,
+            statusTab: "Todos",
             uf: selectedUF,
             municipio: selectedMunicipio,
             bairro: selectedBairro,
@@ -198,7 +193,6 @@ export function LeadsView({
       isRealMode,
       realLeads,
       searchQuery,
-      activeStatusTab,
       selectedUF,
       selectedMunicipio,
       selectedBairro,
@@ -218,12 +212,6 @@ export function LeadsView({
   const activeTotalPages = isRealMode && realPagination ? realPagination.totalPages : mockTotalPages;
   const activeSummary = isRealMode ? realSummary : mockSummary;
   const activeLoading = isRealMode ? isLoadingReal : isLoadingMock;
-
-  const handleTabChange = (tab: "Todos" | LeadStatus) => {
-    setActiveStatusTab(tab);
-    setCurrentPage(1);
-    setSelectedLeadIds([]);
-  };
 
   const handleApplySideFilters = (filters: {
     uf: string;
@@ -391,21 +379,23 @@ export function LeadsView({
       {/* 4. Quatro cards de métricas em linha */}
       <MetricsCards summary={activeSummary} isLoading={activeLoading && !activeItems.length} />
 
-      {/* 5 e 6: Layout Principal (Painel da Tabela à esquerda + Coluna Direita 340px) */}
-      <div className="flex flex-col xl:flex-row gap-6 items-start">
-        {/* Painel Principal (Card) */}
-        <div className={cn(ui.cardInteractive, "flex-1 w-full overflow-hidden flex flex-col")}>
-          {/* Abas-filtro em pills */}
-          <div className="p-4 md:p-6 pb-4 border-b border-border">
-            <FilterTabs
-              activeTab={activeStatusTab}
-              onTabChange={handleTabChange}
-              summary={activeSummary}
-            />
-          </div>
+      {/* Filtros e tabela ocupam a largura principal sem a coluna lateral. */}
+      <div className={cn(ui.cardInteractive, "w-full overflow-hidden flex flex-col")}>
+        <div className="p-4 md:p-6 border-b border-border">
+          <FiltersSidebar
+            key={`${selectedUF}|${selectedMunicipio}|${selectedBairro}|${selectedStatus}|${selectedOrigem}`}
+            selectedUF={selectedUF}
+            selectedMunicipio={selectedMunicipio}
+            selectedBairro={selectedBairro}
+            selectedStatus={selectedStatus}
+            selectedOrigem={selectedOrigem}
+            onApplyFilters={handleApplySideFilters}
+            onResetFilters={handleResetFilters}
+            dynamicLocations={dynamicLocations}
+          />
+        </div>
 
-          {/* Tabela de Leads */}
-          <LeadsTable
+        <LeadsTable
             items={activeItems}
             total={activeTotal}
             currentPage={currentPage}
@@ -420,20 +410,6 @@ export function LeadsView({
             onToggleSelect={handleToggleSelect}
             onToggleSelectAll={handleToggleSelectAll}
           />
-        </div>
-
-        {/* 6. Coluna direita (340px no desktop, responsiva para baixo em tablets e mobile) */}
-        <FiltersSidebar
-          summary={activeSummary}
-          selectedUF={selectedUF}
-          selectedMunicipio={selectedMunicipio}
-          selectedBairro={selectedBairro}
-          selectedStatus={selectedStatus}
-          selectedOrigem={selectedOrigem}
-          onApplyFilters={handleApplySideFilters}
-          onResetFilters={handleResetFilters}
-          dynamicLocations={dynamicLocations}
-        />
       </div>
 
       {/* Barra Flutuante de Ações em Lote */}
