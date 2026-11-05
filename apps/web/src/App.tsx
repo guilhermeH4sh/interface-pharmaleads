@@ -21,17 +21,12 @@ import {
   fetchSupabaseAllLeads,
   mapRawLeadsToItems,
   savedSupabaseSession,
+  setLeadCrmMembershipOverride,
   setLeadStatusOverride,
   type DataSourceMode,
   type SupabaseSession,
 } from "./lib/backend";
-import {
-  fetchMockLeads,
-  updateLeadStatus,
-  MOCK_SUMMARY,
-  type LeadItem,
-  type LeadStatus,
-} from "./lib/mock-leads";
+import type { LeadItem, LeadStatus } from "./lib/mock-leads";
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
@@ -66,16 +61,7 @@ export function App() {
   const [realError, setRealError] = useState("");
   const [overrideVersion, setOverrideVersion] = useState(0);
 
-  // Leads do modo Mock para CRM/Relatórios
-  const [mockCrmLeads, setMockCrmLeads] = useState<LeadItem[]>([]);
   const [selectedCrmLead, setSelectedCrmLead] = useState<LeadItem | null>(null);
-
-  // Carrega leads mockados para o CRM quando em modo mock
-  useEffect(() => {
-    fetchMockLeads({ page: 1, pageSize: 45 })
-      .then((res) => setMockCrmLeads(res.items))
-      .catch(console.error);
-  }, []);
 
   // Auto-detecta API Python local (127.0.0.1:8765) quando rodando no navegador fora de testes unitários
   useEffect(() => {
@@ -172,26 +158,24 @@ export function App() {
     return [];
   }, [dataSourceMode, rawLocalRows, rawSupabaseRows, overrideVersion]);
 
-  const activeLeadsForCrm = dataSourceMode === "mock" ? mockCrmLeads : realLeads;
+  const activeLeadsForCrm = realLeads.filter((lead) => lead.crmIncluded);
   const activeSummaryForReports = useMemo(
-    () =>
-      dataSourceMode === "mock" ? MOCK_SUMMARY : computeSummaryFromItems(realLeads),
-    [dataSourceMode, realLeads]
+    () => computeSummaryFromItems(realLeads),
+    [realLeads]
   );
 
   const handleCrmStatusChange = async (id: string, newStatus: LeadStatus) => {
-    if (dataSourceMode === "mock") {
-      await updateLeadStatus(id, newStatus);
-      setMockCrmLeads((current) =>
-        current.map((lead) => (lead.id === id ? { ...lead, status: newStatus } : lead))
-      );
-    } else {
-      setLeadStatusOverride(id, newStatus);
-      setOverrideVersion((v) => v + 1);
-    }
+    setLeadStatusOverride(id, newStatus);
+    setOverrideVersion((v) => v + 1);
     if (selectedCrmLead?.id === id) {
       setSelectedCrmLead({ ...selectedCrmLead, status: newStatus });
     }
+  };
+
+  const handleCrmMembershipChange = (id: string, included: boolean) => {
+    setLeadCrmMembershipOverride(id, included);
+    if (!included && selectedCrmLead?.id === id) setSelectedCrmLead(null);
+    setOverrideVersion((v) => v + 1);
   };
 
   const handleSignInSupabase = async (email: string, password: string) => {
@@ -248,6 +232,7 @@ export function App() {
               isSupabaseAuthenticated={Boolean(supabaseSession)}
               onMutateRealLeads={() => setOverrideVersion((v) => v + 1)}
               onOpenConfig={() => setActiveTab("config")}
+              onCrmMembershipChange={handleCrmMembershipChange}
               onStartProspectAction={(data) => {
                 const local = `${data.municipio}, ${data.uf}`;
                 collectionRequestId.current += 1;
@@ -273,6 +258,7 @@ export function App() {
               leads={activeLeadsForCrm}
               searchQuery={searchQuery}
               onStatusChange={handleCrmStatusChange}
+              onRemoveFromCrm={(id) => handleCrmMembershipChange(id, false)}
               onSelectLead={(lead) => setSelectedCrmLead(lead)}
             />
           )}
