@@ -23,6 +23,7 @@ import {
   savedSupabaseSession,
   setLeadCrmMembershipOverride,
   setLeadStatusOverride,
+  updateSupabaseCrmLead,
   type DataSourceMode,
   type SupabaseSession,
 } from "./lib/backend";
@@ -165,15 +166,50 @@ export function App() {
   );
 
   const handleCrmStatusChange = async (id: string, newStatus: LeadStatus) => {
-    setLeadStatusOverride(id, newStatus);
+    if (dataSourceMode === "supabase") {
+      if (!supabaseSession) {
+        setRealError("Entre no Supabase para salvar o status do CRM.");
+        return;
+      }
+      try {
+        const result = await updateSupabaseCrmLead(supabaseSession, id, { crm_status: newStatus });
+        setSupabaseSession(result.session);
+        setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? { ...row, crm_status: newStatus } : row));
+        setRealError("");
+      } catch (err) {
+        setRealError(err instanceof Error ? err.message : "Não foi possível salvar o status no Supabase.");
+        return;
+      }
+    } else {
+      setLeadStatusOverride(id, newStatus);
+    }
     setOverrideVersion((v) => v + 1);
     if (selectedCrmLead?.id === id) {
       setSelectedCrmLead({ ...selectedCrmLead, status: newStatus });
     }
   };
 
-  const handleCrmMembershipChange = (id: string, included: boolean) => {
-    setLeadCrmMembershipOverride(id, included);
+  const handleCrmMembershipChange = async (id: string, included: boolean) => {
+    if (dataSourceMode === "supabase") {
+      if (!supabaseSession) {
+        setRealError("Entre no Supabase para adicionar ou remover leads do CRM.");
+        return;
+      }
+      try {
+        const result = await updateSupabaseCrmLead(supabaseSession, id, { crm_included: included });
+        setSupabaseSession(result.session);
+        setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? { ...row, crm_included: included } : row));
+        setRealError("");
+      } catch (err) {
+        setRealError(err instanceof Error ? err.message : "Não foi possível atualizar a participação no CRM.");
+        return;
+      }
+    } else if (dataSourceMode === "local") {
+      setLeadCrmMembershipOverride(id, included);
+    } else {
+      setRealError("Conecte uma fonte real para incluir leads no CRM.");
+      return;
+    }
     if (!included && selectedCrmLead?.id === id) setSelectedCrmLead(null);
     setOverrideVersion((v) => v + 1);
   };
@@ -204,7 +240,7 @@ export function App() {
       />
 
       {/* Conteúdo Principal (à direita da sidebar de 260px no desktop) */}
-      <div className="flex-1 lg:pl-[260px] flex flex-col min-h-screen min-w-0 bg-background">
+      <div className="flex-1 lg:pl-[220px] flex flex-col min-h-screen min-w-0 bg-background">
         {/* 2. Topbar com seletor de tema Claro/Escuro e status da conexão */}
         <Topbar
           searchQuery={searchQuery}
@@ -259,6 +295,7 @@ export function App() {
               searchQuery={searchQuery}
               onStatusChange={handleCrmStatusChange}
               onRemoveFromCrm={(id) => handleCrmMembershipChange(id, false)}
+              errorMessage={realError}
               onSelectLead={(lead) => setSelectedCrmLead(lead)}
             />
           )}
