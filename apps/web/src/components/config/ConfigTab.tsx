@@ -2,7 +2,6 @@ import { useState, type FormEvent } from "react";
 import {
   Settings,
   Database,
-  Key,
   Check,
   HardDrive,
   Cloud,
@@ -12,12 +11,7 @@ import {
 } from "lucide-react";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
-import {
-  PUBLISHABLE_KEY,
-  SUPABASE_URL,
-  type DataSourceMode,
-  type SupabaseSession,
-} from "../../lib/backend";
+import { type DataSourceMode, type SupabaseSession } from "../../lib/backend";
 
 interface ConfigTabProps {
   dataSourceMode: DataSourceMode;
@@ -38,22 +32,11 @@ export function ConfigTab({
   localLeadsCount = null,
   supabaseLeadsCount = null,
 }: ConfigTabProps) {
-  const [supabaseUrl, setSupabaseUrl] = useState(SUPABASE_URL);
-  const [supabaseKey, setSupabaseKey] = useState(PUBLISHABLE_KEY);
-  const [maxConcurrency, setMaxConcurrency] = useState(2);
-  const [savedSuccess, setSavedSuccess] = useState(false);
-
   // Estados do formulário de Login Supabase Auth
   const [email, setEmail] = useState(supabaseSession?.email || "");
   const [password, setPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
-
-  const handleSave = (e: FormEvent) => {
-    e.preventDefault();
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2500);
-  };
 
   const handleSupabaseLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -80,15 +63,9 @@ export function ConfigTab({
           <span>Configurações da Plataforma</span>
         </h2>
         <p className={ui.pageSubtitle}>
-          Gerencie a fonte de dados ativa (SQLite Local, Supabase Online ou Mock), autenticação e parâmetros do scraper.
+          Escolha a fonte de dados, conecte o Supabase e veja como os motores de coleta são executados.
         </p>
       </div>
-
-      {savedSuccess && (
-        <div className="p-4 rounded-xl bg-primary-soft border border-primary/25 text-brand text-xs font-semibold flex items-center gap-2">
-          <Check size={16} /> Configurações salvas e aplicadas com sucesso.
-        </div>
-      )}
 
       {/* Modo de Fonte de Dados (3 motores integrados) */}
       <div className={cn(ui.card, "p-6")}>
@@ -286,62 +263,19 @@ export function ConfigTab({
         )}
       </div>
 
-      {/* Formulário Supabase & Credenciais */}
-      <form onSubmit={handleSave} className={cn(ui.card, "p-6 space-y-4")}>
+      <div className={cn(ui.card, "p-6 space-y-3")}>
         <h3 className={cn(ui.cardTitle, "pb-3 border-b border-border")}>
-          <Key size={18} className="text-brand" /> Parâmetros do Projeto & Concorrência
+          <Settings size={18} className="text-brand" /> Como a coleta é executada
         </h3>
-
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="cfg-supabase-url" className={ui.label}>
-            Supabase URL
-          </label>
-          <input
-            id="cfg-supabase-url"
-            type="text"
-            value={supabaseUrl}
-            onChange={(e) => setSupabaseUrl(e.target.value)}
-            className={cn(ui.input, "font-mono")}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="cfg-supabase-key" className={ui.label}>
-            Publishable Anon Key
-          </label>
-          <input
-            id="cfg-supabase-key"
-            type="password"
-            value={supabaseKey}
-            onChange={(e) => setSupabaseKey(e.target.value)}
-            className={cn(ui.input, "font-mono")}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="cfg-concurrency" className={ui.label}>
-            Concorrência Gosom / Scraper (Instâncias simultâneas)
-          </label>
-          <input
-            id="cfg-concurrency"
-            type="number"
-            min={1}
-            max={8}
-            value={maxConcurrency}
-            onChange={(e) => setMaxConcurrency(Number(e.target.value))}
-            className={cn(ui.input, "w-32")}
-          />
-          <span className="text-[11px] text-muted-foreground">
-            Recomendado: 2 contêineres para evitar limitações de taxa do Google Maps.
-          </span>
-        </div>
-
-        <div className="pt-3 border-t border-border flex justify-end">
-          <button type="submit" className={cn(ui.btnPrimary, "h-11 px-6 text-xs")}>
-            Salvar Preferências
-          </button>
-        </div>
-      </form>
+        <p className="text-xs text-muted-foreground">
+          As credenciais e parâmetros do motor são definidos no ambiente do serviço. Esta tela não altera chaves nem concorrência.
+        </p>
+        <ul className="space-y-2 text-xs text-muted-foreground">
+          <li><strong className="text-foreground">Local:</strong> API Python, Gosom em <code className="text-brand">bin/google-maps-scraper</code> e banco SQLite.</li>
+          <li><strong className="text-foreground">Nuvem:</strong> endpoint <code className="text-brand">/api/collector</code> valida a sessão Supabase e dispara o workflow <code className="text-brand">cloud-collect.yml</code> no GitHub Actions.</li>
+          <li><strong className="text-foreground">Limites:</strong> buscas avulsas na nuvem aceitam até 20 consultas por rodada; profundidade e enriquecimento são escolhidos na Central de Prospecção.</li>
+        </ul>
+      </div>
     </div>
   );
 }

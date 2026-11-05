@@ -1,9 +1,14 @@
 import React, { useState } from "react";
-import { Search, Sparkles, Check } from "lucide-react";
-import { getUFs, getMunicipios } from "../../lib/mock-leads";
+import { Search, Sparkles } from "lucide-react";
 import { Modal } from "../ui/modal";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
+
+const UFS = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+  "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+  "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+];
 
 interface NewProspectModalProps {
   isOpen: boolean;
@@ -14,25 +19,11 @@ interface NewProspectModalProps {
 export function NewProspectModal({ isOpen, onClose, onStartProspect }: NewProspectModalProps) {
   const [uf, setUf] = useState("SP");
   const [municipio, setMunicipio] = useState("");
-  const [origem, setOrigem] = useState("Google Maps");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMsg, setSuccessMsg] = useState("");
-
-  const ufs = getUFs();
-  const municipios = uf ? getMunicipios(uf) : [];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setSuccessMsg("Prospecção solicitada com sucesso! Coletando dados...");
-      setTimeout(() => {
-        onStartProspect({ uf, municipio, origem });
-        setSuccessMsg("");
-        onClose();
-      }, 1000);
-    }, 500);
+    onStartProspect({ uf, municipio, origem: "Google Maps" });
+    onClose();
   };
 
   return (
@@ -47,7 +38,6 @@ export function NewProspectModal({ isOpen, onClose, onStartProspect }: NewProspe
           <button
             type="button"
             onClick={onClose}
-            disabled={isSubmitting}
             className={cn(ui.btnSecondary, "h-11 px-5 text-xs")}
           >
             Cancelar
@@ -55,22 +45,16 @@ export function NewProspectModal({ isOpen, onClose, onStartProspect }: NewProspe
           <button
             type="submit"
             form="new-prospect-form"
-            disabled={isSubmitting}
+            disabled={!municipio}
             className={cn(ui.btnBrand, "h-11 px-6 text-sm")}
           >
             <Search size={16} />
-            <span>{isSubmitting ? "Iniciando..." : "Iniciar prospecção"}</span>
+            <span>Iniciar prospecção</span>
           </button>
         </>
       }
     >
       <form id="new-prospect-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
-        {successMsg && (
-          <div className="p-3 rounded-xl bg-primary-soft border border-primary/25 text-xs text-brand font-semibold flex items-center gap-2">
-            <Check size={15} /> {successMsg}
-          </div>
-        )}
-
         {/* UF */}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="prospect-uf" className={ui.label}>
@@ -86,7 +70,7 @@ export function NewProspectModal({ isOpen, onClose, onStartProspect }: NewProspe
             required
             className={ui.input}
           >
-            {ufs.map((item) => (
+            {UFS.map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
@@ -97,39 +81,21 @@ export function NewProspectModal({ isOpen, onClose, onStartProspect }: NewProspe
         {/* Município */}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="prospect-municipio" className={ui.label}>
-            Município Alvo
+            Cidade ou bairro
           </label>
-          <select
+          <input
             id="prospect-municipio"
             value={municipio}
             onChange={(e) => setMunicipio(e.target.value)}
+            placeholder="Ex.: São Paulo ou Pinheiros"
+            required
             className={ui.input}
-          >
-            <option value="">Todos os municípios da UF</option>
-            {municipios.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
-        {/* Origem da Coleta */}
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="prospect-origem" className={ui.label}>
-            Canal / Origem
-          </label>
-          <select
-            id="prospect-origem"
-            value={origem}
-            onChange={(e) => setOrigem(e.target.value)}
-            className={ui.input}
-          >
-            <option value="Google Maps">Google Maps (Recomendado)</option>
-            <option value="Google Meu Negócio">Google Meu Negócio</option>
-            <option value="Outras fontes">Outras fontes / Bases Abertas</option>
-          </select>
-        </div>
+        <p className="text-xs text-muted-foreground">
+          A busca será executada pelo Gosom no Google Maps, usando os segmentos e a profundidade configurados na Central de Prospecção.
+        </p>
       </form>
     </Modal>
   );
