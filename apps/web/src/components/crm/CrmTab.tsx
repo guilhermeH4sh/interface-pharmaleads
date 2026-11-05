@@ -21,6 +21,7 @@ interface CrmTabProps {
   onStatusChange: (id: string, newStatus: LeadStatus) => void;
   onRemoveFromCrm: (id: string) => void;
   onSelectLead: (lead: LeadItem) => void;
+  errorMessage?: string;
 }
 
 const COLUMNS: { id: LeadStatus; title: string; dotClass: string }[] = [
@@ -38,6 +39,7 @@ export function CrmTab({
   onStatusChange,
   onRemoveFromCrm,
   onSelectLead,
+  errorMessage = "",
 }: CrmTabProps) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<LeadStatus | null>(null);
@@ -126,7 +128,7 @@ export function CrmTab({
             <span>Pipeline Comercial & Funil CRM</span>
           </h2>
           <p className={ui.pageSubtitle}>
-            Adicione leads pelo menu de ações na lista de Leads. Arraste cards entre etapas; remover um card do CRM mantém o lead na base. A seleção fica salva neste navegador.
+            Adicione leads pelo menu de ações na lista de Leads. Arraste cards entre etapas; remover do CRM mantém o lead em public.pharmaleads.
           </p>
         </div>
 
@@ -139,6 +141,12 @@ export function CrmTab({
           </div>
         </div>
       </div>
+
+      {errorMessage && (
+        <div role="alert" className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-foreground">
+          {errorMessage}
+        </div>
+      )}
 
       {/* Kanban Board com 4 colunas (Drop Zones) */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-start">

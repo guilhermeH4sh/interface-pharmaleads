@@ -15,8 +15,9 @@ export const SESSION_KEY = "pharmaleads-supabase-session";
 export const CRM_STORAGE_KEY = "pharmaleads-crm-overrides";
 export const DELETED_STORAGE_KEY = "pharmaleads-deleted-ids";
 
-const SUPABASE_COLUMNS =
+const SUPABASE_BASE_COLUMNS =
   "chave,nome,segmento,categoria,endereco,local_busca,telefone,telefone_normalizado,celular,whatsapp_link,site,emails,situacao,avaliacao,qtd_avaliacoes,latitude,longitude,link,ultima_coleta";
+const SUPABASE_COLUMNS = `${SUPABASE_BASE_COLUMNS},crm_included,crm_status`;
 
 export const COLETA_ATIVA_STATES = ["queued", "in_progress", "waiting", "pending", "requested"];
 
@@ -208,9 +209,10 @@ export async function fetchSupabaseAllLeads(
 
   const rows: Lead[] = [];
   let offset = 0;
+  let crmColumnsAvailable = true;
   while (true) {
     const query = new URLSearchParams({
-      select: SUPABASE_COLUMNS,
+      select: crmColumnsAvailable ? SUPABASE_COLUMNS : SUPABASE_BASE_COLUMNS,
       order: "chave.asc",
       limit: "500",
       offset: String(offset),
@@ -224,6 +226,13 @@ export async function fetchSupabaseAllLeads(
     });
     if (response.status === 401 || response.status === 403) {
       throw new AccessError("A conta não tem acesso à tabela pharmaleads. Verifique as permissões no Supabase.");
+    }
+    if (!response.ok && crmColumnsAvailable && response.status === 400) {
+      const body = await response.clone().text();
+      if (body.includes("crm_included") || body.includes("crm_status")) {
+        crmColumnsAvailable = false;
+        continue;
+      }
     }
     if (!response.ok) {
       throw new Error(`Consulta ao Supabase falhou (HTTP ${response.status}).`);
@@ -241,6 +250,33 @@ export async function fetchSupabaseAllLeads(
     }
   }
   return { session: active, rows };
+}
+
+export async function updateSupabaseCrmLead(
+  session: SupabaseSession,
+  id: string,
+  fields: Pick<Lead, "crm_included"> | Pick<Lead, "crm_status">
+): Promise<{ session: SupabaseSession; row: Lead }> {
+  const active = await validSupabaseSession(session);
+  const query = new URLSearchParams({ chave: `eq.${id}`, select: SUPABASE_COLUMNS });
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/pharmaleads?${query}`, {
+    method: "PATCH",
+    headers: {
+      apikey: PUBLISHABLE_KEY,
+      Authorization: `Bearer ${active.access_token}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(fields),
+  });
+  const body = (await response.json().catch(() => [])) as Lead[] | { message?: string; details?: string };
+  if (!response.ok) {
+    const message = !Array.isArray(body) ? body.message || body.details : undefined;
+    throw new Error(message || `Não foi possível atualizar o lead no Supabase (HTTP ${response.status}).`);
+  }
+  const rows = Array.isArray(body) ? body : [];
+  if (!rows[0]) throw new Error("O Supabase não encontrou o lead para atualizar.");
+  return { session: active, row: rows[0] };
 }
 
 // ---------- API Local Python (SQLite + Gosom em 127.0.0.1:8765 via /api/*) ----------
@@ -398,6 +434,9 @@ export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
       const { cidade, uf } = extractCidadeUf(row);
       const bairro = extractBairro(row.endereco || "");
       const override = overrides[row.chave];
+      const persistedCrmStatus = ["Qualificado", "Em contato", "Respondido", "Não contatado"].includes(row.crm_status || "")
+        ? (row.crm_status as LeadStatus)
+        : undefined;
       const avaliacaoNum = row.avaliacao ? Number(Number(row.avaliacao).toFixed(1)) : undefined;
       const qtdNum = row.qtd_avaliacoes ? Number(row.qtd_avaliacoes) : undefined;
 
@@ -411,7 +450,7 @@ export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
         telefone: row.telefone || row.telefone_normalizado || "Não informado",
         whatsappLink: row.whatsapp_link || undefined,
         // Dados não contatados iniciam zerados nas métricas de Qualificados / Em contato / Respondido
-        status: override?.status || "Não contatado",
+        status: persistedCrmStatus || override?.status || "Não contatado",
         responsavel: override?.responsavel || "Comercial Centrus",
         origem: "Google Maps",
         endereco: row.endereco || undefined,
@@ -425,7 +464,7 @@ export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
         link: row.link || undefined,
         ultimaColeta: row.ultima_coleta || undefined,
         updatedAt: override?.updatedAt,
-        crmIncluded: override?.crmIncluded ?? false,
+        crmIncluded: typeof row.crm_included === "boolean" ? row.crm_included : override?.crmIncluded ?? false,
       };
     });
 }
