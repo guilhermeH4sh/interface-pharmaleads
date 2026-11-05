@@ -151,11 +151,11 @@ export function ConfigTab({
                 {dataSourceMode === "mock" && <Check size={16} className="text-brand shrink-0" />}
               </div>
               <p className="text-xs text-muted-foreground mt-1.5">
-                18.947 leads simulados, filtros e paginação instantâneos para validação de interface.
+                Interface sem estabelecimentos de demonstração. Conecte uma fonte real para ver leads.
               </p>
             </div>
             <span className="mt-3 inline-block text-[11px] font-semibold text-muted-foreground">
-              Dados em memória
+              Nenhum lead fictício
             </span>
           </button>
         </div>

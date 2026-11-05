@@ -41,6 +41,7 @@ interface LeadsViewProps {
   isSupabaseAuthenticated?: boolean;
   onMutateRealLeads?: () => void;
   onOpenConfig?: () => void;
+  onCrmMembershipChange?: (leadId: string, included: boolean) => void;
   onStartProspectAction?: (data: { uf: string; municipio: string; origem: string }) => void;
 }
 
@@ -53,6 +54,7 @@ export function LeadsView({
   isSupabaseAuthenticated = false,
   onMutateRealLeads,
   onOpenConfig,
+  onCrmMembershipChange,
   onStartProspectAction,
 }: LeadsViewProps) {
   const getUrlParam = (param: string, fallback = "") => {
@@ -413,6 +415,7 @@ export function LeadsView({
             onViewDetails={(lead) => setDetailLead(lead)}
             onChangeStatus={handleSingleStatusChange}
             onDeleteLead={handleDeleteLead}
+            onCrmMembershipChange={(leadId, included) => onCrmMembershipChange?.(leadId, included)}
             selectedIds={selectedLeadIds}
             onToggleSelect={handleToggleSelect}
             onToggleSelectAll={handleToggleSelectAll}

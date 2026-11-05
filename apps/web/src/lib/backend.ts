@@ -49,6 +49,7 @@ export class AccessError extends Error { }
 interface CrmOverride {
   status?: LeadStatus;
   responsavel?: string;
+  crmIncluded?: boolean;
   updatedAt?: number;
 }
 
@@ -84,6 +85,12 @@ function loadDeletedIds(): Set<string> {
 export function setLeadStatusOverride(id: string, status: LeadStatus): void {
   const map = loadCrmOverrides();
   map[id] = { ...map[id], status, updatedAt: Date.now() };
+  saveCrmOverrides(map);
+}
+
+export function setLeadCrmMembershipOverride(id: string, included: boolean): void {
+  const map = loadCrmOverrides();
+  map[id] = { ...map[id], crmIncluded: included, updatedAt: Date.now() };
   saveCrmOverrides(map);
 }
 
@@ -418,6 +425,7 @@ export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
         link: row.link || undefined,
         ultimaColeta: row.ultima_coleta || undefined,
         updatedAt: override?.updatedAt,
+        crmIncluded: override?.crmIncluded ?? false,
       };
     });
 }
