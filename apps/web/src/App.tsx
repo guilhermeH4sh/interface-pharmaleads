@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar, type NavTab } from "./components/layout/Sidebar";
 import { Topbar } from "./components/layout/Topbar";
 import { LeadsView } from "./components/leads/LeadsView";
@@ -39,6 +39,8 @@ export function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [collectionRequest, setCollectionRequest] = useState<{ id: number; local: string } | null>(null);
+  const collectionRequestId = useRef(0);
 
   // Sessão Supabase e modo de fonte de dados
   const [supabaseSession, setSupabaseSession] = useState<SupabaseSession | null>(
@@ -81,7 +83,7 @@ export function App() {
     let cancelled = false;
     fetchLocalApiStatus()
       .then((status) => {
-        if (!cancelled && status && status.total_leads > 0) {
+        if (!cancelled && status) {
           setDataSourceMode("local");
         }
       })
@@ -246,6 +248,12 @@ export function App() {
               isSupabaseAuthenticated={Boolean(supabaseSession)}
               onMutateRealLeads={() => setOverrideVersion((v) => v + 1)}
               onOpenConfig={() => setActiveTab("config")}
+              onStartProspectAction={(data) => {
+                const local = `${data.municipio}, ${data.uf}`;
+                collectionRequestId.current += 1;
+                setCollectionRequest({ id: collectionRequestId.current, local });
+                setActiveTab("prospeccao");
+              }}
             />
           )}
 
@@ -256,6 +264,7 @@ export function App() {
               onSessionUpdate={setSupabaseSession}
               realLeads={realLeads}
               onRefreshLeads={handleRefreshActiveData}
+              collectionRequest={collectionRequest}
             />
           )}
 
