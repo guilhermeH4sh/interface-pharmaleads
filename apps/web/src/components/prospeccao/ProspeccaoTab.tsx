@@ -34,6 +34,13 @@ const UFS = [
   "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN",
   "RO", "RR", "RS", "SC", "SE", "SP", "TO",
 ];
+const TERMOS_POR_SEGMENTO: Record<string, number> = {
+  varejo: 3,
+  manipulacao: 1,
+  homeopatia: 1,
+  veterinaria: 1,
+  distribuidoras: 2,
+};
 
 interface ProspeccaoTabProps {
   dataSourceMode?: DataSourceMode;
@@ -41,6 +48,7 @@ interface ProspeccaoTabProps {
   onSessionUpdate?: (session: SupabaseSession) => void;
   realLeads?: LeadItem[];
   onRefreshLeads?: () => void;
+  collectionRequest?: { id: number; local: string } | null;
 }
 
 function formatUltimaColeta(valor?: string): string {
@@ -57,6 +65,7 @@ export function ProspeccaoTab({
   onSessionUpdate,
   realLeads = [],
   onRefreshLeads,
+  collectionRequest = null,
 }: ProspeccaoTabProps) {
   const [localDraft, setLocalDraft] = useState("");
   const [localSuggestion, setLocalSuggestion] = useState("");
@@ -75,13 +84,12 @@ export function ProspeccaoTab({
   const [localStatus, setLocalStatus] = useState<LocalApiStatus | null>(null);
   // Estado da execução Cloud (GitHub Actions /api/collector)
   const [cloudRun, setCloudRun] = useState<CollectorRun | null>(null);
-  // Estado de simulação quando em modo Mock
-  const [mockActive, setMockActive] = useState(false);
-
+  const refreshedCloudRunRef = useRef<number | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [statusMsg, setStatusMsg] = useState("Pronto para iniciar coleta automatizada.");
   const prevLocalTotalRef = useRef<number>(0);
+  const handledRequestRef = useRef<number | null>(null);
 
   // Polling de status para API Local (quando em modo local)
   const pollLocalStatus = useCallback(async () => {
@@ -123,6 +131,10 @@ export function ProspeccaoTab({
       setCloudRun(res.run);
       if (res.run) {
         const st = res.run.status;
+        if (st === "completed" && refreshedCloudRunRef.current !== res.run.id) {
+          onRefreshLeads?.();
+          refreshedCloudRunRef.current = res.run.id;
+        }
         if (COLETA_ATIVA_STATES.includes(st)) {
           setStatusMsg(`GitHub Actions em execução: ${res.run.title || st}`);
         } else if (st === "completed") {
@@ -140,7 +152,7 @@ export function ProspeccaoTab({
     } catch {
       // Em desenvolvimento local sem GITHUB_ACTIONS_TOKEN na Vercel, mantém silencioso no poll
     }
-  }, [dataSourceMode, supabaseSession, onSessionUpdate]);
+  }, [dataSourceMode, supabaseSession, onSessionUpdate, onRefreshLeads]);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,7 +193,10 @@ export function ProspeccaoTab({
         (COLETA_ATIVA_STATES.includes(cloudRun.status) || cloudRun.status === "cancelling")
     );
 
-  const coletaAtiva = isLocalRunning || isCloudRunning || mockActive;
+  const coletaAtiva = isLocalRunning || isCloudRunning;
+
+  const consultasPorLocal = segmentos.reduce((total, segmento) => total + (TERMOS_POR_SEGMENTO[segmento] || 0), 0);
+  const totalConsultas = locais.length * consultasPorLocal;
 
   // Cálculo de progresso real (zerado quando não há execução registrada)
   const progresso = useMemo(() => {
@@ -243,20 +258,25 @@ export function ProspeccaoTab({
     );
   };
 
-  const handleStartColeta = async () => {
+  const handleStartColeta = async (locaisOverride?: string[]) => {
     setErrorMsg("");
+    if (dataSourceMode === "mock") {
+      setErrorMsg("A coleta real não está conectada. Entre no Supabase para usar o coletor em nuvem ou inicie a API local com Gosom.");
+      return;
+    }
+    if (dataSourceMode === "supabase" && !supabaseSession) {
+      setErrorMsg("Entre com a conta autorizada no Supabase em Configurações para liberar o coletor online.");
+      return;
+    }
+    if (coberturaNacional && dataSourceMode !== "supabase") {
+      setErrorMsg("A cobertura nacional está disponível pelo GitHub Actions, com Supabase conectado.");
+      return;
+    }
     if (dataSourceMode === "local") {
       setIsBusy(true);
       try {
-        const targetLocais = coberturaNacional
-          ? [
-              "São Paulo, SP", "Rio de Janeiro, RJ", "Belo Horizonte, MG",
-              "Curitiba, PR", "Porto Alegre, RS", "Salvador, BA",
-              "Recife, PE", "Fortaleza, CE", "Goiânia, GO", "Brasília, DF",
-            ]
-          : locais;
         const res = await startLocalCollection({
-          locais: targetLocais,
+          locais: locaisOverride ?? locais,
           segmentos,
           profundidade,
           emails: buscarEmails,
@@ -274,10 +294,13 @@ export function ProspeccaoTab({
     if (dataSourceMode === "supabase" && supabaseSession) {
       setIsBusy(true);
       try {
+        if (!coberturaNacional && (locaisOverride ?? locais).length * consultasPorLocal > 20) {
+          throw new Error("Esta rodada excede o limite de 20 buscas do coletor online. Reduza locais ou segmentos.");
+        }
         const res = await controlCloudCollector(supabaseSession, {
           action: "start",
           ...(coberturaNacional ? { cobertura: "nacional" } : {}),
-          locais: locais.join("\n"),
+          locais: (locaisOverride ?? locais).join("\n"),
           segmentos,
           profundidade,
           emails: coberturaNacional ? false : buscarEmails,
@@ -294,9 +317,18 @@ export function ProspeccaoTab({
       return;
     }
 
-    setMockActive(true);
-    setStatusMsg("Executando contêiner Gosom no Google Maps (Modo Demonstração)...");
   };
+
+  useEffect(() => {
+    if (!collectionRequest || handledRequestRef.current === collectionRequest.id) return;
+    handledRequestRef.current = collectionRequest.id;
+    const localCorrigido = corrigirLocal(collectionRequest.local);
+    setLocais([localCorrigido]);
+    setCoberturaNacional(false);
+    void handleStartColeta([localCorrigido]);
+    // Uma solicitação representa uma ação única iniciada pelo modal de Nova Prospecção.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectionRequest?.id]);
 
   const handleStopColeta = async () => {
     setErrorMsg("");
@@ -329,8 +361,6 @@ export function ProspeccaoTab({
       return;
     }
 
-    setMockActive(false);
-    setStatusMsg("Coleta interrompida pelo operador.");
   };
 
   return (
@@ -362,7 +392,7 @@ export function ProspeccaoTab({
           ) : (
             <button
               onClick={() => void handleStartColeta()}
-              disabled={isBusy || (!coberturaNacional && locais.length === 0) || segmentos.length === 0}
+              disabled={isBusy || (!coberturaNacional && locais.length === 0) || segmentos.length === 0 || dataSourceMode === "mock" || (dataSourceMode === "supabase" && !supabaseSession) || (coberturaNacional && dataSourceMode !== "supabase") || (!coberturaNacional && dataSourceMode === "supabase" && totalConsultas > 20)}
               className={cn(ui.btnBrand, "h-12 px-8 text-sm")}
             >
               <Play size={17} /> {isBusy ? "Iniciando..." : "Iniciar Coleta"}
@@ -398,8 +428,8 @@ export function ProspeccaoTab({
                 : dataSourceMode === "local"
                   ? "Motor Local (SQLite + Gosom)"
                   : dataSourceMode === "supabase"
-                    ? "Motor Cloud (GitHub Actions)"
-                    : "Pronto"}
+                    ? supabaseSession ? "Motor Cloud (GitHub Actions)" : "Conecte o Supabase"
+                    : "Backend não conectado"}
             </span>
             {cloudRun?.url && (
               <a
@@ -434,7 +464,13 @@ export function ProspeccaoTab({
           </div>
           <p className="text-xs text-muted-foreground mt-2 flex items-center gap-2">
             <Zap size={14} className="text-brand shrink-0" />
-            <span>{statusMsg}</span>
+            <span>
+              {dataSourceMode === "mock"
+                ? "Modo demonstração: conecte o Supabase ou inicie a API local com Gosom para executar buscas reais."
+                : dataSourceMode === "supabase" && !supabaseSession
+                  ? "Entre com a conta autorizada no Supabase em Configurações para liberar o coletor online."
+                  : statusMsg}
+            </span>
           </p>
         </div>
       </div>
@@ -448,7 +484,7 @@ export function ProspeccaoTab({
               <MapPin size={18} className="text-brand" /> Locais para Prospecção
             </h3>
             <span className="text-xs text-muted-foreground">
-              {dataSourceMode === "supabase" ? "Até 20 buscas por rodada Cloud" : "Até 100 locais por lote Local"}
+              {dataSourceMode === "supabase" ? "Até 20 buscas por rodada Cloud" : "Busca local enviada ao Gosom"}
             </span>
           </div>
 
@@ -509,6 +545,12 @@ export function ProspeccaoTab({
               </span>
             ))}
           </div>
+          {!coberturaNacional && (
+            <p className={cn("text-xs", dataSourceMode === "supabase" && totalConsultas > 20 ? "text-destructive" : "text-muted-foreground")}>
+              {totalConsultas} {totalConsultas === 1 ? "busca" : "buscas"} nesta execução.
+              {dataSourceMode === "supabase" && totalConsultas > 20 ? " Reduza locais ou segmentos para ficar no limite de 20." : ""}
+            </p>
+          )}
 
           {/* Opção Cobertura Nacional */}
           <div className="pt-4 border-t border-border">
@@ -517,6 +559,7 @@ export function ProspeccaoTab({
                 type="checkbox"
                 checked={coberturaNacional}
                 onChange={(e) => setCoberturaNacional(e.target.checked)}
+                disabled={dataSourceMode !== "supabase" || !supabaseSession}
                 className={ui.checkbox}
               />
               <div>
@@ -524,7 +567,9 @@ export function ProspeccaoTab({
                   Cobertura Nacional Completa
                 </span>
                 <span className="text-xs text-muted-foreground block">
-                  Percorre automaticamente as 27 capitais do Brasil intercalando regiões.
+                  {dataSourceMode === "supabase" && supabaseSession
+                    ? "O GitHub Actions percorre a fila nacional em rodadas de até 20 buscas."
+                    : "Disponível com Supabase conectado; usa a fila real do GitHub Actions."}
                 </span>
               </div>
             </label>
@@ -583,8 +628,9 @@ export function ProspeccaoTab({
             <label className="flex items-center gap-2.5 text-xs text-foreground cursor-pointer">
               <input
                 type="checkbox"
-                checked={enriquecerSites}
+                checked={enriquecerSites && dataSourceMode === "supabase" && !coberturaNacional}
                 onChange={(e) => setEnriquecerSites(e.target.checked)}
+                disabled={dataSourceMode !== "supabase" || !supabaseSession || coberturaNacional}
                 className={ui.checkbox}
               />
               <span className="flex items-center gap-1.5 font-medium">
@@ -595,8 +641,9 @@ export function ProspeccaoTab({
             <label className="flex items-center gap-2.5 text-xs text-foreground cursor-pointer">
               <input
                 type="checkbox"
-                checked={buscarEmails}
+                checked={buscarEmails && !coberturaNacional}
                 onChange={(e) => setBuscarEmails(e.target.checked)}
+                disabled={coberturaNacional}
                 className={ui.checkbox}
               />
               <span className="flex items-center gap-1.5 font-medium">
