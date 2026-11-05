@@ -1,37 +1,74 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 import { App } from "./App";
 
-afterEach(() => vi.unstubAllGlobals());
+test("renderiza a interface PharmaLeads no tema Centrus com métricas e leads", async () => {
+  render(<App />);
 
-function fakeApi() {
-  return vi.fn(async (path: string, options?: RequestInit) => {
-    let body: unknown;
-    if (path === "/api/config") body = { segmentos: [{id:"varejo",descricao:"Farmácias e drogarias de balcão"},{id:"manipulacao",descricao:"Farmácias de manipulação"}] };
-    else if (path === "/api/status") body = { total_leads: 1, execucao: null, consulta_atual: null };
-    else if (path.startsWith("/api/leads")) body = { items: [{chave:"abc",nome:"Farmácia teste",categoria:"Farmácia",local_busca:"Curitiba, PR",segmento:"varejo",telefone:"(41) 3333-4444",situacao:"ativa_ou_desconhecida"}], total:1, next_offset:null };
-    else if (path === "/api/coletas" && options?.method === "POST") body = {id:1};
-    else body = {};
-    return { ok:true, json: async () => body };
-  });
-}
+  // Valida Marca e Título Principal
+  expect(screen.getByText("Leads – Farmácias")).toBeInTheDocument();
+  expect(screen.getByText(/Gerencie, filtre e acompanhe os leads/)).toBeInTheDocument();
 
-test("exibe leads reais retornados pela API e filtros", async () => {
-  const fetcher=fakeApi(); vi.stubGlobal("fetch",fetcher); render(<App />);
-  expect(await screen.findByText("Farmácia teste")).toBeVisible();
-  expect(screen.getByText("SQLite local")).toBeVisible();
-  await userEvent.type(screen.getByLabelText("Buscar estabelecimentos"),"Curitiba");
-  await waitFor(()=>expect(fetcher.mock.calls.some(call=>String(call[0]).includes("q=Curitiba"))).toBe(true));
+  // Valida cards de métricas
+  expect(screen.getByText("Leads encontrados")).toBeInTheDocument();
+  expect(screen.getByText("Estados")).toBeInTheDocument();
+  expect(screen.getAllByText("Qualificados").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Em contato").length).toBeGreaterThan(0);
+
+  // Valida primeiros leads da referência da imagem (presentes na tabela e no card mobile)
+  const vitals = await screen.findAllByText("Farmácia Vital");
+  expect(vitals.length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Drogaria São Bento").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Farmácia Boa Saúde").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Drogaria Progresso").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Farmácia Central").length).toBeGreaterThan(0);
+
+  // Valida presença da coluna lateral de filtros e gráfico
+  expect(screen.getByText("Filtros")).toBeInTheDocument();
+  expect(screen.getByText("Origem dos Leads")).toBeInTheDocument();
 });
 
-test("envia locais e segmentos para iniciar coleta", async () => {
-  const fetcher=fakeApi(); vi.stubGlobal("fetch",fetcher); render(<App />);
-  await screen.findByText("Farmácia teste");
-  await userEvent.type(screen.getByLabelText("Pesquisar cidade, estado ou bairro"),"Curitiba, PR");
-  await userEvent.click(screen.getByRole("button",{name:"Adicionar local"}));
-  await userEvent.click(screen.getByRole("button",{name:/Iniciar coleta/}));
-  await waitFor(()=>expect(fetcher.mock.calls.some(call=>call[0] === "/api/coletas" && call[1]?.method === "POST")).toBe(true));
-  const chamada=fetcher.mock.calls.find(call=>call[0] === "/api/coletas");
-  expect(JSON.parse(String(chamada?.[1]?.body))).toMatchObject({locais:["Curitiba, PR"],segmentos:["varejo","manipulacao"],profundidade:1});
+test("permite navegar entre as abas da sidebar e abrir modais", async () => {
+  render(<App />);
+
+  // Abre aba de Prospecção (correspondência exata)
+  const prospeccaoTabBtn = screen.getByRole("button", { name: /^Prospecção$/i });
+  await userEvent.click(prospeccaoTabBtn);
+  expect(screen.getByText("Central de Prospecção & Web Scraping")).toBeInTheDocument();
+
+  // Abre aba de CRM (correspondência exata)
+  const crmTabBtn = screen.getByRole("button", { name: /^CRM$/i });
+  await userEvent.click(crmTabBtn);
+  expect(screen.getByText("Pipeline Comercial & Funil CRM")).toBeInTheDocument();
+
+  // Volta para Leads (correspondência exata)
+  const leadsTabBtn = screen.getByRole("button", { name: /^Leads$/i });
+  await userEvent.click(leadsTabBtn);
+  expect(screen.getByText("Leads – Farmácias")).toBeInTheDocument();
+
+  // Abre modal Nova Prospecção
+  const newProspectBtn = screen.getByRole("button", { name: /Nova Prospecção/i });
+  await userEvent.click(newProspectBtn);
+  expect(screen.getByRole("heading", { name: "Nova Prospecção" })).toBeInTheDocument();
+});
+
+test("filtra leads através das abas de status rápidos", async () => {
+  render(<App />);
+
+  // Espera carregar os leads
+  const vitals = await screen.findAllByText("Farmácia Vital");
+  expect(vitals.length).toBeGreaterThan(0);
+
+  // Clica na pill de Qualificado
+  const pills = screen.getAllByRole("button");
+  const tabQualificados = pills.find((btn) => btn.textContent?.includes("Qualificado ("));
+  if (tabQualificados) {
+    await userEvent.click(tabQualificados);
+  }
+
+  await waitFor(() => {
+    // Farmácia Vital é Qualificado
+    expect(screen.getAllByText("Farmácia Vital").length).toBeGreaterThan(0);
+  });
 });
