@@ -8,6 +8,7 @@ import {
   User,
   GripVertical,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
 import { buildWhatsAppLink, formatNumberBR } from "../../lib/formatters";
 import { ui } from "../../lib/ui";
@@ -18,6 +19,7 @@ interface CrmTabProps {
   leads: LeadItem[];
   searchQuery?: string;
   onStatusChange: (id: string, newStatus: LeadStatus) => void;
+  onRemoveFromCrm: (id: string) => void;
   onSelectLead: (lead: LeadItem) => void;
 }
 
@@ -34,6 +36,7 @@ export function CrmTab({
   leads,
   searchQuery = "",
   onStatusChange,
+  onRemoveFromCrm,
   onSelectLead,
 }: CrmTabProps) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -123,7 +126,7 @@ export function CrmTab({
             <span>Pipeline Comercial & Funil CRM</span>
           </h2>
           <p className={ui.pageSubtitle}>
-            Arraste e solte os cards com o cursor entre as etapas para atualizar o status de cada farmácia.
+            Adicione leads pelo menu de ações na lista de Leads. Arraste cards entre etapas; remover um card do CRM mantém o lead na base. A seleção fica salva neste navegador.
           </p>
         </div>
 
@@ -189,7 +192,9 @@ export function CrmTab({
                   >
                     {isDropTarget
                       ? `Soltar aqui para mover para "${col.title}"`
-                      : "Arraste um lead para esta etapa."}
+                      : col.id === "Não contatado"
+                        ? "Adicione leads pelo menu de ações na lista de Leads."
+                        : "Arraste um lead para esta etapa."}
                   </div>
                 ) : (
                   <>
@@ -226,9 +231,23 @@ export function CrmTab({
                                 {lead.nome}
                               </h4>
                             </div>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-semibold shrink-0">
-                              {lead.uf}
-                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-semibold">
+                                {lead.uf}
+                              </span>
+                              <button
+                                type="button"
+                                aria-label={`Remover ${lead.nome} do CRM`}
+                                title="Remover do CRM (mantém o lead na base)"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onRemoveFromCrm(lead.id);
+                                }}
+                                className="w-7 h-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-brand hover:bg-primary-soft transition-colors"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </div>
 
                           <p className="text-xs text-muted-foreground mt-1 pl-5 line-clamp-1">

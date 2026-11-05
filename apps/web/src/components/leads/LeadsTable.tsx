@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { MoreHorizontal, ChevronLeft, ChevronRight, Eye, Trash2, Check, SearchX } from "lucide-react";
+import { MoreHorizontal, ChevronLeft, ChevronRight, Eye, Trash2, Check, SearchX, BriefcaseBusiness } from "lucide-react";
 import { formatCNPJ, formatPhone, buildWhatsAppLink, formatNumberBR } from "../../lib/formatters";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
@@ -19,6 +19,7 @@ interface LeadsTableProps {
   onViewDetails: (lead: LeadItem) => void;
   onChangeStatus: (leadId: string, newStatus: LeadStatus) => void;
   onDeleteLead: (leadId: string) => void;
+  onCrmMembershipChange: (leadId: string, included: boolean) => void;
   selectedIds: string[];
   onToggleSelect: (id: string) => void;
   onToggleSelectAll: () => void;
@@ -51,6 +52,7 @@ export function LeadsTable({
   onViewDetails,
   onChangeStatus,
   onDeleteLead,
+  onCrmMembershipChange,
   selectedIds,
   onToggleSelect,
   onToggleSelectAll,
@@ -338,6 +340,16 @@ export function LeadsTable({
         <div role="menu" style={menu.style} onClick={(e) => e.stopPropagation()} className={cn(ui.menu, "w-56 z-50")}>
           <button role="menuitem" className={ui.menuItem} onClick={() => { onViewDetails(menu.lead); setMenu(null); }}>
             <Eye size={16} /> Ver detalhes
+          </button>
+          <button
+            role="menuitem"
+            className={ui.menuItem}
+            onClick={() => {
+              onCrmMembershipChange(menu.lead.id, !menu.lead.crmIncluded);
+              setMenu(null);
+            }}
+          >
+            <BriefcaseBusiness size={16} /> {menu.lead.crmIncluded ? "Remover do CRM" : "Adicionar ao CRM"}
           </button>
           <a
             role="menuitem"
