@@ -28,6 +28,7 @@ import {
 } from "../../lib/backend";
 import type { Status as LocalApiStatus } from "../../lib/crm";
 import type { LeadItem } from "../../lib/mock-leads";
+import { ProspectSearch } from "./ProspectSearch";
 
 const UFS = [
   "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA",
@@ -85,6 +86,7 @@ export function ProspeccaoTab({
   // Estado da execução Cloud (GitHub Actions /api/collector)
   const [cloudRun, setCloudRun] = useState<CollectorRun | null>(null);
   const refreshedCloudRunRef = useRef<number | null>(null);
+  const cloudWasActiveRef = useRef(false);
   const [isBusy, setIsBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [statusMsg, setStatusMsg] = useState("Pronto para iniciar coleta automatizada.");
@@ -131,9 +133,11 @@ export function ProspeccaoTab({
       setCloudRun(res.run);
       if (res.run) {
         const st = res.run.status;
-        if (st === "completed" && refreshedCloudRunRef.current !== res.run.id) {
+        if (COLETA_ATIVA_STATES.includes(st)) cloudWasActiveRef.current = true;
+        if (st === "completed" && cloudWasActiveRef.current && refreshedCloudRunRef.current !== res.run.id) {
           onRefreshLeads?.();
           refreshedCloudRunRef.current = res.run.id;
+          cloudWasActiveRef.current = false;
         }
         if (COLETA_ATIVA_STATES.includes(st)) {
           setStatusMsg(`GitHub Actions em execução: ${res.run.title || st}`);
@@ -308,6 +312,7 @@ export function ProspeccaoTab({
         });
         if (res.session !== supabaseSession) onSessionUpdate?.(res.session);
         setCloudRun(res.run);
+        cloudWasActiveRef.current = true;
         setStatusMsg("Workflow disparado no GitHub Actions. Aguardando execução...");
       } catch (err) {
         setErrorMsg(err instanceof Error ? err.message : "Falha ao disparar coleta em nuvem.");
@@ -365,6 +370,12 @@ export function ProspeccaoTab({
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <ProspectSearch dataSourceMode={dataSourceMode} session={supabaseSession} onSessionUpdate={onSessionUpdate} realLeads={realLeads} />
+      <details open={coletaAtiva || Boolean(collectionRequest) ? true : undefined} className={ui.card} onToggle={event => {
+        if (event.currentTarget.open) onRefreshLeads?.();
+      }}>
+        <summary className="px-4 py-5 sm:px-6 cursor-pointer font-bold text-foreground">Coleta no Google Maps · configurar e acompanhar {coletaAtiva ? "(em andamento)" : ""}</summary>
+        <div className="p-4 sm:p-6 space-y-6 border-t border-border">
       {/* Cabeçalho da Seção */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -688,6 +699,8 @@ export function ProspeccaoTab({
           })}
         </div>
       </div>
+        </div>
+      </details>
     </div>
   );
 }
