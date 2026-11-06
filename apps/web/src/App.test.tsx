@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "./App";
 import { ProspeccaoTab } from "./components/prospeccao/ProspeccaoTab";
-import { SESSION_KEY } from "./lib/backend";
+import { AUTHORIZED_USER_ID, SESSION_KEY } from "./lib/backend";
 
 beforeEach(() => { window.localStorage.clear(); window.sessionStorage.clear(); });
 afterEach(() => vi.unstubAllGlobals());
@@ -76,4 +76,46 @@ test("configurações mostram apenas Supabase e preservam a conexão existente",
   expect(screen.queryByText("Modo Demonstração (Mock)")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Encerrar Sessão" })).not.toBeInTheDocument();
   expect(localStorage.getItem(SESSION_KEY)).toContain("refresh_token");
+});
+
+
+test("Nova Prospecção redireciona sem abrir modal nem iniciar coleta", async () => {
+  const fetcher = vi.fn(async () => new Response(JSON.stringify({ run: null })));
+  vi.stubGlobal("fetch", fetcher);
+  render(<App />);
+  await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  await userEvent.click(screen.getByRole("button", { name: "Nova Prospecção" }));
+  expect(screen.getByRole("heading", { name: "Encontre novas farmácias" })).toBeInTheDocument();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(fetcher.mock.calls.some(call => String(call).includes("POST"))).toBe(false);
+});
+
+test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async () => {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
+  let included = false;
+  const lead = () => ({ chave: "real-1", nome: "Farmácia da base", local_busca: "Curitiba, PR", segmento: "varejo", crm_included: included, crm_status: "Não contatado" });
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: AUTHORIZED_USER_ID }));
+    if (url.includes("/rest/v1/pharmaleads")) {
+      if (init?.method === "PATCH") {
+        expect(JSON.parse(String(init.body))).toEqual({ crm_included: true });
+        included = true;
+      }
+      return new Response(JSON.stringify([lead()]), { headers: { "content-range": "0-0/1" } });
+    }
+    return new Response(JSON.stringify({ run: null }));
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<App />);
+  await userEvent.click(screen.getByRole("button", { name: "CRM" }));
+  await userEvent.click(screen.getByRole("button", { name: "Adicionar leads" }));
+  const add = await screen.findByRole("button", { name: "Adicionar Farmácia da base ao CRM" });
+  await userEvent.click(add);
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Adicionar Farmácia da base ao CRM" })).not.toBeInTheDocument());
+  expect(included).toBe(true);
+  await userEvent.keyboard("{Escape}");
+  expect(screen.getByText("Farmácia da base")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  await userEvent.click(screen.getByRole("button", { name: "CRM" }));
+  expect(await screen.findByText("Farmácia da base")).toBeInTheDocument();
 });

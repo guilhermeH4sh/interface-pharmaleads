@@ -13,10 +13,9 @@ interface Props {
   onSessionUpdate?: (session: SupabaseSession) => void;
   onRefreshLeads?: () => void;
   onOpenLeads?: () => void;
-  collectionRequest?: { id: number; local: string } | null;
 }
 
-export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null, onSessionUpdate, onRefreshLeads, onOpenLeads, collectionRequest = null }: Props) {
+export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null, onSessionUpdate, onRefreshLeads, onOpenLeads }: Props) {
   const [text, setText] = useState("");
   const [uf, setUf] = useState("");
   const [source, setSource] = useState("Google Maps");
@@ -28,7 +27,6 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
   const [runUrl, setRunUrl] = useState("");
   const hadActive = useRef(false);
   const pendingAt = useRef(0);
-  const handledRequest = useRef<number | null>(null);
   const connected = dataSourceMode === "local" || (dataSourceMode === "supabase" && Boolean(supabaseSession));
 
   useEffect(() => {
@@ -101,11 +99,6 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
     } finally { setBusy(false); }
   }, [connected, text, uf, segments, source, dataSourceMode, supabaseSession, onSessionUpdate]);
 
-  useEffect(() => {
-    if (!collectionRequest || handledRequest.current === collectionRequest.id) return;
-    handledRequest.current = collectionRequest.id;
-    queueMicrotask(() => void start(collectionRequest.local));
-  }, [collectionRequest, start]);
 
   async function stop() {
     setBusy(true);
