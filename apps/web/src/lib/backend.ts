@@ -140,7 +140,10 @@ export function savedSupabaseSession(): SupabaseSession | null {
   }
 }
 
+let authGeneration = 0;
+
 export function clearSupabaseSession(): void {
+  authGeneration += 1;
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(SESSION_KEY);
   window.sessionStorage.removeItem(SESSION_KEY);
@@ -152,6 +155,7 @@ export async function authenticateSupabase(
   customUrl = SUPABASE_URL,
   customKey = PUBLISHABLE_KEY
 ): Promise<SupabaseSession> {
+  const generation = authGeneration;
   const response = await fetch(`${customUrl}/auth/v1/token?grant_type=${grant}`, {
     method: "POST",
     headers: { apikey: customKey, "Content-Type": "application/json" },
@@ -163,17 +167,18 @@ export async function authenticateSupabase(
     expires_in?: number;
     user?: { id?: string; email?: string };
   };
+  if (generation !== authGeneration) throw new AccessError("Sessão encerrada.");
   if (!response.ok || !body.access_token || !body.refresh_token || !body.expires_in) {
     throw new AccessError(
       grant === "password"
-        ? "Login não autorizado. Confira e-mail e senha da conta Supabase."
-        : "Sessão expirada. Entre novamente."
+        ? "E-mail ou senha inválidos."
+        : "Sua sessão expirou. Entre novamente na plataforma."
     );
   }
   if (body.user?.id !== AUTHORIZED_USER_ID) {
     clearSupabaseSession();
     throw new AccessError(
-      "Esta conta não é o usuário autorizado para public.pharmaleads. Entre com o usuário cadastrado em Supabase Authentication > Users."
+      "Esta conta não tem acesso à plataforma."
     );
   }
   const session: SupabaseSession = {
@@ -202,20 +207,26 @@ export async function validSupabaseSession(session: SupabaseSession): Promise<Su
   return sessionRefresh;
 }
 
-export async function fetchSupabaseAllLeads(
-  session: SupabaseSession
-): Promise<{ session: SupabaseSession; rows: Lead[] }> {
+export async function verifyPlatformSession(session: SupabaseSession): Promise<SupabaseSession> {
   const active = await validSupabaseSession(session);
   const identity = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
     headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}` },
   });
-  if (!identity.ok) throw new AccessError("Sessão inválida ou expirada. Entre novamente.");
+  if (identity.status === 401 || identity.status === 403) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
+  if (!identity.ok) throw new Error("Não foi possível validar sua sessão. Tente novamente.");
   const user = (await identity.json()) as { id?: string };
   if (user.id !== AUTHORIZED_USER_ID) {
     throw new AccessError(
-      "Esta conta não tem acesso aos leads. Entre com o usuário autorizado em Supabase Authentication > Users."
+      "Esta conta não tem acesso à plataforma."
     );
   }
+  return active;
+}
+
+export async function fetchSupabaseAllLeads(
+  session: SupabaseSession
+): Promise<{ session: SupabaseSession; rows: Lead[] }> {
+  const active = await verifyPlatformSession(session);
 
   const rows: Lead[] = [];
   let offset = 0;
@@ -234,8 +245,9 @@ export async function fetchSupabaseAllLeads(
         Prefer: "count=exact",
       },
     });
-    if (response.status === 401 || response.status === 403) {
-      throw new AccessError("A conta não tem acesso à tabela pharmaleads. Verifique as permissões no Supabase.");
+    if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
+    if (response.status === 403) {
+      throw new Error("A conta não tem acesso à tabela pharmaleads. Verifique as permissões no Supabase.");
     }
     if (!response.ok && crmColumnsAvailable && response.status === 400) {
       const body = await response.clone().text();
@@ -280,6 +292,7 @@ export async function updateSupabaseCrmLead(
     body: JSON.stringify(fields),
   });
   const body = (await response.json().catch(() => [])) as Lead[] | { message?: string; details?: string };
+  if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
   if (!response.ok) {
     const message = !Array.isArray(body) ? body.message || body.details : undefined;
     throw new Error(message || `Não foi possível atualizar o lead no Supabase (HTTP ${response.status}).`);
@@ -366,6 +379,7 @@ export async function fetchCloudCollectorRun(
     run?: CollectorRun | null;
     error?: string;
   };
+  if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
   if (!response.ok) {
     throw new Error(body.error || `Coletor em nuvem indisponível (HTTP ${response.status}).`);
   }
@@ -397,6 +411,7 @@ export async function controlCloudCollector(
     run?: CollectorRun | null;
     error?: string;
   };
+  if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
   if (!response.ok) {
     throw new Error(body.error || `Falha ao controlar coleta em nuvem (HTTP ${response.status}).`);
   }
