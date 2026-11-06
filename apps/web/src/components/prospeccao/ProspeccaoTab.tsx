@@ -130,7 +130,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
             <div>
               <label htmlFor="prospect-uf" className={cn(ui.label, "block mb-1.5")}>UF</label>
               <select id="prospect-uf" value={uf} onChange={event => setUf(event.target.value)} disabled={busy || active} className={ui.input}>
-                <option value="">Escolha uma UF</option>
+                <option value="">Todas as UFs</option>
                 {STATES.map(state => <option key={state.value} value={state.value}>{state.label}</option>)}
               </select>
             </div>
