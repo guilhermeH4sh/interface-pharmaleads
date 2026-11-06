@@ -10,6 +10,9 @@ export function buildCollectorSearch(text: string, uf: string, segments: string[
   let local = text.trim().replace(/\s+/g, " ");
   const suffix = /,\s*([a-z]{2})$/i.exec(local)?.[1]?.toUpperCase();
   if (suffix && uf && suffix !== uf) throw new Error("A UF da pesquisa é diferente da UF selecionada.");
+  if (!local && !uf) {
+    return { locais: [] as string[], segmentos: [...new Set(segments)], profundidade: 1, emails: false, cobertura: "nacional" as const };
+  }
   if (!local) {
     const state = STATES.find(option => option.value === uf);
     if (!state) throw new Error("Digite uma cidade ou bairro, ou escolha uma UF.");
