@@ -279,8 +279,8 @@ export function App() {
               dataSourceMode={dataSourceMode}
               supabaseSession={supabaseSession}
               onSessionUpdate={setSupabaseSession}
-              realLeads={realLeads}
               onRefreshLeads={handleRefreshActiveData}
+              onOpenLeads={() => setActiveTab("leads")}
               collectionRequest={collectionRequest}
             />
           )}
