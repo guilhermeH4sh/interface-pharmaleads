@@ -63,3 +63,17 @@ test("a barra inicia o GitHub Actions e desabilita fontes não integradas", asyn
   await waitFor(() => expect(fetcher.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
 });
+
+
+test("configurações mostram apenas Supabase e preservam a conexão existente", async () => {
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run: null }))));
+  render(<App />);
+  await userEvent.click(screen.getByRole("button", { name: "Configurações" }));
+  expect(screen.getByRole("status")).toHaveTextContent("Conectado");
+  expect(screen.queryByRole("textbox", { name: /E-mail/ })).not.toBeInTheDocument();
+  expect(screen.queryByText("SQLite Local + Gosom")).not.toBeInTheDocument();
+  expect(screen.queryByText("Modo Demonstração (Mock)")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Encerrar Sessão" })).not.toBeInTheDocument();
+  expect(localStorage.getItem(SESSION_KEY)).toContain("refresh_token");
+});

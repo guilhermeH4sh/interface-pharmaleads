@@ -92,7 +92,7 @@ export function Topbar({
         <button
           type="button"
           onClick={onOpenConfig}
-          title="Alternar ou configurar fonte de dados"
+          title="Ver conexão com o Supabase"
           className="hidden sm:inline-flex items-center gap-2 h-11 px-3.5 rounded-xl border border-border bg-card hover:border-primary/40 text-xs font-semibold text-foreground transition-colors"
         >
           <span

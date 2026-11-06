@@ -128,12 +128,13 @@ export function markLeadDeletedLocal(id: string): void {
 export function savedSupabaseSession(): SupabaseSession | null {
   if (typeof window === "undefined") return null;
   try {
-    const value = window.sessionStorage.getItem(SESSION_KEY);
+    const value = window.localStorage.getItem(SESSION_KEY) || window.sessionStorage.getItem(SESSION_KEY);
     if (!value) return null;
     const parsed = JSON.parse(value) as SupabaseSession;
-    return parsed.access_token && parsed.refresh_token && Number.isFinite(parsed.expires_at)
-      ? parsed
-      : null;
+    if (!parsed.access_token || !parsed.refresh_token || !Number.isFinite(parsed.expires_at)) return null;
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify(parsed));
+    window.sessionStorage.removeItem(SESSION_KEY);
+    return parsed;
   } catch {
     return null;
   }
@@ -141,6 +142,7 @@ export function savedSupabaseSession(): SupabaseSession | null {
 
 export function clearSupabaseSession(): void {
   if (typeof window === "undefined") return;
+  window.localStorage.removeItem(SESSION_KEY);
   window.sessionStorage.removeItem(SESSION_KEY);
 }
 
@@ -181,15 +183,23 @@ export async function authenticateSupabase(
     email: body.user?.email || fields.email,
   };
   if (typeof window !== "undefined") {
-    window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   }
   return session;
 }
 
+let sessionRefresh: Promise<SupabaseSession> | null = null;
+
 export async function validSupabaseSession(session: SupabaseSession): Promise<SupabaseSession> {
-  return session.expires_at > Date.now() + 60_000
-    ? session
-    : authenticateSupabase("refresh_token", { refresh_token: session.refresh_token });
+  const stored = savedSupabaseSession();
+  const current = stored && stored.expires_at > session.expires_at ? stored : session;
+  if (current.expires_at > Date.now() + 60_000) return current;
+  // Compartilha a renovação entre o coletor e as consultas de leads.
+  if (!sessionRefresh) {
+    sessionRefresh = authenticateSupabase("refresh_token", { refresh_token: current.refresh_token })
+      .finally(() => { sessionRefresh = null; });
+  }
+  return sessionRefresh;
 }
 
 export async function fetchSupabaseAllLeads(
