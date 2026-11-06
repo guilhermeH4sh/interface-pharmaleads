@@ -31,10 +31,9 @@ import type { LeadItem, LeadStatus } from "./lib/mock-leads";
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<NavTab>("leads");
+  const [activeTab, setActiveTab] = useState<NavTab>("prospeccao");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [collectionRequest, setCollectionRequest] = useState<{ id: number; local: string } | null>(null);
   const collectionRequestId = useRef(0);
 
@@ -133,7 +132,7 @@ export function App() {
       if (cancelled) return;
       if (dataSourceMode === "local") {
         void loadLocalLeads();
-      } else if (dataSourceMode === "supabase" && supabaseSession) {
+      } else if (dataSourceMode === "supabase" && supabaseSession && ["leads", "crm", "relatorios"].includes(activeTab)) {
         void loadSupabaseLeads(supabaseSession);
       }
     });
@@ -141,7 +140,7 @@ export function App() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataSourceMode, Boolean(supabaseSession)]);
+  }, [dataSourceMode, Boolean(supabaseSession), activeTab]);
 
   const handleRefreshActiveData = useCallback(() => {
     if (dataSourceMode === "local") {
@@ -218,7 +217,6 @@ export function App() {
     const session = await authenticateSupabase("password", { email, password });
     setSupabaseSession(session);
     setDataSourceMode("supabase");
-    await loadSupabaseLeads(session);
   };
 
   const handleSignOutSupabase = () => {
@@ -243,8 +241,6 @@ export function App() {
       <div className="flex-1 lg:pl-[220px] flex flex-col min-h-screen min-w-0 bg-background">
         {/* 2. Topbar com seletor de tema Claro/Escuro e status da conexão */}
         <Topbar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
           onToggleMobileMenu={() => setIsMobileMenuOpen(true)}
           theme={theme}
           onToggleTheme={toggleTheme}
@@ -260,7 +256,7 @@ export function App() {
         <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-[1600px] w-full mx-auto safe-pb">
           {activeTab === "leads" && (
             <LeadsView
-              searchQuery={searchQuery}
+              searchQuery=""
               dataSourceMode={dataSourceMode}
               realLeads={realLeads}
               isLoadingReal={isLoadingReal}
@@ -292,7 +288,6 @@ export function App() {
           {activeTab === "crm" && (
             <CrmTab
               leads={activeLeadsForCrm}
-              searchQuery={searchQuery}
               onStatusChange={handleCrmStatusChange}
               onRemoveFromCrm={(id) => handleCrmMembershipChange(id, false)}
               errorMessage={realError}

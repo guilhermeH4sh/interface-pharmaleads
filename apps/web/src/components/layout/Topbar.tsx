@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Search,
   Bell,
   ChevronDown,
   Menu,
@@ -9,7 +8,6 @@ import {
   ShieldCheck,
   Sun,
   Moon,
-  X,
   Database,
   RefreshCw,
 } from "lucide-react";
@@ -19,8 +17,6 @@ import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 
 interface TopbarProps {
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
   onToggleMobileMenu: () => void;
   theme: Theme;
   onToggleTheme: () => void;
@@ -33,8 +29,6 @@ interface TopbarProps {
 }
 
 export function Topbar({
-  searchQuery,
-  onSearchChange,
   onToggleMobileMenu,
   theme,
   onToggleTheme,
@@ -45,15 +39,8 @@ export function Topbar({
   onOpenConfig,
   onSignOutSupabase,
 }: TopbarProps) {
-  const [localQuery, setLocalQuery] = useState(searchQuery);
   const [openMenu, setOpenMenu] = useState<"user" | "notifications" | null>(null);
   const menusRef = useRef<HTMLDivElement>(null);
-
-  // Debounce de 300 ms na busca global
-  useEffect(() => {
-    const handler = setTimeout(() => onSearchChange(localQuery), 300);
-    return () => clearTimeout(handler);
-  }, [localQuery, onSearchChange]);
 
   // Fecha menus ao clicar fora ou pressionar Esc
   useEffect(() => {
@@ -88,7 +75,7 @@ export function Topbar({
 
   return (
     <header className="h-[72px] sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur-md px-4 md:px-8 flex items-center justify-between gap-3">
-      <div className="flex items-center gap-3 flex-1 min-w-0 max-w-2xl">
+      <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={onToggleMobileMenu}
           className={cn(ui.iconBtn, "lg:hidden shrink-0")}
@@ -97,36 +84,10 @@ export function Topbar({
           <Menu size={20} />
         </button>
 
-        <div className="relative flex-1 min-w-0">
-          <Search
-            size={18}
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-            aria-hidden="true"
-          />
-          <input
-            type="search"
-            value={localQuery}
-            onChange={(e) => setLocalQuery(e.target.value)}
-            placeholder="Digite o que deseja pesquisar..."
-            aria-label="Pesquisar leads por nome, cidade, CNPJ ou telefone"
-            className={cn(
-              ui.input,
-              "h-11 pl-11 pr-10 rounded-xl [&::-webkit-search-cancel-button]:hidden"
-            )}
-          />
-          {localQuery && (
-            <button
-              onClick={() => setLocalQuery("")}
-              aria-label="Limpar busca"
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
-            >
-              <X size={16} />
-            </button>
-          )}
-        </div>
+
       </div>
 
-      <div ref={menusRef} className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+      <div ref={menusRef} className="flex items-center gap-2 sm:gap-2.5 min-w-0 ml-auto">
         {/* Indicador de Conexão (SQLite Local / Supabase Online / Demo) */}
         <button
           type="button"
