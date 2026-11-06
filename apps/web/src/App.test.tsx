@@ -126,3 +126,22 @@ test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async ()
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
   expect(await screen.findByRole("button", { name: "Farmácia da base" })).toBeInTheDocument();
 });
+
+
+test("Todas as UFs com pesquisa vazia despacha cobertura nacional ao clicar Pesquisar", async () => {
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === "/api/collector" && init?.method === "POST") {
+      expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", cobertura: "nacional", segmentos: ["varejo"], profundidade: 1, emails: false });
+      return new Response(JSON.stringify({ run: { id: 0, status: "queued", url: "https://example.test/actions" } }));
+    }
+    return new Response(JSON.stringify({ run: null }));
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
+  expect(screen.getByRole("combobox", { name: "UF" })).toHaveValue("");
+  expect(screen.getByRole("option", { name: "Todas as UFs" })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
+  await waitFor(() => expect(fetcher.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
+  expect(screen.getByRole("status")).toHaveTextContent("Busca nacional solicitada");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
