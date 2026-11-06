@@ -17,7 +17,6 @@ import {
   clearSupabaseSession,
   computeSummaryFromItems,
   fetchLocalAllLeads,
-  fetchLocalApiStatus,
   fetchSupabaseAllLeads,
   mapRawLeadsToItems,
   savedSupabaseSession,
@@ -41,18 +40,7 @@ export function App() {
   const [supabaseSession, setSupabaseSession] = useState<SupabaseSession | null>(
     savedSupabaseSession
   );
-  const [dataSourceMode, setDataSourceMode] = useState<DataSourceMode>(() => {
-    if (savedSupabaseSession()) return "supabase";
-    if (
-      typeof window !== "undefined" &&
-      import.meta.env.MODE !== "test" &&
-      window.location.hostname &&
-      !["127.0.0.1", "localhost"].includes(window.location.hostname)
-    ) {
-      return "supabase";
-    }
-    return "mock";
-  });
+  const [dataSourceMode] = useState<DataSourceMode>("supabase");
 
   // Dados reais carregados (SQLite Local ou Supabase Online)
   const [rawLocalRows, setRawLocalRows] = useState<Lead[]>([]);
@@ -62,24 +50,6 @@ export function App() {
   const [overrideVersion, setOverrideVersion] = useState(0);
 
   const [selectedCrmLead, setSelectedCrmLead] = useState<LeadItem | null>(null);
-
-  // Auto-detecta API Python local (127.0.0.1:8765) quando rodando no navegador fora de testes unitários
-  useEffect(() => {
-    if (import.meta.env.MODE === "test" || savedSupabaseSession()) return;
-    let cancelled = false;
-    fetchLocalApiStatus()
-      .then((status) => {
-        if (!cancelled && status) {
-          setDataSourceMode("local");
-        }
-      })
-      .catch(() => {
-        // Permanece em modo mock caso a API local não esteja rodando
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Carrega todos os leads do SQLite Local
   const loadLocalLeads = useCallback(async () => {
@@ -216,14 +186,6 @@ export function App() {
   const handleSignInSupabase = async (email: string, password: string) => {
     const session = await authenticateSupabase("password", { email, password });
     setSupabaseSession(session);
-    setDataSourceMode("supabase");
-  };
-
-  const handleSignOutSupabase = () => {
-    clearSupabaseSession();
-    setSupabaseSession(null);
-    setRawSupabaseRows([]);
-    setRealError("");
   };
 
   return (
@@ -249,7 +211,6 @@ export function App() {
           isLoadingData={isLoadingReal}
           onRefreshData={handleRefreshActiveData}
           onOpenConfig={() => setActiveTab("config")}
-          onSignOutSupabase={handleSignOutSupabase}
         />
 
         {/* 3. Área de Conteúdo */}
@@ -297,12 +258,8 @@ export function App() {
 
           {activeTab === "config" && (
             <ConfigTab
-              dataSourceMode={dataSourceMode}
-              onToggleDataSource={setDataSourceMode}
               supabaseSession={supabaseSession}
               onSignInSupabase={handleSignInSupabase}
-              onSignOutSupabase={handleSignOutSupabase}
-              localLeadsCount={rawLocalRows.length || null}
               supabaseLeadsCount={rawSupabaseRows.length || null}
             />
           )}
