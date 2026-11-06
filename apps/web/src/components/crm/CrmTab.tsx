@@ -9,14 +9,18 @@ import {
   GripVertical,
   ChevronDown,
   Trash2,
+  Plus,
 } from "lucide-react";
 import { buildWhatsAppLink, formatNumberBR } from "../../lib/formatters";
+import { Modal } from "../ui/modal";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import type { LeadItem, LeadStatus } from "../../lib/mock-leads";
 
 interface CrmTabProps {
   leads: LeadItem[];
+  availableLeads?: LeadItem[];
+  onAddToCrm?: (id: string) => Promise<void>;
   searchQuery?: string;
   onStatusChange: (id: string, newStatus: LeadStatus) => void;
   onRemoveFromCrm: (id: string) => void;
@@ -35,12 +39,34 @@ const INITIAL_LIMIT = 30;
 
 export function CrmTab({
   leads,
+  availableLeads = [],
+  onAddToCrm,
   searchQuery = "",
   onStatusChange,
   onRemoveFromCrm,
   onSelectLead,
   errorMessage = "",
 }: CrmTabProps) {
+  const [addOpen, setAddOpen] = useState(false);
+  const [addQuery, setAddQuery] = useState("");
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const [addError, setAddError] = useState("");
+  const candidates = useMemo(() => {
+    const included = new Set(leads.map(lead => lead.id));
+    const query = addQuery.trim().toLocaleLowerCase("pt-BR");
+    return availableLeads.filter(lead => !included.has(lead.id) && !lead.crmIncluded &&
+      `${lead.nome} ${lead.cidade} ${lead.uf}`.toLocaleLowerCase("pt-BR").includes(query));
+  }, [availableLeads, leads, addQuery]);
+
+  async function addLead(id: string) {
+    if (!onAddToCrm || addingId) return;
+    setAddingId(id);
+    setAddError("");
+    try { await onAddToCrm(id); }
+    catch (error) { setAddError(error instanceof Error ? error.message : "Não foi possível adicionar o lead."); }
+    finally { setAddingId(null); }
+  }
+
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<LeadStatus | null>(null);
   const [limits, setLimits] = useState<Record<LeadStatus, number>>({
@@ -128,12 +154,13 @@ export function CrmTab({
             <span>Pipeline Comercial & Funil CRM</span>
           </h2>
           <p className={ui.pageSubtitle}>
-            Adicione leads pelo menu de ações na lista de Leads. Arraste cards entre etapas; remover do CRM mantém o lead em public.pharmaleads.
+            Adicione leads da sua base e arraste os cards entre as etapas. Remover do CRM mantém o contato na aba Leads.
           </p>
         </div>
 
         {/* Indicadores do Funil */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => setAddOpen(true)} disabled={!onAddToCrm} className={cn(ui.btnBrand, "h-11 px-5")}><Plus size={18} />Adicionar leads</button>
           <div className={cn(ui.card, "px-4 py-2.5 flex items-center gap-2 text-xs")}>
             <TrendingUp size={16} className="text-brand" />
             <span className="text-muted-foreground">Taxa de Qualificação:</span>
@@ -147,6 +174,23 @@ export function CrmTab({
           {errorMessage}
         </div>
       )}
+
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Adicionar leads ao CRM" description="Escolha contatos já salvos na sua base." size="lg">
+        <div className="space-y-4">
+          <input type="search" aria-label="Pesquisar leads para o CRM" placeholder="Pesquisar nome, cidade ou UF" value={addQuery} onChange={event => setAddQuery(event.target.value)} className={ui.input} />
+          {(addError || errorMessage) && <p role="alert" className="text-sm">{addError || errorMessage}</p>}
+          <ul className="space-y-2">
+            {candidates.slice(0, 30).map(lead => (
+              <li key={lead.id} className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+                <div className="min-w-0"><p className="font-semibold truncate">{lead.nome}</p><p className="text-sm text-muted-foreground">{lead.cidade} / {lead.uf}</p></div>
+                <button type="button" aria-label={`Adicionar ${lead.nome} ao CRM`} disabled={Boolean(addingId)} onClick={() => void addLead(lead.id)} className={cn(ui.btnSecondary, "h-10 px-3 shrink-0")}>{addingId === lead.id ? "Salvando..." : "Adicionar"}</button>
+              </li>
+            ))}
+          </ul>
+          {!candidates.length && <p className="text-sm text-muted-foreground">Nenhum lead disponível para adicionar.</p>}
+          {candidates.length > 30 && <p className="text-sm text-muted-foreground">Exibindo 30 de {candidates.length} contatos. Refine a pesquisa para encontrar um lead.</p>}
+        </div>
+      </Modal>
 
       {/* Kanban Board com 4 colunas (Drop Zones) */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-start">

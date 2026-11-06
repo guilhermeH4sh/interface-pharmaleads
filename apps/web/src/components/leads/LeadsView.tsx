@@ -5,7 +5,6 @@ import { LeadsTable } from "./LeadsTable";
 import { FiltersSidebar } from "./FiltersSidebar";
 import { BatchActionsBar } from "./BatchActionsBar";
 import { LeadDetailsModal } from "./LeadDetailsModal";
-import { NewProspectModal } from "./NewProspectModal";
 import { downloadLeadsCsv } from "../../lib/csv";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
@@ -41,7 +40,7 @@ interface LeadsViewProps {
   onMutateRealLeads?: () => void;
   onOpenConfig?: () => void;
   onCrmMembershipChange?: (leadId: string, included: boolean) => void;
-  onStartProspectAction?: (data: { uf: string; municipio: string; origem: string }) => void;
+  onNewProspect?: () => void;
 }
 
 export function LeadsView({
@@ -54,7 +53,7 @@ export function LeadsView({
   onMutateRealLeads,
   onOpenConfig,
   onCrmMembershipChange,
-  onStartProspectAction,
+  onNewProspect,
 }: LeadsViewProps) {
   const getUrlParam = (param: string, fallback = "") => {
     if (typeof window === "undefined") return fallback;
@@ -83,7 +82,6 @@ export function LeadsView({
 
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const [detailLead, setDetailLead] = useState<LeadItem | null>(null);
-  const [isNewProspectOpen, setIsNewProspectOpen] = useState(false);
 
   const isRealMode = dataSourceMode === "local" || dataSourceMode === "supabase";
 
@@ -320,7 +318,7 @@ export function LeadsView({
         </div>
 
         <button
-          onClick={() => setIsNewProspectOpen(true)}
+          onClick={onNewProspect}
           className={cn(ui.btnBrand, "h-12 px-6 sm:px-8 text-sm sm:text-base shrink-0")}
         >
           <Plus size={18} strokeWidth={2.5} />
@@ -431,17 +429,7 @@ export function LeadsView({
         onChangeStatus={handleSingleStatusChange}
       />
 
-      {/* Modal Nova Prospecção */}
-      <NewProspectModal
-        isOpen={isNewProspectOpen}
-        onClose={() => setIsNewProspectOpen(false)}
-        onStartProspect={(data) => {
-          setSelectedUF(data.uf);
-          setSelectedOrigem(data.origem);
-          if (data.municipio) setSelectedMunicipio(data.municipio);
-          onStartProspectAction?.(data);
-        }}
-      />
+
     </div>
   );
 }
