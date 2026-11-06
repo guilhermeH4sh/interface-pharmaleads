@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Sidebar, type NavTab } from "./components/layout/Sidebar";
 import { Topbar } from "./components/layout/Topbar";
 import { LeadsView } from "./components/leads/LeadsView";
@@ -33,8 +33,7 @@ export function App() {
   const [activeTab, setActiveTab] = useState<NavTab>("prospeccao");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const [collectionRequest, setCollectionRequest] = useState<{ id: number; local: string } | null>(null);
-  const collectionRequestId = useRef(0);
+
 
   // Sessão Supabase e modo de fonte de dados
   const [supabaseSession, setSupabaseSession] = useState<SupabaseSession | null>(
@@ -226,12 +225,7 @@ export function App() {
               onMutateRealLeads={() => setOverrideVersion((v) => v + 1)}
               onOpenConfig={() => setActiveTab("config")}
               onCrmMembershipChange={handleCrmMembershipChange}
-              onStartProspectAction={(data) => {
-                const local = `${data.municipio}, ${data.uf}`;
-                collectionRequestId.current += 1;
-                setCollectionRequest({ id: collectionRequestId.current, local });
-                setActiveTab("prospeccao");
-              }}
+              onNewProspect={() => setActiveTab("prospeccao")}
             />
           )}
 
@@ -242,13 +236,14 @@ export function App() {
               onSessionUpdate={setSupabaseSession}
               onRefreshLeads={handleRefreshActiveData}
               onOpenLeads={() => setActiveTab("leads")}
-              collectionRequest={collectionRequest}
             />
           )}
 
           {activeTab === "crm" && (
             <CrmTab
               leads={activeLeadsForCrm}
+              availableLeads={realLeads}
+              onAddToCrm={(id) => handleCrmMembershipChange(id, true)}
               onStatusChange={handleCrmStatusChange}
               onRemoveFromCrm={(id) => handleCrmMembershipChange(id, false)}
               errorMessage={realError}
