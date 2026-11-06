@@ -25,7 +25,8 @@ interface TopbarProps {
   isLoadingData?: boolean;
   onRefreshData?: () => void;
   onOpenConfig?: () => void;
-  onSignOutSupabase?: () => void;
+  onSignOut?: () => void;
+  userEmail?: string;
 }
 
 export function Topbar({
@@ -37,7 +38,8 @@ export function Topbar({
   isLoadingData = false,
   onRefreshData,
   onOpenConfig,
-  onSignOutSupabase,
+  onSignOut,
+  userEmail,
 }: TopbarProps) {
   const [openMenu, setOpenMenu] = useState<"user" | "notifications" | null>(null);
   const menusRef = useRef<HTMLDivElement>(null);
@@ -182,14 +184,14 @@ export function Topbar({
             onClick={() => setOpenMenu(openMenu === "user" ? null : "user")}
             aria-expanded={openMenu === "user"}
             aria-haspopup="menu"
-            aria-label="Menu do usuário Guilherme Ferreira"
+            aria-label="Menu do usuário"
             className="flex items-center gap-2.5 h-11 pl-1.5 pr-2 md:pr-3 rounded-xl border border-border bg-card hover:border-primary/40 transition-colors"
           >
             <span className="w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center">
-              G
+              {(userEmail || "U")[0].toUpperCase()}
             </span>
-            <span className="hidden md:inline font-semibold text-sm text-foreground">
-              Guilherme Ferreira
+            <span className="hidden md:inline font-semibold text-sm text-foreground max-w-[200px] truncate">
+              {userEmail || "Minha conta"}
             </span>
             <ChevronDown
               size={16}
@@ -203,7 +205,7 @@ export function Topbar({
           {openMenu === "user" && (
             <div role="menu" className={cn(ui.menu, "absolute right-0 mt-2 w-60 z-50")}>
               <div className="px-3 py-2.5 border-b border-border mb-1">
-                <p className="font-semibold text-sm text-foreground">Guilherme Ferreira</p>
+                <p className="font-semibold text-sm text-foreground break-all">{userEmail || "Minha conta"}</p>
                 <p className="text-xs text-muted-foreground">Comercial Centrus</p>
               </div>
               <button
@@ -214,7 +216,7 @@ export function Topbar({
                 }}
                 className={ui.menuItem}
               >
-                <User size={16} /> Fonte de Dados ({connectionLabel})
+                <User size={16} /> Configurações
               </button>
               <button
                 role="menuitem"
@@ -224,20 +226,20 @@ export function Topbar({
                 }}
                 className={ui.menuItem}
               >
-                <ShieldCheck size={16} /> Permissões Supabase
+                <ShieldCheck size={16} /> Integração de dados
               </button>
-              {isSupabaseAuthenticated && onSignOutSupabase && (
+              {isSupabaseAuthenticated && onSignOut && (
                 <>
                   <div className="border-t border-border my-1" />
                   <button
                     role="menuitem"
                     onClick={() => {
                       setOpenMenu(null);
-                      onSignOutSupabase();
+                      onSignOut();
                     }}
                     className={ui.menuItem}
                   >
-                    <LogOut size={16} /> Encerrar sessão Supabase
+                    <LogOut size={16} /> Sair da plataforma
                   </button>
                 </>
               )}

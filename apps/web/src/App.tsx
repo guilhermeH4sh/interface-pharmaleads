@@ -5,6 +5,7 @@ import { LeadsView } from "./components/leads/LeadsView";
 import { LeadDetailsModal } from "./components/leads/LeadDetailsModal";
 import { ProspeccaoTab } from "./components/prospeccao/ProspeccaoTab";
 import { CrmTab } from "./components/crm/CrmTab";
+import { LoginPage } from "./components/auth/LoginPage";
 import { ConfigTab } from "./components/config/ConfigTab";
 import { RelatoriosTab } from "./components/relatorios/RelatoriosTab";
 import { HelpModal } from "./components/help/HelpModal";
@@ -20,6 +21,7 @@ import {
   fetchSupabaseAllLeads,
   mapRawLeadsToItems,
   savedSupabaseSession,
+  verifyPlatformSession,
   setLeadCrmMembershipOverride,
   setLeadStatusOverride,
   updateSupabaseCrmLead,
@@ -29,6 +31,50 @@ import {
 import type { LeadItem, LeadStatus } from "./lib/mock-leads";
 
 export function App() {
+  const [session, setSession] = useState<SupabaseSession | null>(savedSupabaseSession);
+  const [checking, setChecking] = useState(() => Boolean(savedSupabaseSession()));
+  const [message, setMessage] = useState("");
+  const [retry, setRetry] = useState(0);
+  const [validationError, setValidationError] = useState("");
+  const [verified, setVerified] = useState(false);
+
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    verifyPlatformSession(session).then(active => {
+      if (cancelled) return;
+      setSession(active); setVerified(true); setChecking(false); setValidationError("");
+    }).catch(cause => {
+      if (cancelled) return;
+      setChecking(false);
+      if (cause instanceof AccessError) {
+        clearSupabaseSession(); setSession(null); setVerified(false);
+        setMessage("Sua sessão expirou. Entre novamente na plataforma.");
+      } else {
+        setValidationError("Não foi possível validar o acesso. Verifique sua conexão e tente novamente.");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [session, retry]);
+
+  const signOut = useCallback(() => {
+    clearSupabaseSession(); setSession(null); setVerified(false); setChecking(false);
+    setValidationError(""); setMessage("");
+  }, []);
+  if (checking || (session && !verified)) return (
+    <main className="min-h-dvh bg-background text-foreground flex flex-col items-center justify-center gap-4 p-6">
+      <p role="status">{validationError || "Validando seu acesso..."}</p>
+      {validationError && <button className="text-brand underline" onClick={() => { setValidationError(""); setChecking(true); setRetry(value => value + 1); }}>Tentar novamente</button>}
+    </main>
+  );
+  if (!session) return <LoginPage message={message} onSignIn={async (email, password) => {
+    const active = await authenticateSupabase("password", { email, password });
+    setMessage(""); setSession(active); setVerified(true);
+  }} />;
+  return <PlatformDashboard initialSession={session} onSignOut={signOut} />;
+}
+
+export function PlatformDashboard({ initialSession, onSignOut }: { initialSession: SupabaseSession; onSignOut: () => void }) {
   const { theme, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<NavTab>("prospeccao");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -37,7 +83,7 @@ export function App() {
 
   // Sessão Supabase e modo de fonte de dados
   const [supabaseSession, setSupabaseSession] = useState<SupabaseSession | null>(
-    savedSupabaseSession
+    initialSession
   );
   const [dataSourceMode] = useState<DataSourceMode>("supabase");
 
@@ -86,12 +132,13 @@ export function App() {
         if (err instanceof AccessError) {
           clearSupabaseSession();
           setSupabaseSession(null);
+          onSignOut();
         }
       } finally {
         setIsLoadingReal(false);
       }
     },
-    [supabaseSession]
+    [supabaseSession, onSignOut]
   );
 
   // Dispara carregamento quando o modo muda para local ou supabase
@@ -146,6 +193,7 @@ export function App() {
         setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? { ...row, crm_status: newStatus } : row));
         setRealError("");
       } catch (err) {
+        if (err instanceof AccessError) onSignOut();
         setRealError(err instanceof Error ? err.message : "Não foi possível salvar o status no Supabase.");
         return;
       }
@@ -170,6 +218,7 @@ export function App() {
         setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? { ...row, crm_included: included } : row));
         setRealError("");
       } catch (err) {
+        if (err instanceof AccessError) onSignOut();
         setRealError(err instanceof Error ? err.message : "Não foi possível atualizar a participação no CRM.");
         return;
       }
@@ -181,11 +230,6 @@ export function App() {
     }
     if (!included && selectedCrmLead?.id === id) setSelectedCrmLead(null);
     setOverrideVersion((v) => v + 1);
-  };
-
-  const handleSignInSupabase = async (email: string, password: string) => {
-    const session = await authenticateSupabase("password", { email, password });
-    setSupabaseSession(session);
   };
 
   return (
@@ -211,6 +255,8 @@ export function App() {
           isLoadingData={isLoadingReal}
           onRefreshData={handleRefreshActiveData}
           onOpenConfig={() => setActiveTab("config")}
+          onSignOut={onSignOut}
+          userEmail={supabaseSession?.email}
         />
 
         {/* 3. Área de Conteúdo */}
@@ -236,6 +282,7 @@ export function App() {
               supabaseSession={supabaseSession}
               onSessionUpdate={setSupabaseSession}
               onRefreshLeads={handleRefreshActiveData}
+              onSessionInvalid={onSignOut}
               onOpenLeads={() => setActiveTab("leads")}
             />
           )}
@@ -254,8 +301,6 @@ export function App() {
 
           {activeTab === "config" && (
             <ConfigTab
-              supabaseSession={supabaseSession}
-              onSignInSupabase={handleSignInSupabase}
               supabaseLeadsCount={rawSupabaseRows.length || null}
             />
           )}
