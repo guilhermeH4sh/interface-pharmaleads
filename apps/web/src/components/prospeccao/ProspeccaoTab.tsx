@@ -88,12 +88,13 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
         pendingAt.current = Date.now() - 2000;
         setRunUrl(result.run?.url || "");
       } else {
+        if (input.cobertura === "nacional") throw new Error("Conecte o Supabase para iniciar uma busca em todas as UFs.");
         await startLocalCollection(input);
       }
-      setText(input.locais[0]);
+      setText(input.locais[0] ?? "");
       hadActive.current = true;
       setActive(true);
-      setFeedback("Coleta solicitada. Os novos contatos serão enviados para a aba Leads.");
+      setFeedback(input.cobertura === "nacional" ? "Busca nacional solicitada. Os estados serão pesquisados em rodadas e os contatos enviados para Leads." : "Coleta solicitada. Os novos contatos serão enviados para a aba Leads.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível iniciar a coleta.");
     } finally { setBusy(false); }
