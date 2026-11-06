@@ -33,6 +33,7 @@ const SITUACAO_LABELS: Record<string, string> = {
 export function LeadDetailsModal({ lead, onClose, onChangeStatus }: LeadDetailsModalProps) {
   if (!lead) return null;
 
+  const emails = [...new Set((lead.email || "").split(/[,;\s]+/).map(email => email.trim()).filter(Boolean))];
   const whatsappUrl = lead.whatsappLink || buildWhatsAppLink(lead.telefone);
 
   return (
@@ -177,20 +178,23 @@ export function LeadDetailsModal({ lead, onClose, onChangeStatus }: LeadDetailsM
             </div>
           )}
 
-          {/* E-mail */}
-          {lead.email && (
-            <div className="p-3.5 rounded-xl bg-surface border border-border">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
-                <Mail size={12} className="text-brand" /> E-mail
-              </span>
-              <a
-                href={`mailto:${lead.email}`}
-                className="text-xs text-foreground hover:text-brand hover:underline truncate block"
-              >
-                {lead.email}
-              </a>
-            </div>
-          )}
+          {/* E-mail sempre visível, inclusive quando ainda não foi coletado */}
+          <div className="p-3.5 rounded-xl bg-surface border border-border">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
+              <Mail size={12} className="text-brand" /> E-mail
+            </span>
+            {emails.length ? (
+              <div className="space-y-1">
+                {emails.map(email => (
+                  <a key={email} href={`mailto:${email}`} className="text-xs text-foreground hover:text-brand hover:underline break-all block">
+                    {email}
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <span className="text-xs text-muted-foreground">Não informado</span>
+            )}
+          </div>
 
           {/* Avaliação Google */}
           {lead.avaliacao != null && (
