@@ -1,74 +1,47 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "./App";
+import { ProspeccaoTab } from "./components/prospeccao/ProspeccaoTab";
+import { SESSION_KEY } from "./lib/backend";
 
-test("renderiza a interface PharmaLeads no tema Centrus com métricas e leads", async () => {
+beforeEach(() => { window.localStorage.clear(); window.sessionStorage.clear(); });
+afterEach(() => vi.unstubAllGlobals());
+
+test("entrada autenticada consulta uma página sem carregar a base inteira", async () => {
+  window.sessionStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
+  const fetcher = vi.fn(async (input: string) => input.includes("/rest/v1/pharmaleads")
+    ? new Response("[]", { headers: { "content-range": "*/0" } })
+    : new Response(JSON.stringify({ run: null })));
+  vi.stubGlobal("fetch", fetcher);
   render(<App />);
-
-  // Valida Marca e Título Principal
-  expect(screen.getByText("Leads – Farmácias")).toBeInTheDocument();
-  expect(screen.getByText(/Gerencie, filtre e acompanhe os leads/)).toBeInTheDocument();
-
-  // Valida cards de métricas
-  expect(screen.getByText("Leads encontrados")).toBeInTheDocument();
-  expect(screen.getByText("Estados")).toBeInTheDocument();
-  expect(screen.getAllByText("Qualificados").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("Em contato").length).toBeGreaterThan(0);
-
-  // Valida primeiros leads da referência da imagem (presentes na tabela e no card mobile)
-  const vitals = await screen.findAllByText("Farmácia Vital");
-  expect(vitals.length).toBeGreaterThan(0);
-  expect(screen.getAllByText("Drogaria São Bento").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("Farmácia Boa Saúde").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("Drogaria Progresso").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("Farmácia Central").length).toBeGreaterThan(0);
-
-  // Valida presença da coluna lateral de filtros e gráfico
-  expect(screen.getByText("Filtros")).toBeInTheDocument();
-  expect(screen.getByText("Origem dos Leads")).toBeInTheDocument();
+  await screen.findByText("0 estabelecimentos encontrados");
+  const calls = fetcher.mock.calls.filter(call => call[0].includes("/rest/v1/pharmaleads"));
+  expect(calls).toHaveLength(1);
+  expect(new URL(calls[0][0]).searchParams.get("limit")).toBe("25");
+  expect(fetcher.mock.calls.some(call => call[0].includes("/auth/v1/user"))).toBe(false);
 });
 
-test("permite navegar entre as abas da sidebar e abrir modais", async () => {
+test("abre em Prospecção, ordena o menu e mantém o cabeçalho sem pesquisa global", async () => {
   render(<App />);
-
-  // Abre aba de Prospecção (correspondência exata)
-  const prospeccaoTabBtn = screen.getByRole("button", { name: /^Prospecção$/i });
-  await userEvent.click(prospeccaoTabBtn);
-  expect(screen.getByText("Central de Prospecção & Web Scraping")).toBeInTheDocument();
-
-  // Abre aba de CRM (correspondência exata)
-  const crmTabBtn = screen.getByRole("button", { name: /^CRM$/i });
-  await userEvent.click(crmTabBtn);
+  expect(screen.getByRole("heading", { name: "Pesquisar estabelecimentos" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Prospecção" })).toHaveAttribute("aria-current", "page");
+  const navigation = screen.getByRole("navigation", { name: "Navegação principal" });
+  expect([...navigation.querySelectorAll("button")].map(button => button.textContent)).toEqual(["Prospecção", "Leads", "CRM", "Configurações", "Relatórios"]);
+  expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  expect(screen.getByRole("heading", { name: "Leads – Farmácias" })).toBeInTheDocument();
+  expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(screen.getByText("Pipeline Comercial & Funil CRM")).toBeInTheDocument();
-
-  // Volta para Leads (correspondência exata)
-  const leadsTabBtn = screen.getByRole("button", { name: /^Leads$/i });
-  await userEvent.click(leadsTabBtn);
-  expect(screen.getByText("Leads – Farmácias")).toBeInTheDocument();
-
-  // Abre modal Nova Prospecção
-  const newProspectBtn = screen.getByRole("button", { name: /Nova Prospecção/i });
-  await userEvent.click(newProspectBtn);
-  expect(screen.getByRole("heading", { name: "Nova Prospecção" })).toBeInTheDocument();
+  expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
 });
 
-test("filtra leads através das abas de status rápidos", async () => {
-  render(<App />);
-
-  // Espera carregar os leads
-  const vitals = await screen.findAllByText("Farmácia Vital");
-  expect(vitals.length).toBeGreaterThan(0);
-
-  // Clica na pill de Qualificado
-  const pills = screen.getAllByRole("button");
-  const tabQualificados = pills.find((btn) => btn.textContent?.includes("Qualificado ("));
-  if (tabQualificados) {
-    await userEvent.click(tabQualificados);
-  }
-
-  await waitFor(() => {
-    // Farmácia Vital é Qualificado
-    expect(screen.getAllByText("Farmácia Vital").length).toBeGreaterThan(0);
-  });
+test("coleta recolhível continua enviando a solicitação para a API local", async () => {
+  const fetcher = vi.fn(async (input: string) => new Response(JSON.stringify(input === "/api/coletas" ? { id: 1 } : { total_leads: 0, execucao: null, consulta_atual: null })));
+  vi.stubGlobal("fetch", fetcher);
+  render(<ProspeccaoTab dataSourceMode="local" realLeads={[]} />);
+  await userEvent.click(screen.getByText(/Coleta no Google Maps · configurar e acompanhar/));
+  await userEvent.click(screen.getByRole("button", { name: "Iniciar Coleta" }));
+  await waitFor(() => expect(fetcher.mock.calls.some(call => call[0] === "/api/coletas")).toBe(true));
 });

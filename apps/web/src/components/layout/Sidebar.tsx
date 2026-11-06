@@ -14,8 +14,8 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: { id: NavTab; label: string; icon: ComponentType<{ size?: number; className?: string }> }[] = [
-  { id: "leads", label: "Leads", icon: Users },
   { id: "prospeccao", label: "Prospecção", icon: Search },
+  { id: "leads", label: "Leads", icon: Users },
   { id: "crm", label: "CRM", icon: Calendar },
   { id: "config", label: "Configurações", icon: Settings },
   { id: "relatorios", label: "Relatórios", icon: BarChart3 },
