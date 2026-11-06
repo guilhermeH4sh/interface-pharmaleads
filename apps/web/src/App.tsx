@@ -127,6 +127,7 @@ export function App() {
     return [];
   }, [dataSourceMode, rawLocalRows, rawSupabaseRows, overrideVersion]);
 
+  const leadsOutsideCrm = useMemo(() => realLeads.filter(lead => !lead.crmIncluded), [realLeads]);
   const activeLeadsForCrm = realLeads.filter((lead) => lead.crmIncluded);
   const activeSummaryForReports = useMemo(
     () => computeSummaryFromItems(realLeads),
@@ -218,7 +219,7 @@ export function App() {
             <LeadsView
               searchQuery=""
               dataSourceMode={dataSourceMode}
-              realLeads={realLeads}
+              realLeads={leadsOutsideCrm}
               isLoadingReal={isLoadingReal}
               realError={realError}
               isSupabaseAuthenticated={Boolean(supabaseSession)}

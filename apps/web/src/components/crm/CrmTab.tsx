@@ -154,7 +154,7 @@ export function CrmTab({
             <span>Pipeline Comercial & Funil CRM</span>
           </h2>
           <p className={ui.pageSubtitle}>
-            Adicione leads da sua base e arraste os cards entre as etapas. Remover do CRM mantém o contato na aba Leads.
+            Adicione leads da sua base e arraste os cards entre as etapas. Remover do CRM devolve o contato à aba Leads.
           </p>
         </div>
 
