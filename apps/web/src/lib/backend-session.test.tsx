@@ -26,3 +26,15 @@ test("renova uma única vez para consultas simultâneas sem pedir senha", async 
   await validSupabaseSession(session);
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
+
+
+test("renovação pendente não restaura a sessão depois de sair da plataforma", async () => {
+  let release!: (response: Response) => void;
+  const pending = new Promise<Response>(resolve => { release = resolve; });
+  vi.stubGlobal("fetch", vi.fn(() => pending));
+  const refreshing = validSupabaseSession({ access_token: "old", refresh_token: "old", expires_at: 0 });
+  clearSupabaseSession();
+  release(new Response(JSON.stringify({ access_token: "new", refresh_token: "new", expires_in: 3600, user: { id: AUTHORIZED_USER_ID } })));
+  await expect(refreshing).rejects.toThrow("Sessão encerrada");
+  expect(savedSupabaseSession()).toBeNull();
+});

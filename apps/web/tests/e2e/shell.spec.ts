@@ -46,3 +46,36 @@ test("barra de coleta central, sem tabela, funciona nos dois temas e no mobile",
   await expect(page.getByText("Farmácia da base", { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+
+test("login protege o painel, é responsivo e configurações não pedem conexão ao banco", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  let platformCalls = 0;
+  await page.route("**/auth/v1/token?**", route => route.fulfill({ json: { access_token: "test", refresh_token: "test", expires_in: 3600, user: { id: "677ed1e4-3e73-4f2c-951f-e77386f305da", email: "cliente@example.com" } } }));
+  await page.route("**/auth/v1/user", route => route.fulfill({ json: { id: "677ed1e4-3e73-4f2c-951f-e77386f305da" } }));
+  await page.route("**/api/collector", route => { platformCalls += 1; return route.fulfill({ json: { run: null } }); });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Acesse sua plataforma" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Leads", exact: true })).toHaveCount(0);
+  expect(platformCalls).toBe(0);
+  for (const width of [360, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expect(page.getByRole("button", { name: "Entrar", exact: true })).toBeVisible();
+  }
+  await page.screenshot({ path: test.info().outputPath("login-plataforma.png"), fullPage: true });
+  await page.getByLabel("E-mail", { exact: true }).fill("cliente@example.com");
+  await page.getByLabel("Senha", { exact: true }).fill("senha-de-teste");
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Encontre novas farmácias" })).toBeVisible();
+  await page.getByRole("button", { name: "Configurações", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Conectado");
+  await expect(page.getByLabel("Senha", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Menu do usuário", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Sair da plataforma", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Acesse sua plataforma" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Acesse sua plataforma" })).toBeVisible();
+  expect(errors).toEqual([]);
+});

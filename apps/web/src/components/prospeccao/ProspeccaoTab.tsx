@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Square, ArrowRight } from "lucide-react";
-import { COLETA_ATIVA_STATES, controlCloudCollector, fetchCloudCollectorRun, fetchLocalApiStatus, startLocalCollection, stopLocalCollection, type DataSourceMode, type SupabaseSession } from "../../lib/backend";
+import { AccessError, COLETA_ATIVA_STATES, controlCloudCollector, fetchCloudCollectorRun, fetchLocalApiStatus, startLocalCollection, stopLocalCollection, type DataSourceMode, type SupabaseSession } from "../../lib/backend";
 import { buildCollectorSearch } from "../../lib/collector-search";
 import { ESTABLISHMENTS, STATES, SOURCES } from "../../lib/prospect-options";
 import { ui } from "../../lib/ui";
@@ -13,9 +13,10 @@ interface Props {
   onSessionUpdate?: (session: SupabaseSession) => void;
   onRefreshLeads?: () => void;
   onOpenLeads?: () => void;
+  onSessionInvalid?: () => void;
 }
 
-export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null, onSessionUpdate, onRefreshLeads, onOpenLeads }: Props) {
+export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null, onSessionUpdate, onRefreshLeads, onOpenLeads, onSessionInvalid }: Props) {
   const [text, setText] = useState("");
   const [uf, setUf] = useState("");
   const [source, setSource] = useState("Google Maps");
@@ -68,13 +69,14 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           }
         }
       } catch (err) {
+        if (!cancelled && err instanceof AccessError) onSessionInvalid?.();
         if (!cancelled) setError(err instanceof Error ? err.message : "Não foi possível acompanhar a coleta.");
       }
     }
     queueMicrotask(() => { if (!cancelled) void poll(); });
     const timer = window.setInterval(() => void poll(), dataSourceMode === "local" ? 3000 : 5000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [dataSourceMode, supabaseSession, onSessionUpdate, onRefreshLeads]);
+  }, [dataSourceMode, supabaseSession, onSessionUpdate, onRefreshLeads, onSessionInvalid]);
 
   const start = useCallback(async (override?: string) => {
     setError("");
@@ -96,9 +98,10 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
       setActive(true);
       setFeedback(input.cobertura === "nacional" ? "Busca nacional solicitada. Os estados serão pesquisados em rodadas e os contatos enviados para Leads." : "Coleta solicitada. Os novos contatos serão enviados para a aba Leads.");
     } catch (err) {
+      if (err instanceof AccessError) onSessionInvalid?.();
       setError(err instanceof Error ? err.message : "Não foi possível iniciar a coleta.");
     } finally { setBusy(false); }
-  }, [connected, text, uf, segments, source, dataSourceMode, supabaseSession, onSessionUpdate]);
+  }, [connected, text, uf, segments, source, dataSourceMode, supabaseSession, onSessionUpdate, onSessionInvalid]);
 
 
   async function stop() {
@@ -111,7 +114,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
       } else await stopLocalCollection();
       pendingAt.current = 0;
       setFeedback("Parada solicitada. Aguardando o encerramento da coleta...");
-    } catch (err) { setError(err instanceof Error ? err.message : "Falha ao solicitar parada."); }
+    } catch (err) { if (err instanceof AccessError) onSessionInvalid?.(); setError(err instanceof Error ? err.message : "Falha ao solicitar parada."); }
     finally { setBusy(false); }
   }
 

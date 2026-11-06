@@ -1,9 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { App } from "./App";
+import { PlatformDashboard } from "./App";
 import { ProspeccaoTab } from "./components/prospeccao/ProspeccaoTab";
-import { AUTHORIZED_USER_ID, SESSION_KEY } from "./lib/backend";
+import { AUTHORIZED_USER_ID, SESSION_KEY, savedSupabaseSession } from "./lib/backend";
+
+function TestDashboard() {
+  return <PlatformDashboard initialSession={savedSupabaseSession() || { access_token: "test", refresh_token: "test", expires_at: 4102444800000 }} onSignOut={vi.fn()} />;
+}
 
 beforeEach(() => { window.localStorage.clear(); window.sessionStorage.clear(); });
 afterEach(() => vi.unstubAllGlobals());
@@ -12,7 +16,7 @@ test("Prospecção autenticada não consulta ou exibe dados de leads", async () 
   window.sessionStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
   const fetcher = vi.fn(async () => new Response(JSON.stringify({ run: null })));
   vi.stubGlobal("fetch", fetcher);
-  render(<App />);
+  render(<TestDashboard />);
   expect(screen.getByRole("searchbox", { name: "Cidade ou bairro" })).toBeInTheDocument();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
   await waitFor(() => expect(fetcher).toHaveBeenCalled());
@@ -20,7 +24,7 @@ test("Prospecção autenticada não consulta ou exibe dados de leads", async () 
 });
 
 test("abre em Prospecção e mantém dados nas abas Leads e CRM", async () => {
-  render(<App />);
+  render(<TestDashboard />);
   expect(screen.getByRole("heading", { name: "Encontre novas farmácias" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Prospecção" })).toHaveAttribute("aria-current", "page");
   expect(screen.getAllByRole("searchbox")).toHaveLength(1);
@@ -68,7 +72,7 @@ test("a barra inicia o GitHub Actions e desabilita fontes não integradas", asyn
 test("configurações mostram apenas Supabase e preservam a conexão existente", async () => {
   sessionStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run: null }))));
-  render(<App />);
+  render(<TestDashboard />);
   await userEvent.click(screen.getByRole("button", { name: "Configurações" }));
   expect(screen.getByRole("status")).toHaveTextContent("Conectado");
   expect(screen.queryByRole("textbox", { name: /E-mail/ })).not.toBeInTheDocument();
@@ -82,7 +86,7 @@ test("configurações mostram apenas Supabase e preservam a conexão existente",
 test("Nova Prospecção redireciona sem abrir modal nem iniciar coleta", async () => {
   const fetcher = vi.fn(async () => new Response(JSON.stringify({ run: null })));
   vi.stubGlobal("fetch", fetcher);
-  render(<App />);
+  render(<TestDashboard />);
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
   await userEvent.click(screen.getByRole("button", { name: "Nova Prospecção" }));
   expect(screen.getByRole("heading", { name: "Encontre novas farmácias" })).toBeInTheDocument();
@@ -107,7 +111,7 @@ test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async ()
     return new Response(JSON.stringify({ run: null }));
   });
   vi.stubGlobal("fetch", fetcher);
-  render(<App />);
+  render(<TestDashboard />);
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   await userEvent.click(screen.getByRole("button", { name: "Adicionar leads" }));
   const add = await screen.findByRole("button", { name: "Adicionar Farmácia da base ao CRM" });
