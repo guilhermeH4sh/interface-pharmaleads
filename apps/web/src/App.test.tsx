@@ -98,8 +98,9 @@ test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async ()
     if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: AUTHORIZED_USER_ID }));
     if (url.includes("/rest/v1/pharmaleads")) {
       if (init?.method === "PATCH") {
-        expect(JSON.parse(String(init.body))).toEqual({ crm_included: true });
-        included = true;
+        const patch = JSON.parse(String(init.body));
+        expect(typeof patch.crm_included).toBe("boolean");
+        included = patch.crm_included;
       }
       return new Response(JSON.stringify([lead()]), { headers: { "content-range": "0-0/1" } });
     }
@@ -116,6 +117,12 @@ test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async ()
   await userEvent.keyboard("{Escape}");
   expect(screen.getByText("Farmácia da base")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  expect(screen.queryByText("Farmácia da base")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(await screen.findByText("Farmácia da base")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Remover Farmácia da base do CRM" }));
+  await waitFor(() => expect(screen.queryByText("Farmácia da base")).not.toBeInTheDocument());
+  expect(included).toBe(false);
+  await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  expect(await screen.findByRole("button", { name: "Farmácia da base" })).toBeInTheDocument();
 });
