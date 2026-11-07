@@ -54,12 +54,12 @@ test('despacha uma rodada da cobertura nacional dentro do limite', async () => {
     throw new Error('URL inesperada');
   };
   const res = response();
-  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'start', cobertura: 'nacional', segmentos: ['varejo', 'manipulacao'], profundidade: 1 } }, res);
+  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'start', cobertura: 'nacional', segmentos: ['varejo', 'manipulacao'], profundidade: 1, emails: true } }, res);
   assert.equal(res.statusCode, 202);
   const inputs = JSON.parse(calls.find(x => x.url.endsWith('/dispatches')).options.body).inputs;
   assert.equal(inputs.modo, 'nacional');
   assert.equal(inputs.rodada, '1');
-  assert.equal(inputs.emails, 'false');
+  assert.equal(inputs.emails, 'true');
   assert.equal(inputs.enriquecer_sites, 'false');
   assert.equal(inputs.locais.split('\n').length, 5);
   assert.ok(Number(inputs.total_rodadas) > 1);

@@ -30,7 +30,7 @@ export function entradaNacional(body, termos) {
     locais: locais.join('\n'),
     segmentos: segmentos.join(','),
     profundidade: String(profundidade),
-    emails: 'false',
+    emails: body.emails === true ? 'true' : 'false',
     enriquecer_sites: 'false',
     modo: 'nacional',
     rodada: String(rodada),
