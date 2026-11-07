@@ -15,6 +15,7 @@ from . import config
 from .banco import pegar
 from .coletor import Opcoes, localizar_gosom, montar_comando
 from .config import ErroPharmaLeads
+from .enriquecedor import emails_publicos
 from .supabase import Supabase
 
 
@@ -69,7 +70,8 @@ def bloquear_estado(caminho: Path):
         yield
 
 
-def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorrencia: int) -> None:
+def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorrencia: int,
+           somente_sem_email: bool = False) -> None:
     caminho.parent.mkdir(parents=True, exist_ok=True)
     if caminho.exists():
         estado = json.loads(caminho.read_text(encoding='utf-8'))
@@ -94,25 +96,34 @@ def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorre
         entrada = Path(pasta) / 'consultas.txt'
         saida = Path(pasta) / 'resultados.csv'
         for posicao in range(inicio, fim, tamanho):
-            lote = estado['leads'][posicao:min(posicao + tamanho, fim)]
-            entrada.write_text('\n'.join(consulta(lead) for lead in lote) + '\n', encoding='utf-8')
-            saida.unlink(missing_ok=True)
-            print(f'Buscando leads {posicao + 1} a {posicao + len(lote)} de {total}.', flush=True)
-            with caminho.with_suffix('.gosom.log').open('w', encoding='utf-8') as log:
-                subprocess.run(montar_comando(opcoes, entrada, saida), check=True,
-                               stdout=log, stderr=subprocess.STDOUT, timeout=opcoes.timeout_min * 60,
-                               env={**os.environ, 'DISABLE_TELEMETRY': '1'})
+            lote_original = estado['leads'][posicao:min(posicao + tamanho, fim)]
+            lote = lote_original
+            if somente_sem_email:
+                cobertos = {row['chave'] for row in cliente.listar('chave,emails', {'emails': 'neq.'})
+                            if emails_publicos(row['emails'])}
+                lote = [lead for lead in lote_original if lead['chave'] not in cobertos]
             chaves = {lead['chave'] for lead in lote}
-            encontrados = resultados(saida, chaves)
-            if not encontrados:
-                raise ErroPharmaLeads('Nenhum resultado correspondeu ao lote. O progresso foi preservado para retomada.')
+            encontrados = {}
+            if lote:
+                entrada.write_text('\n'.join(consulta(lead) for lead in lote) + '\n', encoding='utf-8')
+                saida.unlink(missing_ok=True)
+                print(f'Buscando {len(lote)} leads na faixa {posicao + 1} a {posicao + len(lote_original)} de {total}.', flush=True)
+                with caminho.with_suffix('.gosom.log').open('w', encoding='utf-8') as log:
+                    subprocess.run(montar_comando(opcoes, entrada, saida), check=True,
+                                   stdout=log, stderr=subprocess.STDOUT, timeout=opcoes.timeout_min * 60,
+                                   env={**os.environ, 'DISABLE_TELEMETRY': '1'})
+                encontrados = resultados(saida, chaves)
+                if not encontrados:
+                    raise ErroPharmaLeads('Nenhum resultado correspondeu ao lote. O progresso foi preservado para retomada.')
             for chave, emails in encontrados.items():
                 estado['atualizados'] += cliente.adicionar_emails(chave, emails)
-            estado['consultados'] += len(lote)
+            estado['consultados'] += len(lote_original)
+            estado['pulados_com_email'] = estado.get('pulados_com_email', 0) + len(lote_original) - len(lote)
             estado['encontrados'] += len(encontrados)
             estado['sem_correspondencia'].extend(sorted(chaves - encontrados.keys()))
             salvar_estado(caminho, estado)
-            print(f"{estado['consultados']}/{total} consultados, {estado['encontrados']} correspondências, "
+            print(f"{estado['consultados']}/{total} verificados, {estado['encontrados']} correspondências, "
+                  f"{estado['pulados_com_email']} já tinham e-mail, "
                   f"{estado['atualizados']} leads com e-mails acrescentados.", flush=True)
 
 
@@ -122,12 +133,14 @@ def main() -> int:
     parser.add_argument('--lote', type=int, default=160)
     parser.add_argument('--limite', type=int, default=0, help='Máximo nesta execução. Zero continua até o fim.')
     parser.add_argument('--concorrencia', type=int, choices=range(1, 9), default=4)
+    parser.add_argument('--somente-sem-email', action='store_true',
+                        help='Pula leads que já têm e-mail com domínio público no Supabase.')
     args = parser.parse_args()
     if args.lote < 1 or args.limite < 0:
         parser.error('Informe lote positivo e limite não negativo.')
     try:
         with bloquear_estado(args.estado):
-            varrer(Supabase(), args.estado, args.lote, args.limite, args.concorrencia)
+            varrer(Supabase(), args.estado, args.lote, args.limite, args.concorrencia, args.somente_sem_email)
         return 0
     except (ErroPharmaLeads, OSError, ValueError, subprocess.SubprocessError) as erro:
         print(f'Busca interrompida: {erro}', flush=True)
