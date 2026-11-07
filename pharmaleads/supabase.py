@@ -144,9 +144,9 @@ class Supabase:
 
     def adicionar_emails(self, chave: str, encontrados: str) -> bool:
         """Acrescenta endereços a um lead existente, sem tocar nos outros campos."""
-        from .enriquecedor import EMAIL
+        from .enriquecedor import EMAIL, emails_publicos
 
-        novos = EMAIL.findall(encontrados or '')
+        novos = emails_publicos(encontrados)
         if not novos:
             return False
         filtro = {'chave': f'eq.{chave}'}
