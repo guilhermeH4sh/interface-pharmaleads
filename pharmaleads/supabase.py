@@ -99,7 +99,7 @@ class Supabase:
         except (URLError, OSError, ValueError, KeyError, TypeError):
             raise ErroPharmaLeads('Não foi possível autenticar no Supabase. Confira a conexão e a configuração local.') from None
 
-    def _requisicao(self, metodo='GET', parametros=None, dados=None):
+    def _requisicao(self, metodo='GET', parametros=None, dados=None, *, prefer=None):
         url = self.endpoint + ('?' + urlencode(parametros) if parametros else '')
         headers = {'apikey': self.segredo, 'Accept': 'application/json', 'Accept-Profile': 'public'}
         if self.modo_usuario:
@@ -111,7 +111,7 @@ class Supabase:
         if dados is not None:
             corpo = json.dumps(dados, ensure_ascii=False, allow_nan=False).encode('utf-8')
             headers.update({'Content-Type': 'application/json', 'Content-Profile': 'public',
-                            'Prefer': 'resolution=merge-duplicates,return=minimal'})
+                            'Prefer': prefer or 'resolution=merge-duplicates,return=minimal'})
         req = Request(url, data=corpo, headers=headers, method=metodo)
         try:
             with self.opener.open(req, timeout=60) as resposta:
@@ -142,6 +142,44 @@ class Supabase:
         return {r['chave']: r for r in self.listar(filtros={
             'chave': 'in.(' + ','.join(citado(x) for x in chaves) + ')'})}
 
+    def adicionar_emails(self, chave: str, encontrados: str) -> bool:
+        """Acrescenta endereços a um lead existente, sem tocar nos outros campos."""
+        from .enriquecedor import EMAIL
+
+        novos = EMAIL.findall(encontrados or '')
+        if not novos:
+            return False
+        filtro = {'chave': f'eq.{chave}'}
+        for _ in range(4):
+            registros = self._requisicao(parametros={**filtro, 'select': 'emails', 'limit': '1'})
+            if not registros:
+                return False
+            anterior = registros[0]['emails']
+            existentes = {email.casefold() for email in EMAIL.findall(anterior or '')}
+            adicionais = []
+            for email in novos:
+                if email.casefold() not in existentes:
+                    adicionais.append(email)
+                    existentes.add(email.casefold())
+            if not adicionais:
+                return False
+            valor = ', '.join([anterior, *adicionais] if anterior else adicionais)
+            # Só grava se ninguém mudou os e-mails depois da leitura.
+            alterados = self._requisicao('PATCH', {
+                **filtro, 'emails': 'is.null' if anterior is None else f'eq.{anterior}',
+                'select': 'chave',
+            }, {'emails': valor}, prefer='return=representation')
+            if alterados:
+                return True
+        raise ErroPharmaLeads('O lead mudou durante a gravação dos e-mails. Tente novamente.')
+
     def salvar(self, registros):
-        if registros:
-            self._requisicao('POST', {'on_conflict': 'chave'}, registros)
+        if not registros:
+            return
+        # O valor padrão do banco cobre novos leads. Nas recoletas, omitir a
+        # coluna preserva os e-mails gravados, mesmo com escritas concorrentes.
+        sem_emails = [{k: v for k, v in registro.items() if k != 'emails'} for registro in registros]
+        self._requisicao('POST', {'on_conflict': 'chave'}, sem_emails)
+        for registro in registros:
+            if registro.get('emails'):
+                self.adicionar_emails(registro['chave'], registro['emails'])
