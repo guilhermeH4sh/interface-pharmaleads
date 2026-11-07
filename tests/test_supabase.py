@@ -38,21 +38,27 @@ class TestTransporte(unittest.TestCase):
         request = self.cliente.opener.open.call_args.args[0]
         self.assertEqual(json.loads(request.data), [{'chave': '1', 'nome': 'Farmácia'}])
 
+    def test_nao_grava_enderecos_reservados_ou_placeholders(self):
+        self.assertFalse(self.cliente.adicionar_emails(
+            '1', 'nome@example.com; sememail@farmacia.com.br; nome@dominio.invalid',
+        ))
+        self.cliente.opener.open.assert_not_called()
+
     def test_acrescenta_emails_sem_perder_alteracao_concorrente(self):
         self.cliente.opener.open.side_effect = [
-            io.BytesIO(b'[{"emails":"original@example.test"}]'), io.BytesIO(b'[]'),
-            io.BytesIO(b'[{"emails":"original@example.test, concorrente@example.test"}]'),
+            io.BytesIO(b'[{"emails":"original@farmacia.com.br"}]'), io.BytesIO(b'[]'),
+            io.BytesIO(b'[{"emails":"original@farmacia.com.br, concorrente@farmacia.com.br"}]'),
             io.BytesIO(b'[{"chave":"1"}]'),
         ]
-        self.assertTrue(self.cliente.adicionar_emails('1', 'ORIGINAL@example.test, novo@example.test'))
+        self.assertTrue(self.cliente.adicionar_emails('1', 'ORIGINAL@farmacia.com.br, novo@farmacia.com.br'))
         request = self.cliente.opener.open.call_args.args[0]
         self.assertEqual(request.method, 'PATCH')
         self.assertEqual(json.loads(request.data), {
-            'emails': 'original@example.test, concorrente@example.test, novo@example.test',
+            'emails': 'original@farmacia.com.br, concorrente@farmacia.com.br, novo@farmacia.com.br',
         })
         filtros = parse_qs(urlsplit(request.full_url).query)
         self.assertEqual(filtros['chave'], ['eq.1'])
-        self.assertEqual(filtros['emails'], ['eq.original@example.test, concorrente@example.test'])
+        self.assertEqual(filtros['emails'], ['eq.original@farmacia.com.br, concorrente@farmacia.com.br'])
 
     def test_falha_http_nao_vaza_chave_ou_resposta(self):
         erro = HTTPError('url', 401, 'sb_secret_fake', {}, io.BytesIO(b'dados privados'))

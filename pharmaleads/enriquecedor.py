@@ -4,9 +4,11 @@ from __future__ import annotations
 import ipaddress
 import re
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from .config import ErroPharmaLeads
+from .config import ErroPharmaLeads, pasta_dados
 
 EMAIL = re.compile(r"(?<![\w.+-])[\w.+-]{1,64}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
 REDES = {
@@ -14,6 +16,40 @@ REDES = {
     'facebook': ('facebook.com', 'fb.com'),
     'linkedin': ('linkedin.com',),
 }
+
+
+DOMINIOS_RESERVADOS = ('example.com', 'example.net', 'example.org')
+SUFIXOS_RESERVADOS = {'example', 'invalid', 'local', 'localhost', 'test'}
+CAIXAS_PLACEHOLDER = {'sememail', 'naoinformado', 'naopossui', 'seuemail', 'youremail', 'exemplo', 'example'}
+ROTULO_DNS = re.compile(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?')
+
+
+@lru_cache(maxsize=4)
+def _tlds_publicos(arquivo: Path) -> set[str] | None:
+    try:
+        linhas = arquivo.read_text(encoding='ascii').splitlines()
+    except FileNotFoundError:
+        return None
+    return {linha.casefold() for linha in linhas if linha and not linha.startswith('#')}
+
+
+def emails_publicos(texto: str | None) -> list[str]:
+    """Descarta placeholders e domínios inválidos; preserva a grafia dos endereços."""
+    tlds = _tlds_publicos(pasta_dados() / 'email-tlds-iana.txt')
+    validos = []
+    for email in EMAIL.findall(texto or ''):
+        caixa, dominio = email.casefold().rsplit('@', 1)
+        if re.sub(r'\W', '', caixa) in CAIXAS_PLACEHOLDER:
+            continue
+        if any(dominio == reservado or dominio.endswith('.' + reservado) for reservado in DOMINIOS_RESERVADOS):
+            continue
+        rotulos = dominio.split('.')
+        sufixo = rotulos[-1]
+        if sufixo in SUFIXOS_RESERVADOS or (tlds is not None and sufixo not in tlds):
+            continue
+        if all(ROTULO_DNS.fullmatch(rotulo) for rotulo in rotulos):
+            validos.append(email)
+    return validos
 
 
 @dataclass(frozen=True)
