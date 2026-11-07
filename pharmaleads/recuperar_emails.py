@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -49,6 +50,23 @@ def salvar_estado(caminho: Path, estado: dict) -> None:
     temporario = caminho.with_suffix('.tmp')
     temporario.write_text(json.dumps(estado, ensure_ascii=False), encoding='utf-8')
     temporario.replace(caminho)
+
+
+@contextmanager
+def bloquear_estado(caminho: Path):
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    with caminho.with_suffix('.lock').open('a+b') as lock:
+        try:
+            if os.name == 'nt':
+                import msvcrt
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as erro:
+            raise ErroPharmaLeads('Já existe uma busca usando este arquivo de progresso.') from erro
+        yield
 
 
 def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorrencia: int) -> None:
@@ -108,15 +126,7 @@ def main() -> int:
     if args.lote < 1 or args.limite < 0:
         parser.error('Informe lote positivo e limite não negativo.')
     try:
-        args.estado.parent.mkdir(parents=True, exist_ok=True)
-        with args.estado.with_suffix('.lock').open('a+b') as lock:
-            if os.name == 'nt':
-                import msvcrt
-                lock.seek(0)
-                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with bloquear_estado(args.estado):
             varrer(Supabase(), args.estado, args.lote, args.limite, args.concorrencia)
         return 0
     except (ErroPharmaLeads, OSError, ValueError, subprocess.SubprocessError) as erro:
