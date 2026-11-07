@@ -38,6 +38,8 @@ def resultados(csv_path: Path, chaves: set[str]) -> dict[str, str]:
     csv.field_size_limit(20 * 1024 * 1024)
     with csv_path.open(encoding='utf-8-sig', newline='') as arquivo:
         for linha in csv.DictReader(arquivo):
+            if None in linha or None in linha.values():
+                continue
             identidades = {pegar(linha, campo) for campo in ('cid', 'place_id', 'data_id', 'link')}
             if not any(identidades):
                 identidades.add(f"{pegar(linha, 'title', 'name')}|{pegar(linha, 'address')}".lower())
@@ -95,8 +97,10 @@ def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorre
     with tempfile.TemporaryDirectory(prefix='pharmaleads-emails-') as pasta:
         entrada = Path(pasta) / 'consultas.txt'
         saida = Path(pasta) / 'resultados.csv'
-        for posicao in range(inicio, fim, tamanho):
-            lote_original = estado['leads'][posicao:min(posicao + tamanho, fim)]
+        tamanho_atual = tamanho
+        while estado['consultados'] < fim:
+            posicao = estado['consultados']
+            lote_original = estado['leads'][posicao:min(posicao + tamanho_atual, fim)]
             lote = lote_original
             if somente_sem_email:
                 cobertos = {row['chave'] for row in cliente.listar('chave,emails', {'emails': 'neq.'})
@@ -104,19 +108,33 @@ def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorre
                 lote = [lead for lead in lote_original if lead['chave'] not in cobertos]
             chaves = {lead['chave'] for lead in lote}
             encontrados = {}
+            timeout = None
             if lote:
                 entrada.write_text('\n'.join(consulta(lead) for lead in lote) + '\n', encoding='utf-8')
                 saida.unlink(missing_ok=True)
                 print(f'Buscando {len(lote)} leads na faixa {posicao + 1} a {posicao + len(lote_original)} de {total}.', flush=True)
-                with caminho.with_suffix('.gosom.log').open('w', encoding='utf-8') as log:
-                    subprocess.run(montar_comando(opcoes, entrada, saida), check=True,
-                                   stdout=log, stderr=subprocess.STDOUT, timeout=opcoes.timeout_min * 60,
-                                   env={**os.environ, 'DISABLE_TELEMETRY': '1'})
-                encontrados = resultados(saida, chaves)
-                if not encontrados:
+                try:
+                    with caminho.with_suffix('.gosom.log').open('w', encoding='utf-8') as log:
+                        subprocess.run(montar_comando(opcoes, entrada, saida), check=True,
+                                       stdout=log, stderr=subprocess.STDOUT, timeout=opcoes.timeout_min * 60,
+                                       env={**os.environ, 'DISABLE_TELEMETRY': '1'})
+                except subprocess.TimeoutExpired as erro:
+                    timeout = erro
+                if saida.is_file():
+                    encontrados = resultados(saida, chaves)
+                if not encontrados and timeout is None:
                     raise ErroPharmaLeads('Nenhum resultado correspondeu ao lote. O progresso foi preservado para retomada.')
             for chave, emails in encontrados.items():
                 estado['atualizados'] += cliente.adicionar_emails(chave, emails)
+            if timeout is not None and chaves - encontrados.keys():
+                # Aproveita somente linhas completas e mantém a posição para
+                # tentar novamente os leads que não retornaram no arquivo.
+                salvar_estado(caminho, estado)
+                if tamanho_atual <= 10:
+                    raise timeout
+                tamanho_atual = max(10, tamanho_atual // 2)
+                print(f'Lote expirou. Resultados confirmados salvos; retomando com {tamanho_atual} leads por lote.', flush=True)
+                continue
             estado['consultados'] += len(lote_original)
             estado['pulados_com_email'] = estado.get('pulados_com_email', 0) + len(lote_original) - len(lote)
             estado['encontrados'] += len(encontrados)
