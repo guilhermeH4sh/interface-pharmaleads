@@ -38,7 +38,7 @@ test("abre em Prospecção e mantém dados nas abas Leads e CRM", async () => {
 
 test("a barra envia a cidade corrigida e os filtros para o scraper local", async () => {
   const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
-    if (input === "/api/coletas") expect(JSON.parse(String(init?.body))).toMatchObject({ locais: ["São Paulo, SP"], segmentos: ["varejo"], profundidade: 1, emails: false });
+    if (input === "/api/coletas") expect(JSON.parse(String(init?.body))).toMatchObject({ locais: ["São Paulo, SP"], segmentos: ["varejo"], profundidade: 1, emails: true });
     return new Response(JSON.stringify(input === "/api/coletas" ? { id: 1 } : { total_leads: 0, execucao: null, consulta_atual: null }));
   });
   vi.stubGlobal("fetch", fetcher);
@@ -53,7 +53,7 @@ test("a barra envia a cidade corrigida e os filtros para o scraper local", async
 test("a barra inicia o GitHub Actions e desabilita fontes não integradas", async () => {
   const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
     if (input === "/api/collector" && init?.method === "POST") {
-      expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", locais: "Curitiba, PR", segmentos: ["varejo"], profundidade: 1, emails: false });
+      expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", locais: "Curitiba, PR", segmentos: ["varejo"], profundidade: 1, emails: true });
       return new Response(JSON.stringify({ run: { id: 0, status: "queued", url: "https://github.com/example/actions" } }));
     }
     return new Response(JSON.stringify({ run: null }));
@@ -135,7 +135,7 @@ test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async ()
 test("Todas as UFs com pesquisa vazia despacha cobertura nacional ao clicar Pesquisar", async () => {
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url === "/api/collector" && init?.method === "POST") {
-      expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", cobertura: "nacional", segmentos: ["varejo"], profundidade: 1, emails: false });
+      expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", cobertura: "nacional", segmentos: ["varejo"], profundidade: 1, emails: true });
       return new Response(JSON.stringify({ run: { id: 0, status: "queued", url: "https://example.test/actions" } }));
     }
     return new Response(JSON.stringify({ run: null }));

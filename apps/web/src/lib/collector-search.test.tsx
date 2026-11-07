@@ -15,7 +15,7 @@ test("rejeita UFs conflitantes e fontes não disponíveis", () => {
 
 
 test("Todas as UFs sem local inicia cobertura nacional; com cidade mantém busca avulsa", () => {
-  expect(buildCollectorSearch("  ", "", ["varejo", "manipulacao"], "Google Maps")).toMatchObject({ cobertura: "nacional", segmentos: ["varejo", "manipulacao"], profundidade: 1, emails: false });
+  expect(buildCollectorSearch("  ", "", ["varejo", "manipulacao"], "Google Maps")).toMatchObject({ cobertura: "nacional", segmentos: ["varejo", "manipulacao"], profundidade: 1, emails: true });
   expect(buildCollectorSearch("Curitiba", "", ["varejo"], "Google Maps").cobertura).toBeUndefined();
   expect(buildCollectorSearch("", "SP", ["varejo"], "Google Maps").cobertura).toBeUndefined();
 });

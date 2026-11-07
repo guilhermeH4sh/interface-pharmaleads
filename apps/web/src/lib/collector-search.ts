@@ -11,7 +11,7 @@ export function buildCollectorSearch(text: string, uf: string, segments: string[
   const suffix = /,\s*([a-z]{2})$/i.exec(local)?.[1]?.toUpperCase();
   if (suffix && uf && suffix !== uf) throw new Error("A UF da pesquisa é diferente da UF selecionada.");
   if (!local && !uf) {
-    return { locais: [] as string[], segmentos: [...new Set(segments)], profundidade: 1, emails: false, cobertura: "nacional" as const };
+    return { locais: [] as string[], segmentos: [...new Set(segments)], profundidade: 1, emails: true, cobertura: "nacional" as const };
   }
   if (!local) {
     const state = STATES.find(option => option.value === uf);
@@ -21,6 +21,6 @@ export function buildCollectorSearch(text: string, uf: string, segments: string[
   local = corrigirLocal(local);
   if (uf && !suffix) local = `${local}, ${uf}`;
   if (local.length > 100 || (local.includes("#!#") || [...local].some(char => char.charCodeAt(0) < 32))) throw new Error("Informe um local válido com até 100 caracteres.");
-  return { locais: [local], segmentos: [...new Set(segments)], profundidade: 1, emails: false };
+  return { locais: [local], segmentos: [...new Set(segments)], profundidade: 1, emails: true };
 }
 

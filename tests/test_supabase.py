@@ -32,6 +32,28 @@ class TestTransporte(unittest.TestCase):
         self.assertIsInstance(json.loads(req.data)[0]['dados_brutos'], dict)
         self.assertNotIn('Authorization', req.headers)  # sb_secret não é JWT
 
+    def test_recoleta_sem_email_omite_coluna_no_upsert(self):
+        self.cliente.opener.open.return_value = io.BytesIO(b'')
+        self.cliente.salvar([{'chave': '1', 'nome': 'Farmácia', 'emails': ''}])
+        request = self.cliente.opener.open.call_args.args[0]
+        self.assertEqual(json.loads(request.data), [{'chave': '1', 'nome': 'Farmácia'}])
+
+    def test_acrescenta_emails_sem_perder_alteracao_concorrente(self):
+        self.cliente.opener.open.side_effect = [
+            io.BytesIO(b'[{"emails":"original@example.test"}]'), io.BytesIO(b'[]'),
+            io.BytesIO(b'[{"emails":"original@example.test, concorrente@example.test"}]'),
+            io.BytesIO(b'[{"chave":"1"}]'),
+        ]
+        self.assertTrue(self.cliente.adicionar_emails('1', 'ORIGINAL@example.test, novo@example.test'))
+        request = self.cliente.opener.open.call_args.args[0]
+        self.assertEqual(request.method, 'PATCH')
+        self.assertEqual(json.loads(request.data), {
+            'emails': 'original@example.test, concorrente@example.test, novo@example.test',
+        })
+        filtros = parse_qs(urlsplit(request.full_url).query)
+        self.assertEqual(filtros['chave'], ['eq.1'])
+        self.assertEqual(filtros['emails'], ['eq.original@example.test, concorrente@example.test'])
+
     def test_falha_http_nao_vaza_chave_ou_resposta(self):
         erro = HTTPError('url', 401, 'sb_secret_fake', {}, io.BytesIO(b'dados privados'))
         self.cliente.opener.open.side_effect = erro
