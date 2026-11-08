@@ -97,7 +97,8 @@ test("Nova Prospecção redireciona sem abrir modal nem iniciar coleta", async (
 test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async () => {
   localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
   let included = false;
-  const lead = () => ({ chave: "real-1", nome: "Farmácia da base", local_busca: "Curitiba, PR", segmento: "varejo", crm_included: included, crm_status: "Não contatado" });
+  let status = "Não contatado";
+  const lead = () => ({ chave: "real-1", nome: "Farmácia da base", local_busca: "Curitiba, PR", segmento: "varejo", crm_included: included, crm_status: status });
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: AUTHORIZED_USER_ID }));
     if (url.includes("/rest/v1/pharmaleads")) {
@@ -105,6 +106,7 @@ test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async ()
         const patch = JSON.parse(String(init.body));
         expect(typeof patch.crm_included).toBe("boolean");
         included = patch.crm_included;
+        status = patch.crm_status;
       }
       return new Response(JSON.stringify([lead()]), { headers: { "content-range": "0-0/1" } });
     }
@@ -118,6 +120,7 @@ test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async ()
   await userEvent.click(add);
   await waitFor(() => expect(screen.queryByRole("button", { name: "Adicionar Farmácia da base ao CRM" })).not.toBeInTheDocument());
   expect(included).toBe(true);
+  expect(status).toBe("Em contato");
   await userEvent.keyboard("{Escape}");
   expect(screen.getByText("Farmácia da base")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
@@ -127,6 +130,7 @@ test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async ()
   await userEvent.click(screen.getByRole("button", { name: "Remover Farmácia da base do CRM" }));
   await waitFor(() => expect(screen.queryByText("Farmácia da base")).not.toBeInTheDocument());
   expect(included).toBe(false);
+  expect(status).toBe("Não contatado");
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
   expect(await screen.findByRole("button", { name: "Farmácia da base" })).toBeInTheDocument();
 });
@@ -193,6 +197,33 @@ test("filtros de CRM mostram apenas o contato persistido e navegação rápida r
   expect(fetcher.mock.calls.filter(call => String(call[0]).includes("/rest/v1/pharmaleads"))).toHaveLength(reads);
 });
 
+test("CRM oferece Não qualificado, persiste o status e não mostra Não contatado", async () => {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
+  let status = "Em contato";
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: AUTHORIZED_USER_ID }));
+    if (url.includes("/rest/v1/pharmaleads")) {
+      if (init?.method === "PATCH") {
+        expect(JSON.parse(String(init.body))).toEqual({ crm_status: "Não qualificado", crm_included: true });
+        status = "Não qualificado";
+      }
+      return new Response(JSON.stringify([{ chave: "crm-nq", nome: "Farmácia analisada", local_busca: "Recife, PE", segmento: "varejo", crm_included: true, crm_status: status }]), { headers: { "content-range": "0-0/1" } });
+    }
+    return new Response(JSON.stringify({ run: null }));
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<TestDashboard />);
+  await userEvent.click(screen.getByRole("button", { name: "CRM" }));
+  await userEvent.click(await screen.findByText("Farmácia analisada"));
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).queryByRole("button", { name: "Não contatado" })).not.toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole("button", { name: "Não qualificado" }));
+  await waitFor(() => expect(status).toBe("Não qualificado"));
+  await userEvent.click(within(dialog).getByText("Fechar"));
+  expect(within(screen.getByLabelText("Coluna Não Qualificado")).getByText("Farmácia analisada")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Coluna Não Contatado")).not.toBeInTheDocument();
+});
+
 test("falha ao salvar status mantém o lead em Leads", async () => {
   localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
   const lead = { chave: "real-3", nome: "Farmácia sem atualização", local_busca: "Curitiba, PR", segmento: "varejo", crm_included: false, crm_status: "Não contatado" };
@@ -212,7 +243,7 @@ test("falha ao salvar status mantém o lead em Leads", async () => {
   expect(screen.getByRole("button", { name: "Farmácia sem atualização" })).toBeInTheDocument();
 });
 
-test("Leads mostra o e-mail antes do responsável e filtra com ou sem endereço válido", async () => {
+test("Leads mostra o e-mail sem responsável e filtra com ou sem endereço válido", async () => {
   localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
   const rows = [
     { chave: "email-1", nome: "Farmácia com e-mail", local_busca: "Curitiba, PR", segmento: "varejo", emails: "contato@farmacia.com.br; vendas@farmacia.com.br", crm_included: false },
@@ -227,7 +258,8 @@ test("Leads mostra o e-mail antes do responsável e filtra com ou sem endereço 
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
   expect(await within(screen.getByRole("table")).findByRole("link", { name: "contato@farmacia.com.br" })).toHaveAttribute("href", "mailto:contato@farmacia.com.br");
   const headers = screen.getAllByRole("columnheader").map((header) => header.textContent?.trim());
-  expect(headers.indexOf("E-mail")).toBe(headers.indexOf("Responsável") - 1);
+  expect(headers).toContain("E-mail");
+  expect(headers).not.toContain("Responsável");
 
   await userEvent.selectOptions(screen.getByRole("combobox", { name: "E-mail" }), "com");
   await userEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));

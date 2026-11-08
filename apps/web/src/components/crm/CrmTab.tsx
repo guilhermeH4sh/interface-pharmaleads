@@ -5,7 +5,6 @@ import {
   ArrowRight,
   ArrowLeft,
   TrendingUp,
-  User,
   GripVertical,
   ChevronDown,
   Trash2,
@@ -22,7 +21,7 @@ import type { LeadItem, LeadStatus } from "../../lib/mock-leads";
 interface CrmTabProps {
   leads: LeadItem[];
   availableLeads?: LeadItem[];
-  onAddToCrm?: (id: string) => Promise<void>;
+  onAddToCrm?: (id: string) => Promise<boolean>;
   searchQuery?: string;
   onStatusChange: (id: string, newStatus: LeadStatus) => void;
   onRemoveFromCrm: (id: string) => void;
@@ -31,11 +30,13 @@ interface CrmTabProps {
   initialFilters?: SideFilters;
 }
 
-const COLUMNS: { id: LeadStatus; title: string; dotClass: string }[] = [
-  { id: "Não contatado", title: "Não Contatado", dotClass: "bg-muted-foreground" },
+type CrmStage = Exclude<LeadStatus, "Não contatado">;
+
+const COLUMNS: { id: CrmStage; title: string; dotClass: string }[] = [
   { id: "Em contato", title: "Em Contato", dotClass: "bg-foreground" },
   { id: "Respondido", title: "Respondido", dotClass: "bg-brand/70" },
   { id: "Qualificado", title: "Qualificado", dotClass: "bg-primary" },
+  { id: "Não qualificado", title: "Não Qualificado", dotClass: "bg-muted-foreground" },
 ];
 
 const INITIAL_LIMIT = 30;
@@ -64,7 +65,7 @@ export function CrmTab({
   const candidates = useMemo(() => {
     const included = new Set(leads.map(lead => lead.id));
     const query = addQuery.trim().toLocaleLowerCase("pt-BR");
-    return availableLeads.filter(lead => !included.has(lead.id) && !lead.crmIncluded &&
+    return availableLeads.filter(lead => !included.has(lead.id) &&
       `${lead.nome} ${lead.cidade} ${lead.uf}`.toLocaleLowerCase("pt-BR").includes(query));
   }, [availableLeads, leads, addQuery]);
 
@@ -72,18 +73,20 @@ export function CrmTab({
     if (!onAddToCrm || addingId) return;
     setAddingId(id);
     setAddError("");
-    try { await onAddToCrm(id); }
+    try {
+      if (!await onAddToCrm(id)) setAddError("Não foi possível adicionar o lead ao CRM.");
+    }
     catch (error) { setAddError(error instanceof Error ? error.message : "Não foi possível adicionar o lead."); }
     finally { setAddingId(null); }
   }
 
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dragOverCol, setDragOverCol] = useState<LeadStatus | null>(null);
-  const [limits, setLimits] = useState<Record<LeadStatus, number>>({
-    "Não contatado": INITIAL_LIMIT,
+  const [dragOverCol, setDragOverCol] = useState<CrmStage | null>(null);
+  const [limits, setLimits] = useState<Record<CrmStage, number>>({
     "Em contato": INITIAL_LIMIT,
     Respondido: INITIAL_LIMIT,
     Qualificado: INITIAL_LIMIT,
+    "Não qualificado": INITIAL_LIMIT,
   });
 
   // Os mesmos critérios usados em Leads consultam apenas os contatos do CRM.
@@ -96,15 +99,14 @@ export function CrmTab({
 
   // Agrupa leads por coluna ordenando os movidos recentemente primeiro
   const groupedByCol = useMemo(() => {
-    const groups: Record<LeadStatus, LeadItem[]> = {
-      "Não contatado": [],
+    const groups: Record<CrmStage, LeadItem[]> = {
       "Em contato": [],
       Respondido: [],
       Qualificado: [],
+      "Não qualificado": [],
     };
     for (const lead of filteredLeads) {
-      const st = groups[lead.status] ? lead.status : "Não contatado";
-      groups[st].push(lead);
+      if (lead.status !== "Não contatado") groups[lead.status].push(lead);
     }
     for (const col of COLUMNS) {
       groups[col.id].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -130,7 +132,7 @@ export function CrmTab({
     setDragOverCol(null);
   };
 
-  const handleDragOverColumn = (e: DragEvent<HTMLDivElement>, colId: LeadStatus) => {
+  const handleDragOverColumn = (e: DragEvent<HTMLDivElement>, colId: CrmStage) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     if (dragOverCol !== colId) {
@@ -138,7 +140,7 @@ export function CrmTab({
     }
   };
 
-  const handleDropOnColumn = (e: DragEvent<HTMLDivElement>, targetStatus: LeadStatus) => {
+  const handleDropOnColumn = (e: DragEvent<HTMLDivElement>, targetStatus: CrmStage) => {
     e.preventDefault();
     const idFromTransfer = e.dataTransfer.getData("text/plain") || draggedId;
     setDragOverCol(null);
@@ -191,11 +193,12 @@ export function CrmTab({
           onApplyFilters={setFilters}
           onResetFilters={() => setFilters({ uf: "", municipio: "", bairro: "", statusSelect: "Todos os status", origem: "Todas as origens", emailAvailability: "todos" })}
           dynamicLocations={dynamicLocations} availableOrigins={availableOrigins}
+          statusOptions={["Em contato", "Respondido", "Qualificado", "Não qualificado"]}
         />
         <p className="text-xs text-muted-foreground">{filteredLeads.length} de {leads.length} leads no CRM</p>
       </div>
 
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Adicionar leads ao CRM" description="Escolha contatos já salvos na sua base." size="lg">
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Adicionar leads ao CRM" description="Ao adicionar, o contato entra na etapa Em contato." size="lg">
         <div className="space-y-4">
           <input type="search" aria-label="Pesquisar leads para o CRM" placeholder="Pesquisar nome, cidade ou UF" value={addQuery} onChange={event => setAddQuery(event.target.value)} className={ui.input} />
           {(addError || errorMessage) && <p role="alert" className="text-sm">{addError || errorMessage}</p>}
@@ -264,9 +267,7 @@ export function CrmTab({
                   >
                     {isDropTarget
                       ? `Soltar aqui para mover para "${col.title}"`
-                      : col.id === "Não contatado"
-                        ? "Adicione leads pelo menu de ações na lista de Leads."
-                        : "Arraste um lead para esta etapa."}
+                      : "Arraste um lead para esta etapa."}
                   </div>
                 ) : (
                   <>
@@ -274,9 +275,8 @@ export function CrmTab({
                       const isDragging = draggedId === lead.id;
                       const whatsappUrl =
                         lead.whatsappLink || buildWhatsAppLink(lead.telefone);
-                      const prevCol = colIndex > 0 ? COLUMNS[colIndex - 1].id : null;
-                      const nextCol =
-                        colIndex < COLUMNS.length - 1 ? COLUMNS[colIndex + 1].id : null;
+                      const prevCol = colIndex > 0 && colIndex < 3 ? COLUMNS[colIndex - 1].id : null;
+                      const nextCol = colIndex < 2 ? COLUMNS[colIndex + 1].id : null;
 
                       return (
                         <div
@@ -326,12 +326,7 @@ export function CrmTab({
                             {lead.cidade} · {lead.categoria || "Drogaria"}
                           </p>
 
-                          <div className="mt-3 pt-2.5 border-t border-border flex items-center justify-between text-xs pl-1">
-                            <span className="text-[11px] text-muted-foreground flex items-center gap-1 truncate">
-                              <User size={11} className="shrink-0" />{" "}
-                              {lead.responsavel || "Comercial"}
-                            </span>
-
+                          <div className="mt-3 pt-2.5 border-t border-border flex items-center justify-end text-xs pl-1">
                             <a
                               href={whatsappUrl}
                               target="_blank"

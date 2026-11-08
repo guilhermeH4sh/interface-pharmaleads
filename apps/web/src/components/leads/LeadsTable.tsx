@@ -7,7 +7,7 @@ import { StatusBadge } from "./StatusBadge";
 import type { LeadItem, LeadStatus } from "../../lib/mock-leads";
 import { parseLeadEmails } from "../../lib/email";
 
-const STATUSES: LeadStatus[] = ["Qualificado", "Em contato", "Respondido", "Não contatado"];
+const STATUSES: LeadStatus[] = ["Qualificado", "Em contato", "Respondido", "Não qualificado", "Não contatado"];
 
 interface LeadsTableProps {
   items: LeadItem[];
@@ -112,7 +112,7 @@ export function LeadsTable({
     <div className="w-full">
       {/* Desktop (≥768px): tabela semântica */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[960px]">
+        <table className="w-full text-left border-collapse min-w-[850px]">
           <caption className="sr-only">Lista de leads de farmácias</caption>
           <thead>
             <tr className="bg-surface border-y border-border text-xs font-semibold text-muted-foreground">
@@ -134,7 +134,6 @@ export function LeadsTable({
               <th scope="col" className="py-3 px-3">Telefone</th>
               <th scope="col" className="py-3 px-3">Status</th>
               <th scope="col" className="py-3 px-3">E-mail</th>
-              <th scope="col" className="py-3 px-3">Responsável</th>
               <th scope="col" className="py-3 pr-6 pl-3 text-right">
                 <span className="sr-only">Ações</span>
               </th>
@@ -151,13 +150,12 @@ export function LeadsTable({
                   <td className="py-4 px-3"><div className="h-4 w-28 rounded bg-muted" /></td>
                   <td className="py-4 px-3"><div className="h-6 w-20 rounded-full bg-muted" /></td>
                   <td className="py-4 px-3"><div className="h-4 w-32 rounded bg-muted" /></td>
-                  <td className="py-4 px-3"><div className="h-4 w-24 rounded bg-muted" /></td>
                   <td className="py-4 pr-6 pl-3"><div className="w-8 h-8 rounded-lg bg-muted ml-auto" /></td>
                 </tr>
               ))
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={9}>{empty}</td>
+                <td colSpan={8}>{empty}</td>
               </tr>
             ) : (
               items.map((row) => {
@@ -215,7 +213,6 @@ export function LeadsTable({
                         </div>
                       ) : "—"}
                     </td>
-                    <td className="py-3.5 px-3 text-muted-foreground whitespace-nowrap">{row.responsavel || "Comercial Centrus"}</td>
                     <td className="py-3.5 pr-6 pl-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={(e) => {
@@ -361,11 +358,11 @@ export function LeadsTable({
             role="menuitem"
             className={ui.menuItem}
             onClick={() => {
-              onCrmMembershipChange(menu.lead.id, !menu.lead.crmIncluded);
+              onCrmMembershipChange(menu.lead.id, true);
               setMenu(null);
             }}
           >
-            <BriefcaseBusiness size={16} /> {menu.lead.crmIncluded ? "Remover do CRM" : "Adicionar ao CRM"}
+            <BriefcaseBusiness size={16} /> Marcar em contato e adicionar ao CRM
           </button>
           <a
             role="menuitem"

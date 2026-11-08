@@ -174,30 +174,31 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
     }
   }, [dataSourceMode, supabaseSession, loadLocalLeads, loadSupabaseLeads]);
 
-  // Mapeia os leads brutos da fonte ativa aplicando overrides de status/responsável do CRM
+  // Mapeia os leads brutos da fonte ativa aplicando overrides locais quando necessários
   const realLeads = useMemo(() => {
-    void overrideVersion; // Recomputa quando há mudança de status/responsável/exclusão
+    void overrideVersion; // Recomputa quando há mudança de status ou exclusão local
     if (dataSourceMode === "local") return mapRawLeadsToItems(rawLocalRows);
     if (dataSourceMode === "supabase") return mapRawLeadsToItems(rawSupabaseRows);
     return [];
   }, [dataSourceMode, rawLocalRows, rawSupabaseRows, overrideVersion]);
 
-  const leadsOutsideCrm = useMemo(() => realLeads.filter(lead => !lead.crmIncluded), [realLeads]);
-  const activeLeadsForCrm = realLeads.filter((lead) => lead.crmIncluded);
+  const leadsOutsideCrm = useMemo(() => realLeads.filter(lead => !lead.crmIncluded || lead.status === "Não contatado"), [realLeads]);
+  const activeLeadsForCrm = realLeads.filter((lead) => lead.crmIncluded && lead.status !== "Não contatado");
   const activeSummaryForReports = useMemo(
     () => computeSummaryFromItems(realLeads),
     [realLeads]
   );
 
   const handleCrmStatusChange = async (id: string, newStatus: LeadStatus): Promise<boolean> => {
+    const included = newStatus !== "Não contatado";
     if (dataSourceMode === "supabase") {
       if (!supabaseSession) {
         setRealError("Entre no Supabase para salvar o status do CRM.");
         return false;
       }
       try {
-        const result = await updateSupabaseCrmLead(supabaseSession, id, { crm_status: newStatus, crm_included: true });
-        if (result.row.crm_status !== newStatus || result.row.crm_included !== true) throw new Error("O Supabase não confirmou a atualização do status.");
+        const result = await updateSupabaseCrmLead(supabaseSession, id, { crm_status: newStatus, crm_included: included });
+        if (result.row.crm_status !== newStatus || result.row.crm_included !== included) throw new Error("O Supabase não confirmou a atualização do status.");
         setSupabaseSession(result.session);
         setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? result.row : row));
         setRealError("");
@@ -208,12 +209,10 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
       }
     } else {
       setLeadStatusOverride(id, newStatus);
-      setLeadCrmMembershipOverride(id, true);
+      setLeadCrmMembershipOverride(id, included);
     }
     setOverrideVersion((v) => v + 1);
-    if (selectedCrmLead?.id === id) {
-      setSelectedCrmLead({ ...selectedCrmLead, status: newStatus, crmIncluded: true });
-    }
+    if (selectedCrmLead?.id === id) setSelectedCrmLead(included ? { ...selectedCrmLead, status: newStatus, crmIncluded: true } : null);
     return true;
   };
 
@@ -226,31 +225,34 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
     return moved;
   };
 
-  const handleCrmMembershipChange = async (id: string, included: boolean) => {
+  const handleCrmMembershipChange = async (id: string, included: boolean): Promise<boolean> => {
+    const newStatus: LeadStatus = included ? "Em contato" : "Não contatado";
     if (dataSourceMode === "supabase") {
       if (!supabaseSession) {
         setRealError("Entre no Supabase para adicionar ou remover leads do CRM.");
-        return;
+        return false;
       }
       try {
-        const result = await updateSupabaseCrmLead(supabaseSession, id, { crm_included: included });
-        if (result.row.crm_included !== included) throw new Error("O Supabase não confirmou a alteração do CRM.");
+        const result = await updateSupabaseCrmLead(supabaseSession, id, { crm_included: included, crm_status: newStatus });
+        if (result.row.crm_included !== included || result.row.crm_status !== newStatus) throw new Error("O Supabase não confirmou a alteração do CRM.");
         setSupabaseSession(result.session);
         setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? result.row : row));
         setRealError("");
       } catch (err) {
         if (err instanceof AccessError) onSignOut();
         setRealError(err instanceof Error ? err.message : "Não foi possível atualizar a participação no CRM.");
-        return;
+        return false;
       }
     } else if (dataSourceMode === "local") {
       setLeadCrmMembershipOverride(id, included);
+      setLeadStatusOverride(id, newStatus);
     } else {
       setRealError("Conecte uma fonte real para incluir leads no CRM.");
-      return;
+      return false;
     }
     if (!included && selectedCrmLead?.id === id) setSelectedCrmLead(null);
     setOverrideVersion((v) => v + 1);
+    return true;
   };
 
   return (
