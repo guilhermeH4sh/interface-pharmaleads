@@ -6,7 +6,6 @@ import {
   Mail,
   Phone,
   Star,
-  ShieldCheck,
   Navigation,
   Clock,
 } from "lucide-react";
@@ -54,7 +53,7 @@ export function LeadDetailsModal({ lead, onClose, onChangeStatus }: LeadDetailsM
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-muted-foreground font-medium">Alterar status:</span>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {(["Qualificado", "Em contato", "Respondido", "Não contatado"] as LeadStatus[]).map(
+              {(["Em contato", "Respondido", "Qualificado", "Não qualificado", ...(lead.crmIncluded ? [] : ["Não contatado"])] as LeadStatus[]).map(
                 (st) => (
                   <button
                     key={st}
@@ -140,16 +139,6 @@ export function LeadDetailsModal({ lead, onClose, onChangeStatus }: LeadDetailsM
                 </a>
               )}
             </div>
-          </div>
-
-          {/* Responsável */}
-          <div className="p-3.5 rounded-xl bg-surface border border-border">
-            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
-              <ShieldCheck size={12} className="text-brand" /> Responsável Comercial
-            </span>
-            <span className="text-foreground font-medium">
-              {lead.responsavel || "Comercial Centrus"}
-            </span>
           </div>
 
           {/* Endereço Completo */}

@@ -50,7 +50,6 @@ export class AccessError extends Error { }
 
 interface CrmOverride {
   status?: LeadStatus;
-  responsavel?: string;
   crmIncluded?: boolean;
   updatedAt?: number;
 }
@@ -101,14 +100,6 @@ export function setBatchLeadStatusOverride(ids: string[], status: LeadStatus): v
   const now = Date.now();
   for (const id of ids) {
     map[id] = { ...map[id], status, updatedAt: now };
-  }
-  saveCrmOverrides(map);
-}
-
-export function setBatchLeadResponsibleOverride(ids: string[], responsavel: string): void {
-  const map = loadCrmOverrides();
-  for (const id of ids) {
-    map[id] = { ...map[id], responsavel };
   }
   saveCrmOverrides(map);
 }
@@ -453,7 +444,7 @@ export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
       const { cidade, uf } = extractCidadeUf(row);
       const bairro = extractBairro(row.endereco || "");
       const override = overrides[row.chave];
-      const persistedCrmStatus = ["Qualificado", "Em contato", "Respondido", "Não contatado"].includes(row.crm_status || "")
+      const persistedCrmStatus = ["Qualificado", "Em contato", "Respondido", "Não qualificado", "Não contatado"].includes(row.crm_status || "")
         ? (row.crm_status as LeadStatus)
         : undefined;
       const avaliacaoNum = row.avaliacao ? Number(Number(row.avaliacao).toFixed(1)) : undefined;
@@ -469,8 +460,7 @@ export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
         telefone: row.telefone || row.telefone_normalizado || "Não informado",
         whatsappLink: row.whatsapp_link || undefined,
         // Dados não contatados iniciam zerados nas métricas de Qualificados / Em contato / Respondido
-        status: persistedCrmStatus || override?.status || "Não contatado",
-        responsavel: override?.responsavel || "Comercial Centrus",
+        status: row.crm_included === false ? "Não contatado" : persistedCrmStatus || override?.status || "Não contatado",
         origem: "Google Maps",
         endereco: row.endereco || undefined,
         categoria: row.categoria || row.segmento || "Farmácia",
@@ -497,6 +487,7 @@ export function computeSummaryFromItems(items: LeadItem[]): LeadSummary {
       emContato: 0,
       respondidos: 0,
       naoContatados: 0,
+      naoQualificados: 0,
       estados: 0,
       origem: {
         googleMaps: { percent: 0, count: 0 },
@@ -510,6 +501,7 @@ export function computeSummaryFromItems(items: LeadItem[]): LeadSummary {
   let emContato = 0;
   let respondidos = 0;
   let naoContatados = 0;
+  let naoQualificados = 0;
   let mapsCount = 0;
   let gmbCount = 0;
   let outrasCount = 0;
@@ -520,6 +512,7 @@ export function computeSummaryFromItems(items: LeadItem[]): LeadSummary {
     if (item.status === "Qualificado") qualificados++;
     else if (item.status === "Em contato") emContato++;
     else if (item.status === "Respondido") respondidos++;
+    else if (item.status === "Não qualificado") naoQualificados++;
     else naoContatados++;
 
     if (item.origem === "Google Maps") mapsCount++;
@@ -537,6 +530,7 @@ export function computeSummaryFromItems(items: LeadItem[]): LeadSummary {
     emContato,
     respondidos,
     naoContatados,
+    naoQualificados,
     estados: ufs.size,
     origem: {
       googleMaps: { percent: mapsPct, count: mapsCount },

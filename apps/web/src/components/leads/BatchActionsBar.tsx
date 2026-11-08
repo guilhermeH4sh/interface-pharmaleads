@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckSquare, UserPlus, Download, X } from "lucide-react";
+import { CheckSquare, Download, X } from "lucide-react";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import type { LeadStatus } from "../../lib/mock-leads";
@@ -9,20 +9,17 @@ interface BatchActionsBarProps {
   onClearSelection: () => void;
   onBatchStatusChange: (status: LeadStatus) => void;
   onBatchExportCSV: () => void;
-  onBatchAssignResponsible: (responsible: string) => void;
 }
 
-const STATUSES: LeadStatus[] = ["Qualificado", "Em contato", "Respondido", "Não contatado"];
-const RESPONSAVEIS = ["Comercial Centrus", "Guilherme Ferreira", "Equipe Vendas SP", "Time Hunter"];
+const STATUSES: LeadStatus[] = ["Qualificado", "Em contato", "Respondido", "Não qualificado", "Não contatado"];
 
 export function BatchActionsBar({
   selectedCount,
   onClearSelection,
   onBatchStatusChange,
   onBatchExportCSV,
-  onBatchAssignResponsible,
 }: BatchActionsBarProps) {
-  const [open, setOpen] = useState<"status" | "assign" | null>(null);
+  const [open, setOpen] = useState<"status" | null>(null);
 
   if (selectedCount === 0) return null;
 
@@ -52,21 +49,6 @@ export function BatchActionsBar({
               {STATUSES.map((st) => (
                 <button key={st} role="menuitem" className={ui.menuItem} onClick={() => { onBatchStatusChange(st); setOpen(null); }}>
                   {st}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="relative">
-          <button onClick={() => setOpen(open === "assign" ? null : "assign")} aria-expanded={open === "assign"} className={cn(action, "hover:bg-background/10")}>
-            <UserPlus size={16} /> <span className="hidden sm:inline">Atribuir responsável</span>
-          </button>
-          {open === "assign" && (
-            <div role="menu" className={cn(ui.menu, "absolute left-0 bottom-12 w-52 text-foreground")}>
-              {RESPONSAVEIS.map((resp) => (
-                <button key={resp} role="menuitem" className={ui.menuItem} onClick={() => { onBatchAssignResponsible(resp); setOpen(null); }}>
-                  {resp}
                 </button>
               ))}
             </div>

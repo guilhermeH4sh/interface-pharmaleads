@@ -6,10 +6,14 @@ test("barra de coleta central, sem tabela, funciona nos dois temas e no mobile",
   page.on("console", message => { if (["error", "warning"].includes(message.type())) errors.push(message.text()); });
   await page.addInitScript(() => localStorage.setItem("pharmaleads-supabase-session", JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 })));
   let included = false;
+  let status = "Não contatado";
   await page.route("**/auth/v1/user", route => route.fulfill({ json: { id: "677ed1e4-3e73-4f2c-951f-e77386f305da" } }));
   await page.route("**/rest/v1/pharmaleads?**", route => {
-    if (route.request().method() === "PATCH") included = route.request().postDataJSON().crm_included;
-    return route.fulfill({ json: [{ chave: "lead-real", nome: "Farmácia da base", local_busca: "Curitiba, PR", segmento: "varejo", crm_included: included, crm_status: "Não contatado" }], headers: { "content-range": "0-0/1" } });
+    if (route.request().method() === "PATCH") {
+      included = route.request().postDataJSON().crm_included;
+      status = route.request().postDataJSON().crm_status;
+    }
+    return route.fulfill({ json: [{ chave: "lead-real", nome: "Farmácia da base", local_busca: "Curitiba, PR", segmento: "varejo", crm_included: included, crm_status: status }], headers: { "content-range": "0-0/1" } });
   });
   await page.route("**/api/collector", route => route.fulfill({ json: route.request().method() === "POST" ? { run: { id: 0, status: "queued", url: "https://example.test/actions" } } : { run: null } }));
   await page.goto("/");

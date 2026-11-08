@@ -4,6 +4,7 @@ import { getUFs, getMunicipios, getBairros } from "../../lib/mock-leads";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import type { EmailAvailability } from "../../lib/email";
+import type { LeadStatus } from "../../lib/mock-leads";
 
 export interface SideFilters {
   uf: string;
@@ -25,6 +26,7 @@ interface FiltersSidebarProps {
   onResetFilters: () => void;
   dynamicLocations?: Record<string, Record<string, string[]>>;
   availableOrigins?: string[];
+  statusOptions?: LeadStatus[];
 }
 
 const STATUS_ALL = "Todos os status";
@@ -68,6 +70,7 @@ export function FiltersSidebar({
   onResetFilters,
   dynamicLocations,
   availableOrigins,
+  statusOptions = ["Qualificado", "Não qualificado", "Em contato", "Respondido", "Não contatado"],
 }: FiltersSidebarProps) {
   const id = useId();
   const [uf, setUf] = useState(selectedUF);
@@ -137,10 +140,7 @@ export function FiltersSidebar({
 
         <Select id={`${id}-status`} label="Status" value={status} onChange={setStatus}>
           <option value={STATUS_ALL}>{STATUS_ALL}</option>
-          <option value="Qualificado">Qualificado</option>
-          <option value="Em contato">Em contato</option>
-          <option value="Respondido">Respondido</option>
-          <option value="Não contatado">Não contatado</option>
+          {statusOptions.map(item => <option key={item} value={item}>{item}</option>)}
         </Select>
 
         <Select id={`${id}-origem`} label="Origem" value={origem} onChange={setOrigem}>
