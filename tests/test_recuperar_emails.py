@@ -38,3 +38,31 @@ class TestRetomadaEmails(unittest.TestCase):
             cliente.adicionar_emails.assert_called_once_with('1', 'contato@drogaria.com.br')
             final = json.loads(estado.read_text(encoding='utf-8'))
             self.assertEqual((final['consultados'], final['atualizados']), (1, 1))
+
+    def test_isola_lead_sem_resultado_e_continua(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            estado = Path(pasta) / 'progresso.json'
+            estado.write_text(json.dumps({
+                'leads': [{'chave': '1', 'nome': 'Sem resultado'},
+                          {'chave': '2', 'nome': 'Com resultado'}],
+                'consultados': 0, 'encontrados': 0, 'atualizados': 0,
+                'sem_correspondencia': [],
+            }), encoding='utf-8')
+            cliente = Mock()
+            cliente.adicionar_emails.return_value = True
+
+            def executar(comando, **_):
+                entrada = Path(comando[comando.index('-input') + 1]).read_text(encoding='utf-8')
+                saida = Path(comando[comando.index('-results') + 1])
+                if 'Com resultado' in entrada and 'Sem resultado' not in entrada:
+                    saida.write_text('cid,emails,title\n2,contato@empresa.com.br,Com resultado\n', encoding='utf-8')
+                else:
+                    saida.write_text('cid,emails,title\n', encoding='utf-8')
+
+            with patch('pharmaleads.recuperar_emails.localizar_gosom', return_value=['gosom']), patch(
+                'pharmaleads.recuperar_emails.subprocess.run', side_effect=executar
+            ):
+                varrer(cliente, estado, 2, 0, 4)
+            final = json.loads(estado.read_text(encoding='utf-8'))
+            self.assertEqual((final['consultados'], final['atualizados']), (2, 1))
+            self.assertEqual(final['falhas_sem_resultado'], ['1'])

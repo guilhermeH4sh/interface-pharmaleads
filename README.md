@@ -51,6 +51,50 @@ links de WhatsApp e redes sociais. E-mails e WhatsApp complementam o registro ex
 as redes sociais ficam em `dados_brutos`. Esta opção aumenta a duração da rodada e não
 visita sites de leads que já estavam na base.
 
+Para revisar **leads já cadastrados** sem e-mail, existe uma varredura local
+com Playwright. Ela usa a lista fixa em `dados/recuperacao_emails.json`,
+visita somente sites públicos associados a esses leads e salva candidatos
+com a URL de origem. Não cria leads nem grava candidatos automaticamente no
+Supabase: confirme nome, endereço ou telefone, a página que publica o contato
+e o domínio de e-mail antes de atualizar o registro existente.
+
+```powershell
+python -m scripts.preparar_fila_playwright
+npm ci --prefix apps/web
+node scripts/scan_playwright_emails.cjs dados/fila_playwright_emails.json dados/candidatos_playwright_emails.jsonl 100
+```
+
+No Windows, a varredura usa o Microsoft Edge instalado. Em outro sistema,
+instale o Chromium do Playwright ou defina `PLAYWRIGHT_BROWSER_PATH` para o
+executável do navegador. O arquivo de saída é retomável: uma nova execução
+pula os leads já examinados.
+
+Para leads sem site, um piloto cruza CEP/UF com os [dados abertos do CNPJ da
+Receita Federal](https://www.gov.br/receitafederal/dados/cnpj-metadados.pdf),
+espelhados em Parquet pelo CNPJ Aberto (competência de setembro de 2026):
+
+```powershell
+python -m pip install --target dados/.deps duckdb==1.4.1
+python -m scripts.preparar_fila_cnpj
+python -m scripts.cruzar_cnpj_publico --shards 1
+python -m scripts.revisar_cnpj_candidatos dados/cnpj_candidatos_piloto.jsonl
+```
+
+O cruzamento gera **candidatos locais**, sem atualizar o Supabase. Mesmo com nome,
+rua e número coincidentes, confira o CNPJ, o contato e o domínio: o e-mail
+cadastral pode pertencer ao contador ou a outro ocupante do endereço.
+
+Uma segunda busca cruza o telefone exato dos mesmos leads com os estabelecimentos
+do CNPJ. Ela inclui leads sem CEP e também salva apenas candidatos locais:
+
+```powershell
+python -m scripts.cruzar_cnpj_telefone --somente-preparar
+python -m scripts.cruzar_cnpj_telefone --usar-fila-existente --shards 1 --saida dados/cnpj_candidatos_telefone_piloto.jsonl
+```
+
+Telefone compartilhado por filiais, contadores ou antigos ocupantes não comprova
+que o e-mail pertence ao estabelecimento. Confirme nome e endereço antes de usar.
+
 Em **Filtros da coleta**, marque **Cobertura nacional** e use **Iniciar coleta** para
 percorrer as 27 capitais, intercalando as regiões,
 e depois uma cidade do interior nos estados grandes — São Paulo entra com duas. Cada
