@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar, type NavTab } from "./components/layout/Sidebar";
 import { Topbar } from "./components/layout/Topbar";
 import { LeadsView } from "./components/leads/LeadsView";
+import type { SideFilters } from "./components/leads/FiltersSidebar";
 import { LeadDetailsModal } from "./components/leads/LeadDetailsModal";
 import { ProspeccaoTab } from "./components/prospeccao/ProspeccaoTab";
 import { CrmTab } from "./components/crm/CrmTab";
@@ -95,6 +96,9 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
   const [overrideVersion, setOverrideVersion] = useState(0);
 
   const [selectedCrmLead, setSelectedCrmLead] = useState<LeadItem | null>(null);
+  const [crmInitialFilters, setCrmInitialFilters] = useState<SideFilters | undefined>();
+  const lastSupabaseLoad = useRef(0);
+  const supabaseLoadInProgress = useRef(false);
 
   // Carrega todos os leads do SQLite Local
   const loadLocalLeads = useCallback(async () => {
@@ -119,12 +123,15 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
     async (sessionOverride?: SupabaseSession | null) => {
       const currentSession = sessionOverride ?? supabaseSession;
       if (!currentSession) return;
+      if (supabaseLoadInProgress.current) return;
+      supabaseLoadInProgress.current = true;
       setIsLoadingReal(true);
       setRealError("");
       try {
         const res = await fetchSupabaseAllLeads(currentSession);
         setSupabaseSession(res.session);
         setRawSupabaseRows(res.rows);
+        lastSupabaseLoad.current = Date.now();
       } catch (err) {
         setRealError(
           err instanceof Error ? err.message : "Falha ao consultar public.pharmaleads no Supabase."
@@ -135,6 +142,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
           onSignOut();
         }
       } finally {
+        supabaseLoadInProgress.current = false;
         setIsLoadingReal(false);
       }
     },
@@ -148,7 +156,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
       if (cancelled) return;
       if (dataSourceMode === "local") {
         void loadLocalLeads();
-      } else if (dataSourceMode === "supabase" && supabaseSession && ["leads", "crm", "relatorios"].includes(activeTab)) {
+      } else if (dataSourceMode === "supabase" && supabaseSession && ["leads", "crm", "relatorios"].includes(activeTab) && Date.now() - lastSupabaseLoad.current > 60_000) {
         void loadSupabaseLeads(supabaseSession);
       }
     });
@@ -189,8 +197,9 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
       }
       try {
         const result = await updateSupabaseCrmLead(supabaseSession, id, { crm_status: newStatus, crm_included: true });
+        if (result.row.crm_status !== newStatus || result.row.crm_included !== true) throw new Error("O Supabase não confirmou a atualização do status.");
         setSupabaseSession(result.session);
-        setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? { ...row, crm_status: newStatus, crm_included: true } : row));
+        setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? result.row : row));
         setRealError("");
       } catch (err) {
         if (err instanceof AccessError) onSignOut();
@@ -225,8 +234,9 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
       }
       try {
         const result = await updateSupabaseCrmLead(supabaseSession, id, { crm_included: included });
+        if (result.row.crm_included !== included) throw new Error("O Supabase não confirmou a alteração do CRM.");
         setSupabaseSession(result.session);
-        setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? { ...row, crm_included: included } : row));
+        setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? result.row : row));
         setRealError("");
       } catch (err) {
         if (err instanceof AccessError) onSignOut();
@@ -248,7 +258,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
       {/* 1. Sidebar Fixa à Esquerda (260px) + Drawer Mobile */}
       <Sidebar
         activeTab={activeTab}
-        onSelectTab={(tab) => setActiveTab(tab)}
+        onSelectTab={(tab) => { if (tab === "crm") setCrmInitialFilters(undefined); setActiveTab(tab); }}
         onOpenHelp={() => setIsHelpOpen(true)}
         isOpenMobile={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
@@ -277,6 +287,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
               searchQuery=""
               dataSourceMode={dataSourceMode}
               realLeads={leadsOutsideCrm}
+              allLeadsSummary={activeSummaryForReports}
               isLoadingReal={isLoadingReal}
               realError={realError}
               isSupabaseAuthenticated={Boolean(supabaseSession)}
@@ -286,6 +297,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
               onStatusChange={handleCrmStatusChange}
               onBatchStatusChange={handleBatchStatusChange}
               onNewProspect={() => setActiveTab("prospeccao")}
+              onOpenCrmWithFilters={(filters) => { setCrmInitialFilters(filters); setActiveTab("crm"); }}
             />
           )}
 
@@ -303,6 +315,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
           {activeTab === "crm" && (
             <CrmTab
               leads={activeLeadsForCrm}
+              initialFilters={crmInitialFilters}
               availableLeads={realLeads}
               onAddToCrm={(id) => handleCrmMembershipChange(id, true)}
               onStatusChange={handleCrmStatusChange}
@@ -327,7 +340,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
                   window.open("/api/exportar", "_blank");
                   return;
                 }
-                downloadLeadsCsv(activeLeadsForCrm, "pharmaleads_relatorio_completo");
+                downloadLeadsCsv(realLeads, "pharmaleads_relatorio_completo");
               }}
             />
           )}

@@ -230,47 +230,43 @@ export async function fetchSupabaseAllLeads(
   const active = await verifyPlatformSession(session);
 
   const rows: Lead[] = [];
-  let offset = 0;
-  let crmColumnsAvailable = true;
+  let lastKey = "";
+  let expectedTotal: number | undefined;
+  const pageSize = 1000;
   while (true) {
     const query = new URLSearchParams({
-      select: crmColumnsAvailable ? SUPABASE_COLUMNS : SUPABASE_BASE_COLUMNS,
+      select: SUPABASE_COLUMNS,
       order: "chave.asc",
-      limit: "500",
-      offset: String(offset),
+      limit: String(pageSize),
     });
+    if (lastKey) query.set("chave", `gt.${lastKey}`);
     const response = await fetch(`${SUPABASE_URL}/rest/v1/pharmaleads?${query}`, {
       headers: {
         apikey: PUBLISHABLE_KEY,
         Authorization: `Bearer ${active.access_token}`,
-        Prefer: "count=exact",
+        ...(!lastKey ? { Prefer: "count=exact" } : {}),
       },
     });
     if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
     if (response.status === 403) {
       throw new Error("A conta não tem acesso à tabela pharmaleads. Verifique as permissões no Supabase.");
     }
-    if (!response.ok && crmColumnsAvailable && response.status === 400) {
-      const body = await response.clone().text();
-      if (body.includes("crm_included") || body.includes("crm_status")) {
-        crmColumnsAvailable = false;
-        continue;
-      }
-    }
     if (!response.ok) {
       throw new Error(`Consulta ao Supabase falhou (HTTP ${response.status}).`);
     }
     const batch = (await response.json()) as Lead[];
     rows.push(...batch);
-    offset += batch.length;
-    const total = Number(response.headers.get("content-range")?.split("/")[1]);
-    if (
-      !batch.length ||
-      (Number.isFinite(total) && offset >= total) ||
-      (!Number.isFinite(total) && batch.length < 500)
-    ) {
-      break;
+    if (batch.length) {
+      const nextKey = batch[batch.length - 1].chave;
+      if (!nextKey || nextKey <= lastKey) throw new Error("A paginação do Supabase retornou uma chave inválida.");
+      lastKey = nextKey;
     }
+    const total = Number(response.headers.get("content-range")?.split("/")[1]);
+    if (expectedTotal === undefined && Number.isFinite(total)) expectedTotal = total;
+    if (batch.length < pageSize) break;
+  }
+  if (new Set(rows.map(row => row.chave)).size !== rows.length || (expectedTotal !== undefined && rows.length < expectedTotal)) {
+    throw new Error("A consulta ao Supabase retornou uma lista incompleta de leads.");
   }
   return { session: active, rows };
 }
@@ -423,23 +419,20 @@ export async function controlCloudCollector(
 
 function extractCidadeUf(row: Lead): { cidade: string; uf: string } {
   const local = (row.local_busca || "").trim();
+  const matches = [...(row.endereco || "").matchAll(/,\s*([^,-]+?)\s*-\s*([A-Z]{2})(?:,|$)/g)];
+  if (matches.length) {
+    const last = matches[matches.length - 1];
+    return { cidade: last[1].trim(), uf: last[2].toUpperCase() };
+  }
   const matchLocal = /^(.+?),\s*([A-Z]{2})$/i.exec(local);
   if (matchLocal) {
     return { cidade: matchLocal[1].trim(), uf: matchLocal[2].toUpperCase() };
   }
-  const matchEnd = /,\s*([^,-]+?)\s*-\s*([A-Z]{2})(?:,|$)/.exec(row.endereco || "");
-  if (matchEnd) {
-    return { cidade: matchEnd[1].trim(), uf: matchEnd[2].toUpperCase() };
-  }
-  const ufFallback =
-    /(?:,|\s)([A-Z]{2})(?:\b|$)/.exec(local)?.[1] ||
-    /- ([A-Z]{2})(?:,|$)/.exec(row.endereco || "")?.[1] ||
-    "SP";
-  return { cidade: local || "Não informado", uf: ufFallback };
+  return { cidade: local || "Não informado", uf: "" };
 }
 
 function extractBairro(endereco: string): string {
-  if (!endereco) return "Centro";
+  if (!endereco) return "";
   const match = /-\s*([^,-]+?),\s*[^,-]+?\s*-\s*[A-Z]{2}/.exec(endereco);
   if (match && match[1]) {
     const candidate = match[1].trim();
@@ -447,7 +440,7 @@ function extractBairro(endereco: string): string {
       return candidate;
     }
   }
-  return "Centro";
+  return "";
 }
 
 export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
@@ -567,10 +560,10 @@ export function computeUfCoverage(items: LeadItem[]): Record<string, { total: nu
   return map;
 }
 
-export function filterAndPaginateItems(
+export function filterLeadItems(
   allItems: LeadItem[],
   params: LeadFilterParams
-): LeadPaginationResult {
+): LeadItem[] {
   const {
     query = "",
     statusTab = "Todos",
@@ -580,15 +573,13 @@ export function filterAndPaginateItems(
     statusSelect = "",
     origem = "",
     emailAvailability = "todos",
-    page = 1,
-    pageSize = 5,
   } = params;
 
   const q = query.trim().toLowerCase();
 
-  const filtered = allItems.filter((item) => {
+  return allItems.filter((item) => {
     if (q) {
-      const searchable = `${item.nome} ${item.cnpj} ${item.cidade} ${item.uf} ${item.telefone} ${item.bairro} ${item.endereco || ""} ${item.categoria || ""}`.toLowerCase();
+      const searchable = `${item.nome} ${item.cnpj} ${item.cidade} ${item.uf} ${item.telefone} ${item.email || ""} ${item.bairro} ${item.endereco || ""} ${item.categoria || ""}`.toLowerCase();
       if (!searchable.includes(q)) return false;
     }
     if (statusTab && statusTab !== "Todos" && item.status !== statusTab) {
@@ -614,6 +605,14 @@ export function filterAndPaginateItems(
     }
     return true;
   });
+}
+
+export function filterAndPaginateItems(
+  allItems: LeadItem[],
+  params: LeadFilterParams
+): LeadPaginationResult {
+  const { page = 1, pageSize = 5 } = params;
+  const filtered = filterLeadItems(allItems, params);
 
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
