@@ -104,8 +104,9 @@ def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorre
             lote_original = estado['leads'][posicao:min(posicao + tamanho_atual, fim)]
             lote = lote_original
             if somente_sem_email:
-                cobertos = {row['chave'] for row in cliente.listar('chave,emails', {'emails': 'neq.'})
-                            if emails_publicos(row['emails'])}
+                chaves_originais = {lead['chave'] for lead in lote_original}
+                cobertos = {row['chave'] for row in cliente.buscar(chaves_originais).values()
+                            if emails_publicos(row.get('emails') or '')}
                 lote = [lead for lead in lote_original if lead['chave'] not in cobertos]
             chaves = {lead['chave'] for lead in lote}
             encontrados = {}
