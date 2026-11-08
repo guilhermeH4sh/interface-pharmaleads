@@ -6,6 +6,7 @@ import type {
   LeadStatus,
   LeadSummary,
 } from "./mock-leads";
+import { parseLeadEmails } from "./email";
 
 // Configuração oficial do Supabase (mesma utilizada em HostedDashboard.tsx)
 export const SUPABASE_URL = "https://qxsdcrywsjkrpcbfgbxb.supabase.co";
@@ -578,6 +579,7 @@ export function filterAndPaginateItems(
     bairro = "",
     statusSelect = "",
     origem = "",
+    emailAvailability = "todos",
     page = 1,
     pageSize = 5,
   } = params;
@@ -605,6 +607,9 @@ export function filterAndPaginateItems(
       return false;
     }
     if (origem && origem !== "Todas as origens" && item.origem !== origem) {
+      return false;
+    }
+    if (emailAvailability !== "todos" && (parseLeadEmails(item.email).length > 0) !== (emailAvailability === "com")) {
       return false;
     }
     return true;

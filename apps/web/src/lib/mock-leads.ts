@@ -1,3 +1,5 @@
+import { parseLeadEmails, type EmailAvailability } from "./email";
+
 /**
  * Módulo de dados mockados e serviços assíncronos no formato Supabase
  * Permite alternar para o Supabase real sem alterar os componentes de UI.
@@ -55,6 +57,7 @@ export interface LeadFilterParams {
   bairro?: string;
   statusSelect?: string;
   origem?: string;
+  emailAvailability?: EmailAvailability;
   page?: number;
   pageSize?: number;
 }
@@ -145,6 +148,7 @@ export async function fetchMockLeads(params: LeadFilterParams): Promise<LeadPagi
     bairro = "",
     statusSelect = "",
     origem = "",
+    emailAvailability = "todos",
     page = 1,
     pageSize = 5,
   } = params;
@@ -164,6 +168,10 @@ export async function fetchMockLeads(params: LeadFilterParams): Promise<LeadPagi
   // 3. Filtro de Origem
   if (origem && origem !== "Todas as origens") {
     filtered = filtered.filter((item) => item.origem === origem);
+  }
+
+  if (emailAvailability !== "todos") {
+    filtered = filtered.filter((item) => (parseLeadEmails(item.email).length > 0) === (emailAvailability === "com"));
   }
 
   // 4. Filtro de UF

@@ -8,6 +8,7 @@ import { LeadDetailsModal } from "./LeadDetailsModal";
 import { downloadLeadsCsv } from "../../lib/csv";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
+import type { EmailAvailability } from "../../lib/email";
 import {
   buildDynamicLocations,
   computeSummaryFromItems,
@@ -74,6 +75,10 @@ export function LeadsView({
     getUrlParam("status", legacyStatusTab === "Todos" ? "Todos os status" : legacyStatusTab)
   );
   const [selectedOrigem, setSelectedOrigem] = useState(getUrlParam("origem", "Todas as origens"));
+  const [selectedEmailAvailability, setSelectedEmailAvailability] = useState<EmailAvailability>(() => {
+    const value = getUrlParam("email", "todos");
+    return value === "com" || value === "sem" ? value : "todos";
+  });
 
   // Estados do modo Mock
   const [mockLeads, setMockLeads] = useState<LeadItem[]>([]);
@@ -97,6 +102,7 @@ export function LeadsView({
     if (selectedBairro) params.set("bairro", selectedBairro);
     if (selectedStatus && selectedStatus !== "Todos os status") params.set("status", selectedStatus);
     if (selectedOrigem && selectedOrigem !== "Todas as origens") params.set("origem", selectedOrigem);
+    if (selectedEmailAvailability !== "todos") params.set("email", selectedEmailAvailability);
 
     const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
     window.history.replaceState({}, "", newUrl);
@@ -108,6 +114,7 @@ export function LeadsView({
     selectedBairro,
     selectedStatus,
     selectedOrigem,
+    selectedEmailAvailability,
   ]);
 
   const loadMockLeads = useCallback(async () => {
@@ -122,6 +129,7 @@ export function LeadsView({
         bairro: selectedBairro,
         statusSelect: selectedStatus,
         origem: selectedOrigem,
+        emailAvailability: selectedEmailAvailability,
         page: currentPage,
         pageSize: 5,
       });
@@ -131,7 +139,8 @@ export function LeadsView({
         Boolean(searchQuery) ||
         Boolean(selectedUF) ||
         selectedStatus !== "Todos os status" ||
-        selectedOrigem !== "Todas as origens";
+        selectedOrigem !== "Todas as origens" ||
+        selectedEmailAvailability !== "todos";
 
       setMockTotalLeads(hasSpecificFilter ? res.total : MOCK_SUMMARY.totalLeads);
       setMockTotalPages(hasSpecificFilter ? res.totalPages : Math.ceil(MOCK_SUMMARY.totalLeads / 5));
@@ -148,6 +157,7 @@ export function LeadsView({
     selectedBairro,
     selectedStatus,
     selectedOrigem,
+    selectedEmailAvailability,
     currentPage,
   ]);
 
@@ -185,6 +195,7 @@ export function LeadsView({
             bairro: selectedBairro,
             statusSelect: selectedStatus,
             origem: selectedOrigem,
+            emailAvailability: selectedEmailAvailability,
             page: currentPage,
             pageSize: 5,
           })
@@ -198,6 +209,7 @@ export function LeadsView({
       selectedBairro,
       selectedStatus,
       selectedOrigem,
+      selectedEmailAvailability,
       currentPage,
     ]
   );
@@ -219,12 +231,14 @@ export function LeadsView({
     bairro: string;
     statusSelect: string;
     origem: string;
+    emailAvailability: EmailAvailability;
   }) => {
     setSelectedUF(filters.uf);
     setSelectedMunicipio(filters.municipio);
     setSelectedBairro(filters.bairro);
     setSelectedStatus(filters.statusSelect);
     setSelectedOrigem(filters.origem);
+    setSelectedEmailAvailability(filters.emailAvailability);
     setCurrentPage(1);
     setSelectedLeadIds([]);
   };
@@ -235,6 +249,7 @@ export function LeadsView({
     setSelectedBairro("");
     setSelectedStatus("Todos os status");
     setSelectedOrigem("Todas as origens");
+    setSelectedEmailAvailability("todos");
     setCurrentPage(1);
   };
 
@@ -387,12 +402,13 @@ export function LeadsView({
       <div className={cn(ui.cardInteractive, "w-full overflow-hidden flex flex-col")}>
         <div className="p-4 md:p-6 border-b border-border">
           <FiltersSidebar
-            key={`${selectedUF}|${selectedMunicipio}|${selectedBairro}|${selectedStatus}|${selectedOrigem}`}
+            key={`${selectedUF}|${selectedMunicipio}|${selectedBairro}|${selectedStatus}|${selectedOrigem}|${selectedEmailAvailability}`}
             selectedUF={selectedUF}
             selectedMunicipio={selectedMunicipio}
             selectedBairro={selectedBairro}
             selectedStatus={selectedStatus}
             selectedOrigem={selectedOrigem}
+            selectedEmailAvailability={selectedEmailAvailability}
             onApplyFilters={handleApplySideFilters}
             onResetFilters={handleResetFilters}
             dynamicLocations={dynamicLocations}

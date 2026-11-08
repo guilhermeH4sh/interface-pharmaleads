@@ -16,6 +16,7 @@ import { Modal } from "../ui/modal";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import type { LeadItem, LeadStatus } from "../../lib/mock-leads";
+import { parseLeadEmails } from "../../lib/email";
 
 interface LeadDetailsModalProps {
   lead: LeadItem | null;
@@ -33,7 +34,7 @@ const SITUACAO_LABELS: Record<string, string> = {
 export function LeadDetailsModal({ lead, onClose, onChangeStatus }: LeadDetailsModalProps) {
   if (!lead) return null;
 
-  const emails = [...new Set((lead.email || "").split(/[,;\s]+/).map(email => email.trim()).filter(Boolean))];
+  const emails = parseLeadEmails(lead.email);
   const whatsappUrl = lead.whatsappLink || buildWhatsAppLink(lead.telefone);
 
   return (
