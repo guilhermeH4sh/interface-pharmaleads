@@ -3,6 +3,7 @@ import { Filter, ChevronDown } from "lucide-react";
 import { getUFs, getMunicipios, getBairros } from "../../lib/mock-leads";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
+import type { EmailAvailability } from "../../lib/email";
 
 export interface SideFilters {
   uf: string;
@@ -10,6 +11,7 @@ export interface SideFilters {
   bairro: string;
   statusSelect: string;
   origem: string;
+  emailAvailability: EmailAvailability;
 }
 
 interface FiltersSidebarProps {
@@ -18,6 +20,7 @@ interface FiltersSidebarProps {
   selectedBairro: string;
   selectedStatus: string;
   selectedOrigem: string;
+  selectedEmailAvailability: EmailAvailability;
   onApplyFilters: (filters: SideFilters) => void;
   onResetFilters: () => void;
   dynamicLocations?: Record<string, Record<string, string[]>>;
@@ -59,6 +62,7 @@ export function FiltersSidebar({
   selectedBairro,
   selectedStatus,
   selectedOrigem,
+  selectedEmailAvailability,
   onApplyFilters,
   onResetFilters,
   dynamicLocations,
@@ -69,6 +73,7 @@ export function FiltersSidebar({
   const [bairro, setBairro] = useState(selectedBairro);
   const [status, setStatus] = useState(selectedStatus || STATUS_ALL);
   const [origem, setOrigem] = useState(selectedOrigem || ORIGEM_ALL);
+  const [emailAvailability, setEmailAvailability] = useState<EmailAvailability>(selectedEmailAvailability);
 
   const ufsList = dynamicLocations && Object.keys(dynamicLocations).length > 0
     ? Object.keys(dynamicLocations).sort()
@@ -81,7 +86,7 @@ export function FiltersSidebar({
   const bairros = uf && municipio
     ? dynamicLocations?.[uf]?.[municipio] || getBairros(uf, municipio)
     : [];
-  const hasFilters = Boolean(uf || municipio || bairro) || status !== STATUS_ALL || origem !== ORIGEM_ALL;
+  const hasFilters = Boolean(uf || municipio || bairro) || status !== STATUS_ALL || origem !== ORIGEM_ALL || emailAvailability !== "todos";
 
   const reset = () => {
     setUf("");
@@ -89,6 +94,7 @@ export function FiltersSidebar({
     setBairro("");
     setStatus(STATUS_ALL);
     setOrigem(ORIGEM_ALL);
+    setEmailAvailability("todos");
     onResetFilters();
   };
 
@@ -106,10 +112,10 @@ export function FiltersSidebar({
       </div>
 
       <form
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3 items-end"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7 gap-3 items-end"
         onSubmit={(event) => {
           event.preventDefault();
-          onApplyFilters({ uf, municipio, bairro, statusSelect: status, origem });
+          onApplyFilters({ uf, municipio, bairro, statusSelect: status, origem, emailAvailability });
         }}
       >
         <Select id={`${id}-uf`} label="UF" value={uf} onChange={(value) => { setUf(value); setMunicipio(""); setBairro(""); }}>
@@ -140,6 +146,12 @@ export function FiltersSidebar({
           <option value="Google Maps">Google Maps</option>
           <option value="Google Meu Negócio">Google Meu Negócio</option>
           <option value="Outras fontes">Outras fontes</option>
+        </Select>
+
+        <Select id={`${id}-email`} label="E-mail" value={emailAvailability} onChange={(value) => setEmailAvailability(value as EmailAvailability)}>
+          <option value="todos">Todos</option>
+          <option value="com">Com e-mail</option>
+          <option value="sem">Sem e-mail</option>
         </Select>
 
         <button type="submit" className={cn(ui.btnBrand, "h-10 text-xs")}>

@@ -5,6 +5,7 @@ import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import { StatusBadge } from "./StatusBadge";
 import type { LeadItem, LeadStatus } from "../../lib/mock-leads";
+import { parseLeadEmails } from "../../lib/email";
 
 const STATUSES: LeadStatus[] = ["Qualificado", "Em contato", "Respondido", "Não contatado"];
 
@@ -111,7 +112,7 @@ export function LeadsTable({
     <div className="w-full">
       {/* Desktop (≥768px): tabela semântica */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[760px]">
+        <table className="w-full text-left border-collapse min-w-[960px]">
           <caption className="sr-only">Lista de leads de farmácias</caption>
           <thead>
             <tr className="bg-surface border-y border-border text-xs font-semibold text-muted-foreground">
@@ -132,6 +133,7 @@ export function LeadsTable({
               <th scope="col" className="py-3 px-3">Cidade / UF</th>
               <th scope="col" className="py-3 px-3">Telefone</th>
               <th scope="col" className="py-3 px-3">Status</th>
+              <th scope="col" className="py-3 px-3">E-mail</th>
               <th scope="col" className="py-3 px-3">Responsável</th>
               <th scope="col" className="py-3 pr-6 pl-3 text-right">
                 <span className="sr-only">Ações</span>
@@ -148,17 +150,19 @@ export function LeadsTable({
                   <td className="py-4 px-3"><div className="h-4 w-24 rounded bg-muted" /></td>
                   <td className="py-4 px-3"><div className="h-4 w-28 rounded bg-muted" /></td>
                   <td className="py-4 px-3"><div className="h-6 w-20 rounded-full bg-muted" /></td>
+                  <td className="py-4 px-3"><div className="h-4 w-32 rounded bg-muted" /></td>
                   <td className="py-4 px-3"><div className="h-4 w-24 rounded bg-muted" /></td>
                   <td className="py-4 pr-6 pl-3"><div className="w-8 h-8 rounded-lg bg-muted ml-auto" /></td>
                 </tr>
               ))
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={8}>{empty}</td>
+                <td colSpan={9}>{empty}</td>
               </tr>
             ) : (
               items.map((row) => {
                 const isSelected = selectedIds.includes(row.id);
+                const emails = parseLeadEmails(row.email);
                 return (
                   <tr
                     key={row.id}
@@ -203,6 +207,14 @@ export function LeadsTable({
                       </div>
                     </td>
                     <td className="py-3.5 px-3"><StatusBadge status={row.status} /></td>
+                    <td className="py-3.5 px-3 text-muted-foreground max-w-[190px]">
+                      {emails.length ? (
+                        <div className="flex items-center gap-1 min-w-0" title={emails.join(", ")}>
+                          <a href={`mailto:${emails[0]}`} onClick={(event) => event.stopPropagation()} className="truncate text-brand hover:underline">{emails[0]}</a>
+                          {emails.length > 1 && <span className="shrink-0 text-xs">+{emails.length - 1}</span>}
+                        </div>
+                      ) : "—"}
+                    </td>
                     <td className="py-3.5 px-3 text-muted-foreground whitespace-nowrap">{row.responsavel || "Comercial Centrus"}</td>
                     <td className="py-3.5 pr-6 pl-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <button
@@ -238,8 +250,9 @@ export function LeadsTable({
             ))
           : items.length === 0
             ? <li>{empty}</li>
-            : items.map((row) => (
-                <li key={row.id} className={cn("p-4", selectedIds.includes(row.id) && "bg-primary-soft/60")}>
+            : items.map((row) => {
+                const primaryEmail = parseLeadEmails(row.email)[0];
+                return <li key={row.id} className={cn("p-4", selectedIds.includes(row.id) && "bg-primary-soft/60")}>
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
@@ -255,6 +268,9 @@ export function LeadsTable({
                       </div>
                       <p className="text-sm text-muted-foreground mt-0.5">{row.cidade} / {row.uf}</p>
                       <p className="text-sm text-foreground tabular-nums mt-0.5">{formatPhone(row.telefone)}</p>
+                      <p className="text-sm text-muted-foreground mt-0.5 truncate">
+                        E-mail: {primaryEmail ? <a href={`mailto:${primaryEmail}`} className="text-brand hover:underline">{primaryEmail}</a> : "—"}
+                      </p>
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
@@ -281,8 +297,8 @@ export function LeadsTable({
                       <MoreHorizontal size={18} />
                     </button>
                   </div>
-                </li>
-              ))}
+                </li>;
+              })}
       </ul>
 
       {/* Rodapé: contagem + paginação */}
