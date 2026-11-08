@@ -277,7 +277,7 @@ export async function fetchSupabaseAllLeads(
 export async function updateSupabaseCrmLead(
   session: SupabaseSession,
   id: string,
-  fields: Pick<Lead, "crm_included"> | Pick<Lead, "crm_status">
+  fields: Partial<Pick<Lead, "crm_included" | "crm_status">>
 ): Promise<{ session: SupabaseSession; row: Lead }> {
   const active = await validSupabaseSession(session);
   const query = new URLSearchParams({ chave: `eq.${id}`, select: SUPABASE_COLUMNS });
