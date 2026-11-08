@@ -24,6 +24,7 @@ interface FiltersSidebarProps {
   onApplyFilters: (filters: SideFilters) => void;
   onResetFilters: () => void;
   dynamicLocations?: Record<string, Record<string, string[]>>;
+  availableOrigins?: string[];
 }
 
 const STATUS_ALL = "Todos os status";
@@ -66,6 +67,7 @@ export function FiltersSidebar({
   onApplyFilters,
   onResetFilters,
   dynamicLocations,
+  availableOrigins,
 }: FiltersSidebarProps) {
   const id = useId();
   const [uf, setUf] = useState(selectedUF);
@@ -75,16 +77,16 @@ export function FiltersSidebar({
   const [origem, setOrigem] = useState(selectedOrigem || ORIGEM_ALL);
   const [emailAvailability, setEmailAvailability] = useState<EmailAvailability>(selectedEmailAvailability);
 
-  const ufsList = dynamicLocations && Object.keys(dynamicLocations).length > 0
-    ? Object.keys(dynamicLocations).sort()
-    : getUFs();
+  const ufsList = dynamicLocations !== undefined ? Object.keys(dynamicLocations).sort() : getUFs();
   const municipios = uf
-    ? dynamicLocations?.[uf]
-      ? Object.keys(dynamicLocations[uf]).sort()
+    ? dynamicLocations !== undefined
+      ? Object.keys(dynamicLocations[uf] || {}).sort()
       : getMunicipios(uf)
     : [];
   const bairros = uf && municipio
-    ? dynamicLocations?.[uf]?.[municipio] || getBairros(uf, municipio)
+    ? dynamicLocations !== undefined
+      ? dynamicLocations[uf]?.[municipio] || []
+      : getBairros(uf, municipio)
     : [];
   const hasFilters = Boolean(uf || municipio || bairro) || status !== STATUS_ALL || origem !== ORIGEM_ALL || emailAvailability !== "todos";
 
@@ -143,9 +145,7 @@ export function FiltersSidebar({
 
         <Select id={`${id}-origem`} label="Origem" value={origem} onChange={setOrigem}>
           <option value={ORIGEM_ALL}>{ORIGEM_ALL}</option>
-          <option value="Google Maps">Google Maps</option>
-          <option value="Google Meu Negócio">Google Meu Negócio</option>
-          <option value="Outras fontes">Outras fontes</option>
+          {(availableOrigins ?? ["Google Maps", "Google Meu Negócio", "Outras fontes"]).map(item => <option key={item} value={item}>{item}</option>)}
         </Select>
 
         <Select id={`${id}-email`} label="E-mail" value={emailAvailability} onChange={(value) => setEmailAvailability(value as EmailAvailability)}>
