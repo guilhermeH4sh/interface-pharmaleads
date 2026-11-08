@@ -73,7 +73,7 @@ def bloquear_estado(caminho: Path):
 
 
 def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorrencia: int,
-           somente_sem_email: bool = False) -> None:
+           somente_sem_email: bool = False, timeout_min: int = 30) -> None:
     caminho.parent.mkdir(parents=True, exist_ok=True)
     if caminho.exists():
         estado = json.loads(caminho.read_text(encoding='utf-8'))
@@ -89,7 +89,7 @@ def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorre
         salvar_estado(caminho, estado)
 
     opcoes = Opcoes(bin=localizar_gosom(), concorrencia=concorrencia, profundidade=1,
-                    emails=True, inatividade='1m')
+                    emails=True, inatividade='1m', timeout_min=timeout_min)
     total = len(estado['leads'])
     inicio = estado['consultados']
     fim = min(total, inicio + limite) if limite else total
@@ -98,6 +98,7 @@ def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorre
         entrada = Path(pasta) / 'consultas.txt'
         saida = Path(pasta) / 'resultados.csv'
         tamanho_atual = tamanho
+        falhas_consecutivas = 0
         while estado['consultados'] < fim:
             posicao = estado['consultados']
             lote_original = estado['leads'][posicao:min(posicao + tamanho_atual, fim)]
@@ -108,7 +109,7 @@ def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorre
                 lote = [lead for lead in lote_original if lead['chave'] not in cobertos]
             chaves = {lead['chave'] for lead in lote}
             encontrados = {}
-            timeout = None
+            falha = None
             if lote:
                 entrada.write_text('\n'.join(consulta(lead) for lead in lote) + '\n', encoding='utf-8')
                 saida.unlink(missing_ok=True)
@@ -118,28 +119,35 @@ def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorre
                         subprocess.run(montar_comando(opcoes, entrada, saida), check=True,
                                        stdout=log, stderr=subprocess.STDOUT, timeout=opcoes.timeout_min * 60,
                                        env={**os.environ, 'DISABLE_TELEMETRY': '1'})
-                except subprocess.TimeoutExpired as erro:
-                    timeout = erro
+                except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as erro:
+                    falha = erro
                 if saida.is_file():
                     encontrados = resultados(saida, chaves)
-                if not encontrados and timeout is None:
-                    raise ErroPharmaLeads('Nenhum resultado correspondeu ao lote. O progresso foi preservado para retomada.')
             for chave, emails in encontrados.items():
                 estado['atualizados'] += cliente.adicionar_emails(chave, emails)
-            if timeout is not None and chaves - encontrados.keys():
-                # Aproveita somente linhas completas e mantém a posição para
-                # tentar novamente os leads que não retornaram no arquivo.
+            if chaves and (falha is not None or not encontrados) and chaves - encontrados.keys():
+                # Um site problemático não deve impedir todos os leads seguintes.
+                # Isola o lote e preserva qualquer linha completa já retornada.
                 salvar_estado(caminho, estado)
-                if tamanho_atual <= 10:
-                    raise timeout
-                tamanho_atual = max(10, tamanho_atual // 2)
-                print(f'Lote expirou. Resultados confirmados salvos; retomando com {tamanho_atual} leads por lote.', flush=True)
-                continue
+                if tamanho_atual > 1:
+                    tamanho_atual = 1
+                    print('Lote sem resultado completo; isolando leads individualmente.', flush=True)
+                    continue
+                if falha is not None:
+                    falhas_consecutivas += 1
+                    if falhas_consecutivas >= 3:
+                        raise ErroPharmaLeads('Três leads seguidos falharam; confira o Gosom ou a conexão.')
+                estado.setdefault('falhas_sem_resultado', []).extend(chaves - encontrados.keys())
+                print(f'Lead sem resultado registrado para nova tentativa: {posicao + 1}/{total}.', flush=True)
+            else:
+                falhas_consecutivas = 0
             estado['consultados'] += len(lote_original)
             estado['pulados_com_email'] = estado.get('pulados_com_email', 0) + len(lote_original) - len(lote)
             estado['encontrados'] += len(encontrados)
             estado['sem_correspondencia'].extend(sorted(chaves - encontrados.keys()))
             salvar_estado(caminho, estado)
+            if tamanho_atual == 1:
+                tamanho_atual = tamanho
             print(f"{estado['consultados']}/{total} verificados, {estado['encontrados']} correspondências, "
                   f"{estado['pulados_com_email']} já tinham e-mail, "
                   f"{estado['atualizados']} leads com e-mails acrescentados.", flush=True)
@@ -151,14 +159,17 @@ def main() -> int:
     parser.add_argument('--lote', type=int, default=160)
     parser.add_argument('--limite', type=int, default=0, help='Máximo nesta execução. Zero continua até o fim.')
     parser.add_argument('--concorrencia', type=int, choices=range(1, 9), default=4)
+    parser.add_argument('--timeout-min', type=int, default=30,
+                        help='Tempo máximo de cada lote do Gosom, em minutos.')
     parser.add_argument('--somente-sem-email', action='store_true',
                         help='Pula leads que já têm e-mail com domínio público no Supabase.')
     args = parser.parse_args()
-    if args.lote < 1 or args.limite < 0:
-        parser.error('Informe lote positivo e limite não negativo.')
+    if args.lote < 1 or args.limite < 0 or args.timeout_min < 1:
+        parser.error('Informe lote e timeout positivos e limite não negativo.')
     try:
         with bloquear_estado(args.estado):
-            varrer(Supabase(), args.estado, args.lote, args.limite, args.concorrencia, args.somente_sem_email)
+            varrer(Supabase(), args.estado, args.lote, args.limite, args.concorrencia,
+                   args.somente_sem_email, args.timeout_min)
         return 0
     except (ErroPharmaLeads, OSError, ValueError, subprocess.SubprocessError) as erro:
         print(f'Busca interrompida: {erro}', flush=True)

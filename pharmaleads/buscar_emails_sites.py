@@ -77,6 +77,7 @@ def baixar(url: str, dominio_inicial: str) -> tuple[str, str]:
             if partes.query:
                 caminho += '?' + quote(partes.query, safe='=&%/:?+@,;[]')
             conexao.request('GET', caminho, headers={
+                'Host': host,
                 'User-Agent': 'PharmaLeads/1.0 (consulta de contato público)',
                 'Accept': 'text/html,application/xhtml+xml',
                 'Connection': 'close',
