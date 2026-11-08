@@ -5,7 +5,7 @@ import { parseLeadEmails, type EmailAvailability } from "./email";
  * Permite alternar para o Supabase real sem alterar os componentes de UI.
  */
 
-export type LeadStatus = "Qualificado" | "Em contato" | "Respondido" | "Não contatado";
+export type LeadStatus = "Qualificado" | "Em contato" | "Respondido" | "Não qualificado" | "Não contatado";
 export type LeadOrigin = "Google Maps" | "Google Meu Negócio" | "Outras fontes";
 
 export interface LeadItem {
@@ -17,7 +17,6 @@ export interface LeadItem {
   bairro: string;
   telefone: string;
   status: LeadStatus;
-  responsavel: string;
   origem: LeadOrigin;
   endereco?: string;
   categoria?: string;
@@ -41,6 +40,7 @@ export interface LeadSummary {
   emContato: number;
   respondidos: number;
   naoContatados: number;
+  naoQualificados: number;
   estados: number;
   origem: {
     googleMaps: { percent: number; count: number };
@@ -77,6 +77,7 @@ export const MOCK_SUMMARY: LeadSummary = {
   emContato: 0,
   respondidos: 0,
   naoContatados: 0,
+  naoQualificados: 0,
   estados: 0,
   origem: {
     googleMaps: { percent: 0, count: 0 },

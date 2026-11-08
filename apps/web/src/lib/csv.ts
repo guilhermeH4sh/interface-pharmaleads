@@ -1,4 +1,5 @@
 import type { LeadItem } from "./mock-leads";
+import { parseLeadEmails } from "./email";
 
 /** Evita injeção de fórmulas em planilhas e escapa aspas. */
 const cell = (value: unknown) => {
@@ -15,7 +16,7 @@ const COLUMNS: [string, (lead: LeadItem) => unknown][] = [
   ["Bairro", (l) => l.bairro],
   ["Telefone", (l) => l.telefone],
   ["Status", (l) => l.status],
-  ["Responsável", (l) => l.responsavel],
+  ["E-mail", (l) => parseLeadEmails(l.email).join(", ")],
   ["Origem", (l) => l.origem],
   ["Endereço", (l) => l.endereco],
 ];

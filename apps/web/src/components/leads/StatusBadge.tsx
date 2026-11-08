@@ -7,6 +7,7 @@ const STATUS_STYLES: Record<LeadStatus, string> = {
   Respondido: "bg-primary-soft text-brand border-primary/30",
   "Em contato": "bg-foreground text-background border-foreground",
   "Não contatado": "bg-muted text-muted-foreground border-border",
+  "Não qualificado": "bg-muted text-muted-foreground border-border",
 };
 
 export function StatusBadge({ status, className }: { status: LeadStatus; className?: string }) {

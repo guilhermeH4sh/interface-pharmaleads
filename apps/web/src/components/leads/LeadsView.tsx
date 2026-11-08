@@ -14,7 +14,6 @@ import {
   computeSummaryFromItems,
   filterAndPaginateItems,
   markLeadDeletedLocal,
-  setBatchLeadResponsibleOverride,
   type DataSourceMode,
 } from "../../lib/backend";
 import {
@@ -234,7 +233,7 @@ export function LeadsView({
   const activeLoading = isRealMode ? isLoadingReal : isLoadingMock;
 
   const handleApplySideFilters = (filters: SideFilters) => {
-    if (isRealMode && ["Em contato", "Respondido", "Qualificado"].includes(filters.statusSelect) && onOpenCrmWithFilters) {
+    if (isRealMode && ["Em contato", "Respondido", "Qualificado", "Não qualificado"].includes(filters.statusSelect) && onOpenCrmWithFilters) {
       onOpenCrmWithFilters(filters);
       return;
     }
@@ -295,20 +294,6 @@ export function LeadsView({
       void loadMockLeads();
     }
     setSelectedLeadIds((current) => current.filter((x) => x !== id));
-  };
-
-  const handleBatchAssign = (responsible: string) => {
-    if (isRealMode) {
-      setBatchLeadResponsibleOverride(selectedLeadIds, responsible);
-      onMutateRealLeads?.();
-    } else {
-      setMockLeads((current) =>
-        current.map((lead) =>
-          selectedLeadIds.includes(lead.id) ? { ...lead, responsavel: responsible } : lead
-        )
-      );
-    }
-    setSelectedLeadIds([]);
   };
 
   const handleExportCSV = (exportItems?: LeadItem[]) => {
@@ -447,7 +432,6 @@ export function LeadsView({
           const selectedItems = activeItems.filter((item) => selectedLeadIds.includes(item.id));
           handleExportCSV(selectedItems);
         }}
-        onBatchAssignResponsible={handleBatchAssign}
       />
 
       {/* Modal de Detalhes do Lead */}
