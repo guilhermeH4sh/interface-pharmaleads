@@ -159,6 +159,38 @@ test("mudar o status em Leads salva status e vínculo juntos e move o lead para 
   expect(await screen.findByText("Farmácia em negociação")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
   expect(screen.queryByText("Farmácia em negociação")).not.toBeInTheDocument();
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "Status" }), "Em contato");
+  await userEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+  expect(screen.getByText("Pipeline Comercial & Funil CRM")).toBeInTheDocument();
+  expect(screen.getByText("Farmácia em negociação")).toBeInTheDocument();
+  expect(screen.getByText("1 de 1 leads no CRM")).toBeInTheDocument();
+});
+
+test("filtros de CRM mostram apenas o contato persistido e navegação rápida reutiliza a leitura", async () => {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
+  const rows = [
+    { chave: "crm-pr", nome: "Farmácia Paraná", local_busca: "Curitiba, PR", endereco: "Rua A - Centro, Curitiba - PR", segmento: "varejo", emails: "contato@parana.com.br", crm_included: true, crm_status: "Em contato" },
+    { chave: "crm-sp", nome: "Farmácia Paulista", local_busca: "São Paulo, SP", endereco: "Rua B - Pinheiros, São Paulo - SP", segmento: "varejo", emails: "", crm_included: true, crm_status: "Respondido" },
+  ];
+  const fetcher = vi.fn(async (url: string) => {
+    if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: AUTHORIZED_USER_ID }));
+    if (url.includes("/rest/v1/pharmaleads")) return new Response(JSON.stringify(rows), { headers: { "content-range": "0-1/2" } });
+    return new Response(JSON.stringify({ run: null }));
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<TestDashboard />);
+  await userEvent.click(screen.getByRole("button", { name: "CRM" }));
+  expect(await screen.findByText("Farmácia Paraná")).toBeInTheDocument();
+  const reads = fetcher.mock.calls.filter(call => String(call[0]).includes("/rest/v1/pharmaleads")).length;
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "UF" }), "PR");
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "E-mail" }), "com");
+  await userEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+  expect(screen.getByText("Farmácia Paraná")).toBeInTheDocument();
+  expect(screen.queryByText("Farmácia Paulista")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  await userEvent.click(screen.getByRole("button", { name: "CRM" }));
+  expect(screen.getByText("Farmácia Paulista")).toBeInTheDocument();
+  expect(fetcher.mock.calls.filter(call => String(call[0]).includes("/rest/v1/pharmaleads"))).toHaveLength(reads);
 });
 
 test("falha ao salvar status mantém o lead em Leads", async () => {

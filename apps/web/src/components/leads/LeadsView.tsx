@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Plus, AlertCircle, Lock } from "lucide-react";
 import { MetricsCards } from "./MetricsCards";
 import { LeadsTable } from "./LeadsTable";
-import { FiltersSidebar } from "./FiltersSidebar";
+import { FiltersSidebar, type SideFilters } from "./FiltersSidebar";
 import { BatchActionsBar } from "./BatchActionsBar";
 import { LeadDetailsModal } from "./LeadDetailsModal";
 import { downloadLeadsCsv } from "../../lib/csv";
@@ -33,6 +33,7 @@ interface LeadsViewProps {
   searchQuery: string;
   dataSourceMode?: DataSourceMode;
   realLeads?: LeadItem[];
+  allLeadsSummary?: LeadSummary;
   isLoadingReal?: boolean;
   realError?: string;
   isSupabaseAuthenticated?: boolean;
@@ -42,12 +43,14 @@ interface LeadsViewProps {
   onStatusChange: (leadId: string, status: LeadStatus) => Promise<boolean>;
   onBatchStatusChange: (leadIds: string[], status: LeadStatus) => Promise<string[]>;
   onNewProspect?: () => void;
+  onOpenCrmWithFilters?: (filters: SideFilters) => void;
 }
 
 export function LeadsView({
   searchQuery,
   dataSourceMode = "mock",
   realLeads = [],
+  allLeadsSummary,
   isLoadingReal = false,
   realError = "",
   isSupabaseAuthenticated = false,
@@ -57,6 +60,7 @@ export function LeadsView({
   onStatusChange,
   onBatchStatusChange,
   onNewProspect,
+  onOpenCrmWithFilters,
 }: LeadsViewProps) {
   const getUrlParam = (param: string, fallback = "") => {
     if (typeof window === "undefined") return fallback;
@@ -180,8 +184,8 @@ export function LeadsView({
 
   // Dados calculados quando em modo real (SQLite Local ou Supabase Online)
   const realSummary = useMemo(
-    () => (isRealMode ? computeSummaryFromItems(realLeads) : mockSummary),
-    [isRealMode, realLeads, mockSummary]
+    () => (isRealMode ? allLeadsSummary ?? computeSummaryFromItems(realLeads) : mockSummary),
+    [isRealMode, allLeadsSummary, realLeads, mockSummary]
   );
 
   const realPagination = useMemo(
@@ -215,7 +219,11 @@ export function LeadsView({
   );
 
   const dynamicLocations = useMemo(
-    () => (isRealMode && realLeads.length > 0 ? buildDynamicLocations(realLeads) : undefined),
+    () => (isRealMode ? buildDynamicLocations(realLeads) : undefined),
+    [isRealMode, realLeads]
+  );
+  const availableOrigins = useMemo(
+    () => isRealMode ? [...new Set(realLeads.map(lead => lead.origem))].sort() : undefined,
     [isRealMode, realLeads]
   );
 
@@ -225,14 +233,11 @@ export function LeadsView({
   const activeSummary = isRealMode ? realSummary : mockSummary;
   const activeLoading = isRealMode ? isLoadingReal : isLoadingMock;
 
-  const handleApplySideFilters = (filters: {
-    uf: string;
-    municipio: string;
-    bairro: string;
-    statusSelect: string;
-    origem: string;
-    emailAvailability: EmailAvailability;
-  }) => {
+  const handleApplySideFilters = (filters: SideFilters) => {
+    if (isRealMode && ["Em contato", "Respondido", "Qualificado"].includes(filters.statusSelect) && onOpenCrmWithFilters) {
+      onOpenCrmWithFilters(filters);
+      return;
+    }
     setSelectedUF(filters.uf);
     setSelectedMunicipio(filters.municipio);
     setSelectedBairro(filters.bairro);
@@ -412,6 +417,7 @@ export function LeadsView({
             onApplyFilters={handleApplySideFilters}
             onResetFilters={handleResetFilters}
             dynamicLocations={dynamicLocations}
+            availableOrigins={availableOrigins}
           />
         </div>
 
