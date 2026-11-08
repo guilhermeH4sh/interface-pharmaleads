@@ -181,29 +181,40 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
     [realLeads]
   );
 
-  const handleCrmStatusChange = async (id: string, newStatus: LeadStatus) => {
+  const handleCrmStatusChange = async (id: string, newStatus: LeadStatus): Promise<boolean> => {
     if (dataSourceMode === "supabase") {
       if (!supabaseSession) {
         setRealError("Entre no Supabase para salvar o status do CRM.");
-        return;
+        return false;
       }
       try {
-        const result = await updateSupabaseCrmLead(supabaseSession, id, { crm_status: newStatus });
+        const result = await updateSupabaseCrmLead(supabaseSession, id, { crm_status: newStatus, crm_included: true });
         setSupabaseSession(result.session);
-        setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? { ...row, crm_status: newStatus } : row));
+        setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? { ...row, crm_status: newStatus, crm_included: true } : row));
         setRealError("");
       } catch (err) {
         if (err instanceof AccessError) onSignOut();
         setRealError(err instanceof Error ? err.message : "Não foi possível salvar o status no Supabase.");
-        return;
+        return false;
       }
     } else {
       setLeadStatusOverride(id, newStatus);
+      setLeadCrmMembershipOverride(id, true);
     }
     setOverrideVersion((v) => v + 1);
     if (selectedCrmLead?.id === id) {
-      setSelectedCrmLead({ ...selectedCrmLead, status: newStatus });
+      setSelectedCrmLead({ ...selectedCrmLead, status: newStatus, crmIncluded: true });
     }
+    return true;
+  };
+
+  const handleBatchStatusChange = async (ids: string[], newStatus: LeadStatus): Promise<string[]> => {
+    const moved: string[] = [];
+    for (const id of ids) {
+      if (await handleCrmStatusChange(id, newStatus)) moved.push(id);
+    }
+    if (moved.length < ids.length) setRealError("Alguns leads não foram atualizados. Verifique os selecionados e tente novamente.");
+    return moved;
   };
 
   const handleCrmMembershipChange = async (id: string, included: boolean) => {
@@ -272,6 +283,8 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
               onMutateRealLeads={() => setOverrideVersion((v) => v + 1)}
               onOpenConfig={() => setActiveTab("config")}
               onCrmMembershipChange={handleCrmMembershipChange}
+              onStatusChange={handleCrmStatusChange}
+              onBatchStatusChange={handleBatchStatusChange}
               onNewProspect={() => setActiveTab("prospeccao")}
             />
           )}

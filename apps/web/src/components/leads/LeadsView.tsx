@@ -14,8 +14,6 @@ import {
   filterAndPaginateItems,
   markLeadDeletedLocal,
   setBatchLeadResponsibleOverride,
-  setBatchLeadStatusOverride,
-  setLeadStatusOverride,
   type DataSourceMode,
 } from "../../lib/backend";
 import {
@@ -40,6 +38,8 @@ interface LeadsViewProps {
   onMutateRealLeads?: () => void;
   onOpenConfig?: () => void;
   onCrmMembershipChange?: (leadId: string, included: boolean) => void;
+  onStatusChange: (leadId: string, status: LeadStatus) => Promise<boolean>;
+  onBatchStatusChange: (leadIds: string[], status: LeadStatus) => Promise<string[]>;
   onNewProspect?: () => void;
 }
 
@@ -53,6 +53,8 @@ export function LeadsView({
   onMutateRealLeads,
   onOpenConfig,
   onCrmMembershipChange,
+  onStatusChange,
+  onBatchStatusChange,
   onNewProspect,
 }: LeadsViewProps) {
   const getUrlParam = (param: string, fallback = "") => {
@@ -238,8 +240,10 @@ export function LeadsView({
 
   const handleSingleStatusChange = async (id: string, newStatus: LeadStatus) => {
     if (isRealMode) {
-      setLeadStatusOverride(id, newStatus);
-      onMutateRealLeads?.();
+      if (!await onStatusChange(id, newStatus)) return;
+      setSelectedLeadIds((current) => current.filter((selectedId) => selectedId !== id));
+      if (detailLead?.id === id) setDetailLead(null);
+      return;
     } else {
       await updateLeadStatus(id, newStatus);
       void loadMockLeads();
@@ -251,8 +255,10 @@ export function LeadsView({
 
   const handleBatchStatusChange = async (newStatus: LeadStatus) => {
     if (isRealMode) {
-      setBatchLeadStatusOverride(selectedLeadIds, newStatus);
-      onMutateRealLeads?.();
+      const moved = await onBatchStatusChange(selectedLeadIds, newStatus);
+      setSelectedLeadIds((current) => current.filter((id) => !moved.includes(id)));
+      if (detailLead && moved.includes(detailLead.id)) setDetailLead(null);
+      return;
     } else {
       await batchUpdateStatus(selectedLeadIds, newStatus);
       void loadMockLeads();

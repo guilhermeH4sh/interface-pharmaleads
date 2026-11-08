@@ -131,6 +131,55 @@ test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async ()
   expect(await screen.findByRole("button", { name: "Farmácia da base" })).toBeInTheDocument();
 });
 
+test("mudar o status em Leads salva status e vínculo juntos e move o lead para o CRM", async () => {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
+  let included = false;
+  let status = "Não contatado";
+  const lead = () => ({ chave: "real-2", nome: "Farmácia em negociação", local_busca: "São Paulo, SP", segmento: "varejo", crm_included: included, crm_status: status });
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: AUTHORIZED_USER_ID }));
+    if (url.includes("/rest/v1/pharmaleads")) {
+      if (init?.method === "PATCH") {
+        expect(JSON.parse(String(init.body))).toEqual({ crm_status: "Em contato", crm_included: true });
+        included = true;
+        status = "Em contato";
+      }
+      return new Response(JSON.stringify([lead()]), { headers: { "content-range": "0-0/1" } });
+    }
+    return new Response(JSON.stringify({ run: null }));
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<TestDashboard />);
+  await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Farmácia em negociação" }));
+  await userEvent.click(screen.getByRole("button", { name: "Em contato" }));
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Farmácia em negociação" })).not.toBeInTheDocument());
+  expect(included).toBe(true);
+  await userEvent.click(screen.getByRole("button", { name: "CRM" }));
+  expect(await screen.findByText("Farmácia em negociação")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  expect(screen.queryByText("Farmácia em negociação")).not.toBeInTheDocument();
+});
+
+test("falha ao salvar status mantém o lead em Leads", async () => {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
+  const lead = { chave: "real-3", nome: "Farmácia sem atualização", local_busca: "Curitiba, PR", segmento: "varejo", crm_included: false, crm_status: "Não contatado" };
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: AUTHORIZED_USER_ID }));
+    if (url.includes("/rest/v1/pharmaleads")) {
+      if (init?.method === "PATCH") return new Response(JSON.stringify({ message: "Sem permissão para atualizar" }), { status: 403 });
+      return new Response(JSON.stringify([lead]), { headers: { "content-range": "0-0/1" } });
+    }
+    return new Response(JSON.stringify({ run: null }));
+  }));
+  render(<TestDashboard />);
+  await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Farmácia sem atualização" }));
+  await userEvent.click(screen.getByRole("button", { name: "Em contato" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Sem permissão para atualizar");
+  expect(screen.getByRole("button", { name: "Farmácia sem atualização" })).toBeInTheDocument();
+});
+
 
 test("Todas as UFs com pesquisa vazia despacha cobertura nacional ao clicar Pesquisar", async () => {
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
