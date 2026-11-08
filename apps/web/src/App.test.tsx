@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PlatformDashboard } from "./App";
@@ -178,6 +178,34 @@ test("falha ao salvar status mantém o lead em Leads", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Em contato" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Sem permissão para atualizar");
   expect(screen.getByRole("button", { name: "Farmácia sem atualização" })).toBeInTheDocument();
+});
+
+test("Leads mostra o e-mail antes do responsável e filtra com ou sem endereço válido", async () => {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
+  const rows = [
+    { chave: "email-1", nome: "Farmácia com e-mail", local_busca: "Curitiba, PR", segmento: "varejo", emails: "contato@farmacia.com.br; vendas@farmacia.com.br", crm_included: false },
+    { chave: "email-2", nome: "Farmácia sem e-mail", local_busca: "Curitiba, PR", segmento: "varejo", emails: "não informado", crm_included: false },
+  ];
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: AUTHORIZED_USER_ID }));
+    if (url.includes("/rest/v1/pharmaleads")) return new Response(JSON.stringify(rows), { headers: { "content-range": "0-1/2" } });
+    return new Response(JSON.stringify({ run: null }));
+  }));
+  render(<TestDashboard />);
+  await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  expect(await within(screen.getByRole("table")).findByRole("link", { name: "contato@farmacia.com.br" })).toHaveAttribute("href", "mailto:contato@farmacia.com.br");
+  const headers = screen.getAllByRole("columnheader").map((header) => header.textContent?.trim());
+  expect(headers.indexOf("E-mail")).toBe(headers.indexOf("Responsável") - 1);
+
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "E-mail" }), "com");
+  await userEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+  expect(screen.getByRole("button", { name: "Farmácia com e-mail" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Farmácia sem e-mail" })).not.toBeInTheDocument();
+
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "E-mail" }), "sem");
+  await userEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+  expect(screen.getByRole("button", { name: "Farmácia sem e-mail" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Farmácia com e-mail" })).not.toBeInTheDocument();
 });
 
 
