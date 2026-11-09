@@ -16,11 +16,11 @@ class TestCoberturaNacional(unittest.TestCase):
         self.assertEqual(locais[27], 'Santarém, PA')
         self.assertGreaterEqual(sum(local.endswith('SP') for local in locais), 2)
         fila = montar_fila(['varejo', 'manipulacao'])
-        self.assertEqual([local[-2:] for local in fila[0]], ['AC', 'AL', 'DF', 'ES', 'PR'])
+        self.assertEqual([local[-2:] for local in fila[0]], ['AC', 'AL'])
         for segmentos in (['manipulacao'], ['varejo', 'manipulacao'],
                           ['varejo', 'manipulacao', 'homeopatia', 'veterinaria', 'distribuidoras']):
             for rodada in montar_fila(segmentos):
-                self.assertLessEqual(len(montar_consultas(rodada, segmentos)), 20)
+                self.assertLessEqual(len(montar_consultas(rodada, segmentos)), 8)
 
     def test_a_fila_avanca_e_para_na_ultima_rodada(self):
         segmentos = ['varejo', 'manipulacao']

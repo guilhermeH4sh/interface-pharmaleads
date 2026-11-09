@@ -48,7 +48,7 @@ def _encerrar(proc: subprocess.Popen) -> None:
         proc.wait(timeout=5)
 
 
-def _rodar_docker(comando: list[str], timeout: int = 900) -> None:
+def _rodar_docker(comando: list[str], timeout: int = 1500) -> None:
     """Roda o Gosom e encerra o contêiner se o job do Actions for cancelado."""
     proc = subprocess.Popen(comando)
     anterior = signal.getsignal(signal.SIGTERM) if hasattr(signal, 'SIGTERM') else None
@@ -96,7 +96,7 @@ def main() -> int:
                 for tentativa in range(1, 3):
                     saida.unlink(missing_ok=True)
                     try:
-                        _rodar_docker(comando, timeout=900)
+                        _rodar_docker(comando, timeout=1500)
                         if not saida.is_file() or saida.stat().st_size < 10:
                             raise ErroPharmaLeads('Gosom retornou um CSV vazio.')
                         novos, existentes = banco.importar_csv(saida, sincronizar=False)

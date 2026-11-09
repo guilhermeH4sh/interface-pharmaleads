@@ -13,7 +13,10 @@ from . import config
 from .config import ErroPharmaLeads
 from .gerador import validar_segmentos
 
-LIMITE_BUSCAS = 20
+# Coletas com e-mail visitam também os sites dos estabelecimentos. O limite
+# público continua sendo 20, mas as rodadas nacionais precisam ser menores
+# para não estourar o tempo do GitHub Actions.
+LIMITE_BUSCAS = 8
 WORKFLOW = 'cloud-collect.yml'
 
 
