@@ -18,6 +18,7 @@ function response() {
 test('limita consultas e recusa entradas inválidas', () => {
   assert.equal(validateInput({ locais: 'Curitiba, PR', segmentos: ['varejo', 'manipulacao'], profundidade: 1 }).segmentos, 'varejo,manipulacao');
   assert.equal(validateInput({ locais: 'Curitiba, PR', segmentos: ['varejo'], profundidade: 1, enriquecerSites: true }).enriquecer_sites, 'true');
+  assert.equal(validateInput({ locais: 'Curitiba, PR', segmentos: ['varejo'], profundidade: 1, emails: false }).emails, 'true');
   assert.throws(() => validateInput({ locais: 'Curitiba, PR\nFlorianópolis, SC\nSão Paulo, SP\nManaus, AM\nRecife, PE\nSalvador, BA', segmentos: ['varejo', 'manipulacao'], profundidade: 1 }), /excede 20 buscas/);
   assert.throws(() => validateInput({ locais: 'Curitiba, PR', segmentos: ['invalido'], profundidade: 1 }), /segmento válido/);
 });
@@ -40,6 +41,8 @@ test('autentica e despacha a coleta sem expor o token GitHub', async () => {
   assert.equal(res.body.run.status, 'queued');
   const dispatch = calls.find(x => x.url.endsWith('/dispatches'));
   assert.equal(JSON.parse(dispatch.options.body).inputs.locais, 'Curitiba, PR');
+  assert.equal(JSON.parse(dispatch.options.body).inputs.emails, 'true');
+  assert.equal(JSON.parse(dispatch.options.body).inputs.enriquecer_sites, 'true');
   assert.ok(!JSON.stringify(res.body).includes('github-token-de-teste'));
 });
 
@@ -60,7 +63,7 @@ test('despacha uma rodada da cobertura nacional dentro do limite', async () => {
   assert.equal(inputs.modo, 'nacional');
   assert.equal(inputs.rodada, '1');
   assert.equal(inputs.emails, 'true');
-  assert.equal(inputs.enriquecer_sites, 'false');
+  assert.equal(inputs.enriquecer_sites, 'true');
   assert.equal(inputs.locais.split('\n').length, 5);
   assert.ok(Number(inputs.total_rodadas) > 1);
   assert.ok(!JSON.stringify(res.body).includes('github-token-de-teste'));

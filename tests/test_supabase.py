@@ -23,20 +23,24 @@ class TestTransporte(unittest.TestCase):
                           for c in chamadas], ['0', '1', '2'])
 
     def test_upsert_restrito_a_tabela_com_chave_e_json(self):
-        self.cliente.opener.open.return_value = io.BytesIO(b'')
-        self.cliente.salvar([{'chave': '1', 'dados_brutos': {'title': 'Farmácia'}}])
+        self.cliente.opener.open.side_effect = [io.BytesIO(b''), io.BytesIO(b'')]
+        self.cliente.adicionar_emails = Mock(return_value=True)
+        self.cliente.salvar([{'chave': '1', 'emails': 'contato@farmacia.com.br',
+                             'dados_brutos': {'title': 'Farmácia'}}])
         req = self.cliente.opener.open.call_args.args[0]
         self.assertEqual(urlsplit(req.full_url).path, '/rest/v1/pharmaleads')
         self.assertEqual(parse_qs(urlsplit(req.full_url).query), {'on_conflict': ['chave']})
         self.assertEqual(req.method, 'POST')
         self.assertIsInstance(json.loads(req.data)[0]['dados_brutos'], dict)
         self.assertNotIn('Authorization', req.headers)  # sb_secret não é JWT
+        primeira = self.cliente.opener.open.call_args_list[0].args[0]
+        self.assertEqual(json.loads(primeira.data)[0]['emails'], 'contato@farmacia.com.br')
+        self.assertIn('resolution=ignore-duplicates', primeira.headers['Prefer'])
 
-    def test_recoleta_sem_email_omite_coluna_no_upsert(self):
+    def test_recoleta_sem_email_nao_cria_novo_lead(self):
         self.cliente.opener.open.return_value = io.BytesIO(b'')
-        self.cliente.salvar([{'chave': '1', 'nome': 'Farmácia', 'emails': ''}])
-        request = self.cliente.opener.open.call_args.args[0]
-        self.assertEqual(json.loads(request.data), [{'chave': '1', 'nome': 'Farmácia'}])
+        self.assertEqual(self.cliente.salvar([{'chave': '1', 'nome': 'Farmácia', 'emails': ''}]), 0)
+        self.cliente.opener.open.assert_not_called()
 
     def test_nao_grava_enderecos_reservados_ou_placeholders(self):
         self.assertFalse(self.cliente.adicionar_emails(
@@ -100,10 +104,11 @@ class TestLoginJWT(unittest.TestCase):
 
     def test_renova_token_antes_do_upsert(self):
         self.cliente.opener.open.side_effect = [self.sessao(), io.BytesIO(b'[]'),
-            self.sessao('jwt2', 'refresh2'), io.BytesIO(b'')]
+            self.sessao('jwt2', 'refresh2'), io.BytesIO(b''), io.BytesIO(b'')]
         self.cliente.verificar(['chave'])
         self.cliente.expira = 0
-        self.cliente.salvar([{'chave': '1'}])
+        self.cliente.adicionar_emails = Mock(return_value=True)
+        self.cliente.salvar([{'chave': '1', 'emails': 'contato@farmacia.com.br'}])
         chamadas = [c.args[0] for c in self.cliente.opener.open.call_args_list]
         self.assertEqual(parse_qs(urlsplit(chamadas[2].full_url).query), {'grant_type': ['refresh_token']})
         self.assertEqual(json.loads(chamadas[2].data), {'refresh_token': 'refresh1'})

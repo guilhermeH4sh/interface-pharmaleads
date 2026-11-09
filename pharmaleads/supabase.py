@@ -174,12 +174,19 @@ class Supabase:
         raise ErroPharmaLeads('O lead mudou durante a gravação dos e-mails. Tente novamente.')
 
     def salvar(self, registros):
+        from .enriquecedor import emails_publicos
+        registros = [r for r in registros if emails_publicos(r.get('emails'))]
         if not registros:
-            return
-        # O valor padrão do banco cobre novos leads. Nas recoletas, omitir a
-        # coluna preserva os e-mails gravados, mesmo com escritas concorrentes.
+            return 0
+        # Insere novos leads já com e-mail. Duplicatas são ignoradas nesta etapa
+        # para não substituir contatos encontrados em coletas anteriores.
+        com_emails = [{**r, 'emails': ', '.join(emails_publicos(r['emails']))}
+                      for r in registros]
+        self._requisicao('POST', {'on_conflict': 'chave'}, com_emails,
+                        prefer='resolution=ignore-duplicates,return=minimal')
+        # Atualiza os demais dados sem tocar na coluna de e-mails.
         sem_emails = [{k: v for k, v in registro.items() if k != 'emails'} for registro in registros]
         self._requisicao('POST', {'on_conflict': 'chave'}, sem_emails)
         for registro in registros:
-            if registro.get('emails'):
-                self.adicionar_emails(registro['chave'], registro['emails'])
+            self.adicionar_emails(registro['chave'], registro['emails'])
+        return len(registros)

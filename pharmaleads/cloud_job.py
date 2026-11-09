@@ -34,7 +34,7 @@ def configuracao() -> tuple[list[str], int, bool, bool]:
     if not all(os.environ.get(x) for x in ('SUPABASE_EMAIL', 'SUPABASE_PASSWORD')):
         raise ErroPharmaLeads('Configure SUPABASE_EMAIL e SUPABASE_PASSWORD em GitHub Actions Secrets.')
     return (montar_consultas(locais, segmentos), profundidade,
-            os.environ.get('EMAILS') == 'true', os.environ.get('ENRIQUECER_SITES') == 'true')
+            True, os.environ.get('ENRIQUECER_SITES') == 'true')
 
 
 def _encerrar(proc: subprocess.Popen) -> None:
@@ -99,7 +99,7 @@ def main() -> int:
                         _rodar_docker(comando, timeout=900)
                         if not saida.is_file() or saida.stat().st_size < 10:
                             raise ErroPharmaLeads('Gosom retornou um CSV vazio.')
-                        novos, existentes = banco.importar_csv(saida)
+                        novos, existentes = banco.importar_csv(saida, sincronizar=False)
                         break
                     except (ErroPharmaLeads, OSError, subprocess.CalledProcessError,
                             subprocess.TimeoutExpired) as exc:
@@ -112,13 +112,12 @@ def main() -> int:
                 if enriquecer:
                     from .enriquecedor import enriquecer_sites
                     candidatos = banco.candidatos_enriquecimento(banco.ultimas_chaves_novas)
-                    for contato in enriquecer_sites(candidatos):
+                    for contato in enriquecer_sites(candidatos, limite=100):
                         enriquecidos += banco.registrar_enriquecimento(contato)
                 pendentes = banco.con.execute('SELECT count(*) FROM sync_pendente').fetchone()[0]
-                if pendentes:
-                    banco.sincronizar_pendentes(obrigatorio=True)
+                enviados = banco.sincronizar_pendentes(obrigatorio=True) if pendentes else 0
                 print(f'Coleta concluída: {novos} novos, {existentes} atualizados; '
-                      f'{enriquecidos} enriquecidos; Supabase sincronizado.', flush=True)
+                      f'{enriquecidos} enriquecidos; {enviados} com e-mail enviados ao Supabase.', flush=True)
             finally:
                 banco.fechar()
         return 0

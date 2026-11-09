@@ -63,9 +63,10 @@ class TestFluxoCompleto(unittest.TestCase):
     def test_sync_pendente_retem_lead_apos_falha_e_reenvia(self):
         caminho = Path(self.tmp.name) / 'um.csv'
         with caminho.open('w', encoding='utf-8', newline='') as f:
-            w = csv.DictWriter(f, fieldnames=['cid','title','address','input_id'])
+            w = csv.DictWriter(f, fieldnames=['cid','title','address','input_id','emails'])
             w.writeheader()
-            w.writerow({'cid':'cid-1','title':'Farmácia exemplo','address':'Curitiba, PR','input_id':'varejo|Curitiba, PR'})
+            w.writerow({'cid':'cid-1','title':'Farmácia exemplo','address':'Curitiba, PR',
+                        'input_id':'varejo|Curitiba, PR','emails':'contato@farmacia.com.br'})
         self.assertEqual(self.banco.importar_csv(caminho), (1, 0))
         self.assertEqual(self.banco.con.execute('SELECT count(*) FROM sync_pendente').fetchone()[0], 1)
         cfg = {'SUPABASE_URL':'https://teste.supabase.co','SUPABASE_SECRET_KEY':'sb_secret_fake'}

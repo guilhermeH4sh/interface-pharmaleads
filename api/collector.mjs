@@ -22,7 +22,7 @@ export function validateInput(body) {
   if (!segmentos.length || segmentos.some(x => typeof x !== 'string' || !Object.hasOwn(TERMS, x))) throw new Error('Escolha pelo menos um segmento válido.');
   if (!Number.isInteger(profundidade) || profundidade < 1 || profundidade > 10) throw new Error('A profundidade deve estar entre 1 e 10.');
   if (locais.length * segmentos.reduce((sum, x) => sum + TERMS[x], 0) > 20) throw new Error('Esta coleta excede 20 buscas. Reduza os locais ou segmentos.');
-  return { locais: [...new Set(locais)].join('\n'), segmentos: segmentos.join(','), profundidade: String(profundidade), emails: body.emails === true ? 'true' : 'false', enriquecer_sites: body.enriquecerSites === true ? 'true' : 'false' };
+  return { locais: [...new Set(locais)].join('\n'), segmentos: segmentos.join(','), profundidade: String(profundidade), emails: 'true', enriquecer_sites: 'true' };
 }
 
 async function authorized(req) {

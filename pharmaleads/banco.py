@@ -121,7 +121,7 @@ class Banco:
     def reabrir_falhas(self):
         self.con.execute("UPDATE lotes SET estado='pendente',tentativas=0 WHERE estado='falhou'"); self.con.commit()
 
-    def importar_csv(self, caminho):
+    def importar_csv(self, caminho, *, sincronizar=True):
         novos=existentes=0; agora=_agora(); novas_chaves=[]; csv.field_size_limit(20*1024*1024)
         with open(caminho,encoding='utf-8-sig',newline='') as f:
             leitor=csv.DictReader(f)
@@ -149,20 +149,23 @@ class Banco:
                         novos+=1
                         novas_chaves.append(chave)
         self.ultimas_chaves_novas = novas_chaves
-        try:
-            self.sincronizar_pendentes()
-        except ErroPharmaLeads as exc:
-            print(f'Aviso: {exc} Os leads permanecem na fila de sincronização local.', file=sys.stderr)
+        if sincronizar:
+            try:
+                self.sincronizar_pendentes()
+            except ErroPharmaLeads as exc:
+                print(f'Aviso: {exc} Os leads permanecem na fila de sincronização local.', file=sys.stderr)
         return novos,existentes
 
-    def candidatos_enriquecimento(self, chaves, limite=25):
-        """Leads recém-criados que possuem site para enriquecer uma única vez."""
-        chaves = list(dict.fromkeys(chaves))[:limite]
+    def candidatos_enriquecimento(self, chaves, limite=100):
+        """Leads novos sem e-mail e com site público para enriquecimento."""
+        chaves = list(dict.fromkeys(chaves))
         if not chaves:
             return []
         marcadores = ','.join('?' for _ in chaves)
-        return [dict(r) for r in self.con.execute(
-            f"SELECT chave,site FROM lugares WHERE chave IN ({marcadores}) AND site<>''", chaves)]
+        from .enriquecedor import emails_publicos
+        candidatos = [dict(r) for r in self.con.execute(
+            f"SELECT chave,site,emails FROM lugares WHERE chave IN ({marcadores}) AND site<>''", chaves)]
+        return [r for r in candidatos if not emails_publicos(r['emails'])][:limite]
 
     def registrar_enriquecimento(self, contato):
         """Mescla contatos públicos extraídos do site e agenda o upsert no Supabase."""
@@ -213,7 +216,10 @@ class Banco:
             for registro in registros:
                 try: registro['dados_brutos'] = json.loads(registro['dados_brutos'] or '{}')
                 except (TypeError, ValueError): registro['dados_brutos'] = {}
-            cliente.salvar(registros)
+            from .enriquecedor import emails_publicos
+            registros = [r for r in registros if emails_publicos(r.get('emails'))]
+            if registros:
+                cliente.salvar(registros)
             with self.con:
                 self.con.executemany('DELETE FROM sync_pendente WHERE chave=?',[(chave,) for chave in chaves])
             enviados += len(registros)
