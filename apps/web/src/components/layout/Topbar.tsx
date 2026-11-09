@@ -23,7 +23,7 @@ interface TopbarProps {
   dataSourceMode?: DataSourceMode;
   isSupabaseAuthenticated?: boolean;
   isLoadingData?: boolean;
-  onRefreshData?: () => void;
+  onRefreshData?: () => void | Promise<void>;
   onOpenConfig?: () => void;
   onSignOut?: () => void;
   userEmail?: string;
@@ -42,6 +42,7 @@ export function Topbar({
   userEmail,
 }: TopbarProps) {
   const [openMenu, setOpenMenu] = useState<"user" | "notifications" | null>(null);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const menusRef = useRef<HTMLDivElement>(null);
 
   // Fecha menus ao clicar fora ou pressionar Esc
@@ -74,6 +75,19 @@ export function Topbar({
 
   const isLiveConnected =
     dataSourceMode === "local" || (dataSourceMode === "supabase" && isSupabaseAuthenticated);
+  const isRefreshing = isLoadingData || isManualRefreshing;
+
+  const handleRefresh = async () => {
+    if (!onRefreshData || isRefreshing) return;
+    const startedAt = Date.now();
+    setIsManualRefreshing(true);
+    try {
+      await onRefreshData();
+    } finally {
+      const remaining = Math.max(0, 700 - (Date.now() - startedAt));
+      window.setTimeout(() => setIsManualRefreshing(false), remaining);
+    }
+  };
 
   return (
     <header className="h-[72px] sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur-md px-4 md:px-8 flex items-center justify-between gap-3">
@@ -111,13 +125,18 @@ export function Topbar({
         {dataSourceMode !== "mock" && onRefreshData && (
           <button
             type="button"
-            onClick={onRefreshData}
-            disabled={isLoadingData}
-            aria-label="Atualizar leads da base ativa"
-            title="Sincronizar leads agora"
-            className={ui.iconBtn}
+            onClick={() => void handleRefresh()}
+            disabled={isRefreshing}
+            aria-label={isRefreshing ? "Sincronizando leads" : "Atualizar leads da base ativa"}
+            aria-busy={isRefreshing}
+            title={isRefreshing ? "Sincronizando leads..." : "Sincronizar leads agora"}
+            className={cn(ui.iconBtn, isRefreshing && "bg-primary-soft text-brand")}
           >
-            <RefreshCw size={17} className={cn(isLoadingData && "animate-spin text-brand")} />
+            <RefreshCw
+              size={17}
+              className={cn("transition-colors", isRefreshing && "animate-spin text-brand")}
+              style={isRefreshing ? { animationDuration: "650ms" } : undefined}
+            />
           </button>
         )}
 

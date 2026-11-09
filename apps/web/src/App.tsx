@@ -164,11 +164,11 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataSourceMode, Boolean(supabaseSession), activeTab]);
 
-  const handleRefreshActiveData = useCallback(() => {
+  const handleRefreshActiveData = useCallback(async () => {
     if (dataSourceMode === "local") {
-      void loadLocalLeads();
+      await loadLocalLeads();
     } else if (dataSourceMode === "supabase" && supabaseSession) {
-      void loadSupabaseLeads(supabaseSession);
+      await loadSupabaseLeads(supabaseSession);
     }
   }, [dataSourceMode, supabaseSession, loadLocalLeads, loadSupabaseLeads]);
 
