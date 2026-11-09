@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar, type NavTab } from "./components/layout/Sidebar";
 import { Topbar } from "./components/layout/Topbar";
 import { LeadsView } from "./components/leads/LeadsView";
-import type { SideFilters } from "./components/leads/FiltersSidebar";
 import { LeadDetailsModal } from "./components/leads/LeadDetailsModal";
 import { ProspeccaoTab } from "./components/prospeccao/ProspeccaoTab";
 import { CrmTab } from "./components/crm/CrmTab";
@@ -96,7 +95,6 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
   const [overrideVersion, setOverrideVersion] = useState(0);
 
   const [selectedCrmLead, setSelectedCrmLead] = useState<LeadItem | null>(null);
-  const [crmInitialFilters, setCrmInitialFilters] = useState<SideFilters | undefined>();
   const lastSupabaseLoad = useRef(0);
   const supabaseLoadInProgress = useRef(false);
 
@@ -260,7 +258,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
       {/* 1. Sidebar Fixa à Esquerda (260px) + Drawer Mobile */}
       <Sidebar
         activeTab={activeTab}
-        onSelectTab={(tab) => { if (tab === "crm") setCrmInitialFilters(undefined); setActiveTab(tab); }}
+        onSelectTab={setActiveTab}
         onOpenHelp={() => setIsHelpOpen(true)}
         isOpenMobile={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
@@ -315,7 +313,6 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
           {activeTab === "crm" && (
             <CrmTab
               leads={activeLeadsForCrm}
-              initialFilters={crmInitialFilters}
               availableLeads={realLeads}
               onAddToCrm={(id) => handleCrmMembershipChange(id, true)}
               onStatusChange={handleCrmStatusChange}

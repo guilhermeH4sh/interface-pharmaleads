@@ -14,20 +14,16 @@ import { buildWhatsAppLink, formatNumberBR } from "../../lib/formatters";
 import { Modal } from "../ui/modal";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
-import { buildDynamicLocations, filterLeadItems } from "../../lib/backend";
-import { FiltersSidebar, type SideFilters } from "../leads/FiltersSidebar";
 import type { LeadItem, LeadStatus } from "../../lib/mock-leads";
 
 interface CrmTabProps {
   leads: LeadItem[];
   availableLeads?: LeadItem[];
   onAddToCrm?: (id: string) => Promise<boolean>;
-  searchQuery?: string;
   onStatusChange: (id: string, newStatus: LeadStatus) => void;
   onRemoveFromCrm: (id: string) => void;
   onSelectLead: (lead: LeadItem) => void;
   errorMessage?: string;
-  initialFilters?: SideFilters;
 }
 
 type CrmStage = Exclude<LeadStatus, "Não contatado">;
@@ -45,19 +41,11 @@ export function CrmTab({
   leads,
   availableLeads = [],
   onAddToCrm,
-  searchQuery = "",
   onStatusChange,
   onRemoveFromCrm,
   onSelectLead,
   errorMessage = "",
-  initialFilters,
 }: CrmTabProps) {
-  const [filters, setFilters] = useState<SideFilters>(initialFilters ?? {
-    uf: "", municipio: "", bairro: "", statusSelect: "Todos os status", origem: "Todas as origens", emailAvailability: "todos",
-  });
-  const [crmQuery, setCrmQuery] = useState(searchQuery);
-  const dynamicLocations = useMemo(() => buildDynamicLocations(leads), [leads]);
-  const availableOrigins = useMemo(() => [...new Set(leads.map(lead => lead.origem))].sort(), [leads]);
   const [addOpen, setAddOpen] = useState(false);
   const [addQuery, setAddQuery] = useState("");
   const [addingId, setAddingId] = useState<string | null>(null);
@@ -89,14 +77,6 @@ export function CrmTab({
     "Não qualificado": INITIAL_LIMIT,
   });
 
-  // Os mesmos critérios usados em Leads consultam apenas os contatos do CRM.
-  const filteredLeads = useMemo(() => {
-    return filterLeadItems(leads, {
-      query: crmQuery, uf: filters.uf, municipio: filters.municipio, bairro: filters.bairro,
-      statusSelect: filters.statusSelect, origem: filters.origem, emailAvailability: filters.emailAvailability,
-    });
-  }, [leads, crmQuery, filters]);
-
   // Agrupa leads por coluna ordenando os movidos recentemente primeiro
   const groupedByCol = useMemo(() => {
     const groups: Record<CrmStage, LeadItem[]> = {
@@ -105,19 +85,19 @@ export function CrmTab({
       Qualificado: [],
       "Não qualificado": [],
     };
-    for (const lead of filteredLeads) {
+    for (const lead of leads) {
       if (lead.status !== "Não contatado") groups[lead.status].push(lead);
     }
     for (const col of COLUMNS) {
       groups[col.id].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     }
     return groups;
-  }, [filteredLeads]);
+  }, [leads]);
 
   const qualificadosCount = groupedByCol["Qualificado"].length;
   const taxaQualificacao =
-    filteredLeads.length > 0 && qualificadosCount > 0
-      ? `${((qualificadosCount / filteredLeads.length) * 100).toFixed(1).replace(/\.0$/, "")}%`
+    leads.length > 0 && qualificadosCount > 0
+      ? `${((qualificadosCount / leads.length) * 100).toFixed(1).replace(/\.0$/, "")}%`
       : "0%";
 
   // Handlers de Drag & Drop nativo com cursor
@@ -183,20 +163,6 @@ export function CrmTab({
           {errorMessage}
         </div>
       )}
-
-      <div className={cn(ui.card, "p-4 md:p-6 space-y-4")}>
-        <input type="search" aria-label="Pesquisar no CRM" placeholder="Pesquisar no CRM" value={crmQuery} onChange={event => setCrmQuery(event.target.value)} className={cn(ui.input, "max-w-md")} />
-        <FiltersSidebar
-          key={`${filters.uf}|${filters.municipio}|${filters.bairro}|${filters.statusSelect}|${filters.origem}|${filters.emailAvailability}`}
-          selectedUF={filters.uf} selectedMunicipio={filters.municipio} selectedBairro={filters.bairro}
-          selectedStatus={filters.statusSelect} selectedOrigem={filters.origem} selectedEmailAvailability={filters.emailAvailability}
-          onApplyFilters={setFilters}
-          onResetFilters={() => setFilters({ uf: "", municipio: "", bairro: "", statusSelect: "Todos os status", origem: "Todas as origens", emailAvailability: "todos" })}
-          dynamicLocations={dynamicLocations} availableOrigins={availableOrigins}
-          statusOptions={["Em contato", "Respondido", "Qualificado", "Não qualificado"]}
-        />
-        <p className="text-xs text-muted-foreground">{filteredLeads.length} de {leads.length} leads no CRM</p>
-      </div>
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Adicionar leads ao CRM" description="Ao adicionar, o contato entra na etapa Em contato." size="lg">
         <div className="space-y-4">

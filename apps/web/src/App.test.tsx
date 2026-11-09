@@ -168,10 +168,10 @@ test("Leads não expõe status e a ação Adicionar ao CRM move o contato", asyn
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(screen.getByRole("heading", { name: "CRM" })).toBeInTheDocument();
   expect(screen.getByText("Farmácia em negociação")).toBeInTheDocument();
-  expect(screen.getByText("1 de 1 leads no CRM")).toBeInTheDocument();
+  expect(screen.queryByRole("searchbox", { name: "Pesquisar no CRM" })).not.toBeInTheDocument();
 });
 
-test("filtros de CRM mostram apenas o contato persistido e navegação rápida reutiliza a leitura", async () => {
+test("CRM mostra apenas o Kanban e a navegação rápida reutiliza a leitura", async () => {
   localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
   const rows = [
     { chave: "crm-pr", nome: "Farmácia Paraná", local_busca: "Curitiba, PR", endereco: "Rua A - Centro, Curitiba - PR", segmento: "varejo", emails: "contato@parana.com.br", crm_included: true, crm_status: "Em contato" },
@@ -186,12 +186,11 @@ test("filtros de CRM mostram apenas o contato persistido e navegação rápida r
   render(<TestDashboard />);
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(await screen.findByText("Farmácia Paraná")).toBeInTheDocument();
+  expect(screen.getByText("Farmácia Paulista")).toBeInTheDocument();
+  expect(screen.queryByRole("searchbox", { name: "Pesquisar no CRM" })).not.toBeInTheDocument();
+  expect(screen.queryByText("Filtros", { exact: true })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Aplicar filtros" })).not.toBeInTheDocument();
   const reads = fetcher.mock.calls.filter(call => String(call[0]).includes("/rest/v1/pharmaleads")).length;
-  await userEvent.selectOptions(screen.getByRole("combobox", { name: "UF" }), "PR");
-  await userEvent.selectOptions(screen.getByRole("combobox", { name: "E-mail" }), "com");
-  await userEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
-  expect(screen.getByText("Farmácia Paraná")).toBeInTheDocument();
-  expect(screen.queryByText("Farmácia Paulista")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(screen.getByText("Farmácia Paulista")).toBeInTheDocument();
