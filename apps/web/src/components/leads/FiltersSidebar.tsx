@@ -27,6 +27,7 @@ interface FiltersSidebarProps {
   dynamicLocations?: Record<string, Record<string, string[]>>;
   availableOrigins?: string[];
   statusOptions?: LeadStatus[];
+  showStatusFilter?: boolean;
 }
 
 const STATUS_ALL = "Todos os status";
@@ -71,6 +72,7 @@ export function FiltersSidebar({
   dynamicLocations,
   availableOrigins,
   statusOptions = ["Qualificado", "Não qualificado", "Em contato", "Respondido", "Não contatado"],
+  showStatusFilter = true,
 }: FiltersSidebarProps) {
   const id = useId();
   const [uf, setUf] = useState(selectedUF);
@@ -91,7 +93,7 @@ export function FiltersSidebar({
       ? dynamicLocations[uf]?.[municipio] || []
       : getBairros(uf, municipio)
     : [];
-  const hasFilters = Boolean(uf || municipio || bairro) || status !== STATUS_ALL || origem !== ORIGEM_ALL || emailAvailability !== "todos";
+  const hasFilters = Boolean(uf || municipio || bairro) || (showStatusFilter && status !== STATUS_ALL) || origem !== ORIGEM_ALL || emailAvailability !== "todos";
 
   const reset = () => {
     setUf("");
@@ -117,10 +119,13 @@ export function FiltersSidebar({
       </div>
 
       <form
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7 gap-3 items-end"
+        className={cn(
+          "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end",
+          showStatusFilter ? "2xl:grid-cols-7" : "2xl:grid-cols-6"
+        )}
         onSubmit={(event) => {
           event.preventDefault();
-          onApplyFilters({ uf, municipio, bairro, statusSelect: status, origem, emailAvailability });
+          onApplyFilters({ uf, municipio, bairro, statusSelect: showStatusFilter ? status : STATUS_ALL, origem, emailAvailability });
         }}
       >
         <Select id={`${id}-uf`} label="UF" value={uf} onChange={(value) => { setUf(value); setMunicipio(""); setBairro(""); }}>
@@ -138,10 +143,12 @@ export function FiltersSidebar({
           {bairros.map((item) => <option key={item} value={item}>{item}</option>)}
         </Select>
 
-        <Select id={`${id}-status`} label="Status" value={status} onChange={setStatus}>
-          <option value={STATUS_ALL}>{STATUS_ALL}</option>
-          {statusOptions.map(item => <option key={item} value={item}>{item}</option>)}
-        </Select>
+        {showStatusFilter && (
+          <Select id={`${id}-status`} label="Status" value={status} onChange={setStatus}>
+            <option value={STATUS_ALL}>{STATUS_ALL}</option>
+            {statusOptions.map(item => <option key={item} value={item}>{item}</option>)}
+          </Select>
+        )}
 
         <Select id={`${id}-origem`} label="Origem" value={origem} onChange={setOrigem}>
           <option value={ORIGEM_ALL}>{ORIGEM_ALL}</option>

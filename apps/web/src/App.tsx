@@ -182,8 +182,8 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
     return [];
   }, [dataSourceMode, rawLocalRows, rawSupabaseRows, overrideVersion]);
 
-  const leadsOutsideCrm = useMemo(() => realLeads.filter(lead => !lead.crmIncluded || lead.status === "Não contatado"), [realLeads]);
-  const activeLeadsForCrm = realLeads.filter((lead) => lead.crmIncluded && lead.status !== "Não contatado");
+  const leadsOutsideCrm = useMemo(() => realLeads.filter(lead => !lead.crmIncluded && lead.status === "Não contatado"), [realLeads]);
+  const activeLeadsForCrm = realLeads.filter((lead) => lead.crmIncluded || lead.status !== "Não contatado");
   const activeSummaryForReports = useMemo(
     () => computeSummaryFromItems(realLeads),
     [realLeads]
@@ -216,10 +216,10 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
     return true;
   };
 
-  const handleBatchStatusChange = async (ids: string[], newStatus: LeadStatus): Promise<string[]> => {
+  const handleBatchAddToCrm = async (ids: string[]): Promise<string[]> => {
     const moved: string[] = [];
     for (const id of ids) {
-      if (await handleCrmStatusChange(id, newStatus)) moved.push(id);
+      if (await handleCrmMembershipChange(id, true)) moved.push(id);
     }
     if (moved.length < ids.length) setRealError("Alguns leads não foram atualizados. Verifique os selecionados e tente novamente.");
     return moved;
@@ -296,10 +296,8 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
               onMutateRealLeads={() => setOverrideVersion((v) => v + 1)}
               onOpenConfig={() => setActiveTab("config")}
               onCrmMembershipChange={handleCrmMembershipChange}
-              onStatusChange={handleCrmStatusChange}
-              onBatchStatusChange={handleBatchStatusChange}
+              onBatchAddToCrm={handleBatchAddToCrm}
               onNewProspect={() => setActiveTab("prospeccao")}
-              onOpenCrmWithFilters={(filters) => { setCrmInitialFilters(filters); setActiveTab("crm"); }}
             />
           )}
 

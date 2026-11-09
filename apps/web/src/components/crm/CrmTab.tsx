@@ -160,7 +160,7 @@ export function CrmTab({
         <div>
           <h2 className={cn(ui.pageTitle, "flex items-center gap-2.5")}>
             <Calendar className="text-brand" size={24} />
-            <span>Pipeline Comercial & Funil CRM</span>
+            <span>CRM</span>
           </h2>
           <p className={ui.pageSubtitle}>
             Adicione leads da sua base e arraste os cards entre as etapas. Remover do CRM devolve o contato à aba Leads.

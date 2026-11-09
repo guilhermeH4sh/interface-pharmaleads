@@ -33,7 +33,7 @@ test("abre em Prospecção e mantém dados nas abas Leads e CRM", async () => {
   expect(screen.getByRole("heading", { name: "Leads – Farmácias" })).toBeInTheDocument();
   expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
-  expect(screen.getByText("Pipeline Comercial & Funil CRM")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "CRM" })).toBeInTheDocument();
 });
 
 test("a barra envia a cidade corrigida e os filtros para o scraper local", async () => {
@@ -135,7 +135,7 @@ test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async ()
   expect(await screen.findByRole("button", { name: "Farmácia da base" })).toBeInTheDocument();
 });
 
-test("mudar o status em Leads salva status e vínculo juntos e move o lead para o CRM", async () => {
+test("Leads não expõe status e a ação Adicionar ao CRM move o contato", async () => {
   localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
   let included = false;
   let status = "Não contatado";
@@ -155,17 +155,18 @@ test("mudar o status em Leads salva status e vínculo juntos e move o lead para 
   vi.stubGlobal("fetch", fetcher);
   render(<TestDashboard />);
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  expect(screen.getAllByRole("columnheader").map(header => header.textContent?.trim())).not.toContain("Status");
+  expect(screen.queryByRole("combobox", { name: "Status" })).not.toBeInTheDocument();
   await userEvent.click(await screen.findByRole("button", { name: "Farmácia em negociação" }));
-  await userEvent.click(screen.getByRole("button", { name: "Em contato" }));
+  await userEvent.click(screen.getByRole("button", { name: "Adicionar ao CRM" }));
   await waitFor(() => expect(screen.queryByRole("button", { name: "Farmácia em negociação" })).not.toBeInTheDocument());
   expect(included).toBe(true);
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(await screen.findByText("Farmácia em negociação")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
   expect(screen.queryByText("Farmácia em negociação")).not.toBeInTheDocument();
-  await userEvent.selectOptions(screen.getByRole("combobox", { name: "Status" }), "Em contato");
-  await userEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
-  expect(screen.getByText("Pipeline Comercial & Funil CRM")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "CRM" }));
+  expect(screen.getByRole("heading", { name: "CRM" })).toBeInTheDocument();
   expect(screen.getByText("Farmácia em negociação")).toBeInTheDocument();
   expect(screen.getByText("1 de 1 leads no CRM")).toBeInTheDocument();
 });
@@ -224,7 +225,7 @@ test("CRM oferece Não qualificado, persiste o status e não mostra Não contata
   expect(screen.queryByLabelText("Coluna Não Contatado")).not.toBeInTheDocument();
 });
 
-test("falha ao salvar status mantém o lead em Leads", async () => {
+test("falha ao adicionar ao CRM mantém o lead em Leads", async () => {
   localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
   const lead = { chave: "real-3", nome: "Farmácia sem atualização", local_busca: "Curitiba, PR", segmento: "varejo", crm_included: false, crm_status: "Não contatado" };
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
@@ -238,7 +239,7 @@ test("falha ao salvar status mantém o lead em Leads", async () => {
   render(<TestDashboard />);
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
   await userEvent.click(await screen.findByRole("button", { name: "Farmácia sem atualização" }));
-  await userEvent.click(screen.getByRole("button", { name: "Em contato" }));
+  await userEvent.click(screen.getByRole("button", { name: "Adicionar ao CRM" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Sem permissão para atualizar");
   expect(screen.getByRole("button", { name: "Farmácia sem atualização" })).toBeInTheDocument();
 });

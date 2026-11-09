@@ -1,13 +1,10 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { MoreHorizontal, ChevronLeft, ChevronRight, Eye, Trash2, Check, SearchX, BriefcaseBusiness } from "lucide-react";
+import { MoreHorizontal, ChevronLeft, ChevronRight, Eye, Trash2, SearchX, BriefcaseBusiness } from "lucide-react";
 import { formatCNPJ, formatPhone, buildWhatsAppLink, formatNumberBR } from "../../lib/formatters";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
-import { StatusBadge } from "./StatusBadge";
-import type { LeadItem, LeadStatus } from "../../lib/mock-leads";
+import type { LeadItem } from "../../lib/mock-leads";
 import { parseLeadEmails } from "../../lib/email";
-
-const STATUSES: LeadStatus[] = ["Qualificado", "Em contato", "Respondido", "Não qualificado", "Não contatado"];
 
 interface LeadsTableProps {
   items: LeadItem[];
@@ -18,7 +15,6 @@ interface LeadsTableProps {
   isLoading: boolean;
   onPageChange: (page: number) => void;
   onViewDetails: (lead: LeadItem) => void;
-  onChangeStatus: (leadId: string, newStatus: LeadStatus) => void;
   onDeleteLead: (leadId: string) => void;
   onCrmMembershipChange: (leadId: string, included: boolean) => void;
   selectedIds: string[];
@@ -51,7 +47,6 @@ export function LeadsTable({
   isLoading,
   onPageChange,
   onViewDetails,
-  onChangeStatus,
   onDeleteLead,
   onCrmMembershipChange,
   selectedIds,
@@ -132,7 +127,6 @@ export function LeadsTable({
               <th scope="col" className="py-3 px-3">CNPJ</th>
               <th scope="col" className="py-3 px-3">Cidade / UF</th>
               <th scope="col" className="py-3 px-3">Telefone</th>
-              <th scope="col" className="py-3 px-3">Status</th>
               <th scope="col" className="py-3 px-3">E-mail</th>
               <th scope="col" className="py-3 pr-6 pl-3 text-right">
                 <span className="sr-only">Ações</span>
@@ -148,14 +142,13 @@ export function LeadsTable({
                   <td className="py-4 px-3"><div className="h-4 w-28 rounded bg-muted" /></td>
                   <td className="py-4 px-3"><div className="h-4 w-24 rounded bg-muted" /></td>
                   <td className="py-4 px-3"><div className="h-4 w-28 rounded bg-muted" /></td>
-                  <td className="py-4 px-3"><div className="h-6 w-20 rounded-full bg-muted" /></td>
                   <td className="py-4 px-3"><div className="h-4 w-32 rounded bg-muted" /></td>
                   <td className="py-4 pr-6 pl-3"><div className="w-8 h-8 rounded-lg bg-muted ml-auto" /></td>
                 </tr>
               ))
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={8}>{empty}</td>
+                <td colSpan={7}>{empty}</td>
               </tr>
             ) : (
               items.map((row) => {
@@ -204,7 +197,6 @@ export function LeadsTable({
                         </a>
                       </div>
                     </td>
-                    <td className="py-3.5 px-3"><StatusBadge status={row.status} /></td>
                     <td className="py-3.5 px-3 text-muted-foreground max-w-[190px]">
                       {emails.length ? (
                         <div className="flex items-center gap-1 min-w-0" title={emails.join(", ")}>
@@ -259,10 +251,7 @@ export function LeadsTable({
                       className={cn(ui.checkbox, "mt-1")}
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-bold text-foreground truncate">{row.nome}</h3>
-                        <StatusBadge status={row.status} />
-                      </div>
+                      <h3 className="font-bold text-foreground truncate">{row.nome}</h3>
                       <p className="text-sm text-muted-foreground mt-0.5">{row.cidade} / {row.uf}</p>
                       <p className="text-sm text-foreground tabular-nums mt-0.5">{formatPhone(row.telefone)}</p>
                       <p className="text-sm text-muted-foreground mt-0.5 truncate">
@@ -374,20 +363,6 @@ export function LeadsTable({
           >
             <WhatsAppIcon /> Abrir no WhatsApp
           </a>
-          <div className="border-t border-border my-1" />
-          <p className="px-3 pt-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Alterar status</p>
-          {STATUSES.map((status) => (
-            <button
-              key={status}
-              role="menuitemradio"
-              aria-checked={menu.lead.status === status}
-              className={cn(ui.menuItem, "justify-between py-1.5", menu.lead.status === status && "text-foreground font-semibold")}
-              onClick={() => { onChangeStatus(menu.lead.id, status); setMenu(null); }}
-            >
-              {status}
-              {menu.lead.status === status && <Check size={14} className="text-brand" />}
-            </button>
-          ))}
           <div className="border-t border-border my-1" />
           <button role="menuitem" className={ui.menuItem} onClick={() => { setMenu(null); confirmDelete(menu.lead); }}>
             <Trash2 size={16} /> Excluir

@@ -19,11 +19,9 @@ import {
 import {
   fetchMockLeads,
   fetchMockSummary,
-  updateLeadStatus,
   batchUpdateStatus,
   deleteLead,
   type LeadItem,
-  type LeadStatus,
   type LeadSummary,
   MOCK_SUMMARY,
 } from "../../lib/mock-leads";
@@ -38,11 +36,9 @@ interface LeadsViewProps {
   isSupabaseAuthenticated?: boolean;
   onMutateRealLeads?: () => void;
   onOpenConfig?: () => void;
-  onCrmMembershipChange?: (leadId: string, included: boolean) => void;
-  onStatusChange: (leadId: string, status: LeadStatus) => Promise<boolean>;
-  onBatchStatusChange: (leadIds: string[], status: LeadStatus) => Promise<string[]>;
+  onCrmMembershipChange?: (leadId: string, included: boolean) => boolean | Promise<boolean> | void;
+  onBatchAddToCrm: (leadIds: string[]) => Promise<string[]>;
   onNewProspect?: () => void;
-  onOpenCrmWithFilters?: (filters: SideFilters) => void;
 }
 
 export function LeadsView({
@@ -56,10 +52,8 @@ export function LeadsView({
   onMutateRealLeads,
   onOpenConfig,
   onCrmMembershipChange,
-  onStatusChange,
-  onBatchStatusChange,
+  onBatchAddToCrm,
   onNewProspect,
-  onOpenCrmWithFilters,
 }: LeadsViewProps) {
   const getUrlParam = (param: string, fallback = "") => {
     if (typeof window === "undefined") return fallback;
@@ -67,16 +61,12 @@ export function LeadsView({
     return urlParams.get(param) || fallback;
   };
 
-  const legacyStatusTab = getUrlParam("tab", "Todos");
   const [currentPage, setCurrentPage] = useState<number>(
     parseInt(getUrlParam("page", "1"), 10) || 1
   );
   const [selectedUF, setSelectedUF] = useState(getUrlParam("uf", ""));
   const [selectedMunicipio, setSelectedMunicipio] = useState(getUrlParam("municipio", ""));
   const [selectedBairro, setSelectedBairro] = useState(getUrlParam("bairro", ""));
-  const [selectedStatus, setSelectedStatus] = useState(
-    getUrlParam("status", legacyStatusTab === "Todos" ? "Todos os status" : legacyStatusTab)
-  );
   const [selectedOrigem, setSelectedOrigem] = useState(getUrlParam("origem", "Todas as origens"));
   const [selectedEmailAvailability, setSelectedEmailAvailability] = useState<EmailAvailability>(() => {
     const value = getUrlParam("email", "todos");
@@ -103,7 +93,6 @@ export function LeadsView({
     if (selectedUF) params.set("uf", selectedUF);
     if (selectedMunicipio) params.set("municipio", selectedMunicipio);
     if (selectedBairro) params.set("bairro", selectedBairro);
-    if (selectedStatus && selectedStatus !== "Todos os status") params.set("status", selectedStatus);
     if (selectedOrigem && selectedOrigem !== "Todas as origens") params.set("origem", selectedOrigem);
     if (selectedEmailAvailability !== "todos") params.set("email", selectedEmailAvailability);
 
@@ -115,7 +104,6 @@ export function LeadsView({
     selectedUF,
     selectedMunicipio,
     selectedBairro,
-    selectedStatus,
     selectedOrigem,
     selectedEmailAvailability,
   ]);
@@ -130,7 +118,7 @@ export function LeadsView({
         uf: selectedUF,
         municipio: selectedMunicipio,
         bairro: selectedBairro,
-        statusSelect: selectedStatus,
+        statusSelect: "Todos os status",
         origem: selectedOrigem,
         emailAvailability: selectedEmailAvailability,
         page: currentPage,
@@ -141,7 +129,6 @@ export function LeadsView({
       const hasSpecificFilter =
         Boolean(searchQuery) ||
         Boolean(selectedUF) ||
-        selectedStatus !== "Todos os status" ||
         selectedOrigem !== "Todas as origens" ||
         selectedEmailAvailability !== "todos";
 
@@ -158,7 +145,6 @@ export function LeadsView({
     selectedUF,
     selectedMunicipio,
     selectedBairro,
-    selectedStatus,
     selectedOrigem,
     selectedEmailAvailability,
     currentPage,
@@ -196,7 +182,7 @@ export function LeadsView({
             uf: selectedUF,
             municipio: selectedMunicipio,
             bairro: selectedBairro,
-            statusSelect: selectedStatus,
+            statusSelect: "Todos os status",
             origem: selectedOrigem,
             emailAvailability: selectedEmailAvailability,
             page: currentPage,
@@ -210,7 +196,6 @@ export function LeadsView({
       selectedUF,
       selectedMunicipio,
       selectedBairro,
-      selectedStatus,
       selectedOrigem,
       selectedEmailAvailability,
       currentPage,
@@ -233,14 +218,9 @@ export function LeadsView({
   const activeLoading = isRealMode ? isLoadingReal : isLoadingMock;
 
   const handleApplySideFilters = (filters: SideFilters) => {
-    if (isRealMode && ["Em contato", "Respondido", "Qualificado", "Não qualificado"].includes(filters.statusSelect) && onOpenCrmWithFilters) {
-      onOpenCrmWithFilters(filters);
-      return;
-    }
     setSelectedUF(filters.uf);
     setSelectedMunicipio(filters.municipio);
     setSelectedBairro(filters.bairro);
-    setSelectedStatus(filters.statusSelect);
     setSelectedOrigem(filters.origem);
     setSelectedEmailAvailability(filters.emailAvailability);
     setCurrentPage(1);
@@ -251,35 +231,19 @@ export function LeadsView({
     setSelectedUF("");
     setSelectedMunicipio("");
     setSelectedBairro("");
-    setSelectedStatus("Todos os status");
     setSelectedOrigem("Todas as origens");
     setSelectedEmailAvailability("todos");
     setCurrentPage(1);
   };
 
-  const handleSingleStatusChange = async (id: string, newStatus: LeadStatus) => {
+  const handleBatchAddToCrm = async () => {
     if (isRealMode) {
-      if (!await onStatusChange(id, newStatus)) return;
-      setSelectedLeadIds((current) => current.filter((selectedId) => selectedId !== id));
-      if (detailLead?.id === id) setDetailLead(null);
-      return;
-    } else {
-      await updateLeadStatus(id, newStatus);
-      void loadMockLeads();
-    }
-    if (detailLead && detailLead.id === id) {
-      setDetailLead({ ...detailLead, status: newStatus });
-    }
-  };
-
-  const handleBatchStatusChange = async (newStatus: LeadStatus) => {
-    if (isRealMode) {
-      const moved = await onBatchStatusChange(selectedLeadIds, newStatus);
+      const moved = await onBatchAddToCrm(selectedLeadIds);
       setSelectedLeadIds((current) => current.filter((id) => !moved.includes(id)));
       if (detailLead && moved.includes(detailLead.id)) setDetailLead(null);
       return;
     } else {
-      await batchUpdateStatus(selectedLeadIds, newStatus);
+      await batchUpdateStatus(selectedLeadIds, "Em contato");
       void loadMockLeads();
     }
     setSelectedLeadIds([]);
@@ -392,17 +356,18 @@ export function LeadsView({
       <div className={cn(ui.cardInteractive, "w-full overflow-hidden flex flex-col")}>
         <div className="p-4 md:p-6 border-b border-border">
           <FiltersSidebar
-            key={`${selectedUF}|${selectedMunicipio}|${selectedBairro}|${selectedStatus}|${selectedOrigem}|${selectedEmailAvailability}`}
+            key={`${selectedUF}|${selectedMunicipio}|${selectedBairro}|${selectedOrigem}|${selectedEmailAvailability}`}
             selectedUF={selectedUF}
             selectedMunicipio={selectedMunicipio}
             selectedBairro={selectedBairro}
-            selectedStatus={selectedStatus}
+            selectedStatus="Todos os status"
             selectedOrigem={selectedOrigem}
             selectedEmailAvailability={selectedEmailAvailability}
             onApplyFilters={handleApplySideFilters}
             onResetFilters={handleResetFilters}
             dynamicLocations={dynamicLocations}
             availableOrigins={availableOrigins}
+            showStatusFilter={false}
           />
         </div>
 
@@ -414,7 +379,6 @@ export function LeadsView({
             isLoading={activeLoading}
             onPageChange={(page) => setCurrentPage(page)}
             onViewDetails={(lead) => setDetailLead(lead)}
-            onChangeStatus={handleSingleStatusChange}
             onDeleteLead={handleDeleteLead}
             onCrmMembershipChange={(leadId, included) => onCrmMembershipChange?.(leadId, included)}
             selectedIds={selectedLeadIds}
@@ -427,7 +391,7 @@ export function LeadsView({
       <BatchActionsBar
         selectedCount={selectedLeadIds.length}
         onClearSelection={() => setSelectedLeadIds([])}
-        onBatchStatusChange={handleBatchStatusChange}
+        onBatchAddToCrm={handleBatchAddToCrm}
         onBatchExportCSV={() => {
           const selectedItems = activeItems.filter((item) => selectedLeadIds.includes(item.id));
           handleExportCSV(selectedItems);
@@ -438,7 +402,11 @@ export function LeadsView({
       <LeadDetailsModal
         lead={detailLead}
         onClose={() => setDetailLead(null)}
-        onChangeStatus={handleSingleStatusChange}
+        showStatusControls={false}
+        onAddToCrm={async (leadId) => {
+          const added = await onCrmMembershipChange?.(leadId, true);
+          if (added !== false) setDetailLead(null);
+        }}
       />
 
 

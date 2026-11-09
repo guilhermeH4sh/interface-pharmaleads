@@ -8,6 +8,7 @@ import {
   Star,
   Navigation,
   Clock,
+  BriefcaseBusiness,
 } from "lucide-react";
 import { formatCNPJ, formatPhone, buildWhatsAppLink } from "../../lib/formatters";
 import { StatusBadge } from "./StatusBadge";
@@ -20,7 +21,9 @@ import { parseLeadEmails } from "../../lib/email";
 interface LeadDetailsModalProps {
   lead: LeadItem | null;
   onClose: () => void;
-  onChangeStatus: (leadId: string, status: LeadStatus) => void;
+  onChangeStatus?: (leadId: string, status: LeadStatus) => void;
+  onAddToCrm?: (leadId: string) => void;
+  showStatusControls?: boolean;
 }
 
 const SITUACAO_LABELS: Record<string, string> = {
@@ -30,7 +33,7 @@ const SITUACAO_LABELS: Record<string, string> = {
   fechada: "Fechada",
 };
 
-export function LeadDetailsModal({ lead, onClose, onChangeStatus }: LeadDetailsModalProps) {
+export function LeadDetailsModal({ lead, onClose, onChangeStatus, onAddToCrm, showStatusControls = true }: LeadDetailsModalProps) {
   if (!lead) return null;
 
   const emails = parseLeadEmails(lead.email);
@@ -50,7 +53,7 @@ export function LeadDetailsModal({ lead, onClose, onChangeStatus }: LeadDetailsM
       icon={<Building size={18} />}
       footer={
         <div className="w-full flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
+          {showStatusControls && onChangeStatus && <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-muted-foreground font-medium">Alterar status:</span>
             <div className="flex items-center gap-1.5 flex-wrap">
               {(["Em contato", "Respondido", "Qualificado", "Não qualificado", ...(lead.crmIncluded ? [] : ["Não contatado"])] as LeadStatus[]).map(
@@ -70,7 +73,13 @@ export function LeadDetailsModal({ lead, onClose, onChangeStatus }: LeadDetailsM
                 )
               )}
             </div>
-          </div>
+          </div>}
+
+          {!showStatusControls && onAddToCrm && (
+            <button onClick={() => onAddToCrm(lead.id)} className={cn(ui.btnBrand, "h-10 px-5 text-xs")}>
+              <BriefcaseBusiness size={16} /> Adicionar ao CRM
+            </button>
+          )}
 
           <button onClick={onClose} className={cn(ui.btnSecondary, "h-10 px-5 text-xs")}>
             Fechar
@@ -79,13 +88,13 @@ export function LeadDetailsModal({ lead, onClose, onChangeStatus }: LeadDetailsM
       }
     >
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2 flex-wrap">
+          {showStatusControls && <div className="mr-auto flex items-center gap-2">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Status Atual:
             </span>
             <StatusBadge status={lead.status} />
-          </div>
+          </div>}
 
           {lead.link && (
             <a

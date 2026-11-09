@@ -1,26 +1,19 @@
-import { useState } from "react";
-import { CheckSquare, Download, X } from "lucide-react";
-import { ui } from "../../lib/ui";
+import { BriefcaseBusiness, Download, X } from "lucide-react";
 import { cn } from "../../lib/utils";
-import type { LeadStatus } from "../../lib/mock-leads";
 
 interface BatchActionsBarProps {
   selectedCount: number;
   onClearSelection: () => void;
-  onBatchStatusChange: (status: LeadStatus) => void;
+  onBatchAddToCrm: () => void;
   onBatchExportCSV: () => void;
 }
-
-const STATUSES: LeadStatus[] = ["Qualificado", "Em contato", "Respondido", "Não qualificado", "Não contatado"];
 
 export function BatchActionsBar({
   selectedCount,
   onClearSelection,
-  onBatchStatusChange,
+  onBatchAddToCrm,
   onBatchExportCSV,
 }: BatchActionsBarProps) {
-  const [open, setOpen] = useState<"status" | null>(null);
-
   if (selectedCount === 0) return null;
 
   const action = "h-10 px-3 inline-flex items-center gap-2 rounded-lg text-sm font-semibold transition-colors";
@@ -40,20 +33,9 @@ export function BatchActionsBar({
           <span className="hidden sm:inline">selecionados</span>
         </span>
 
-        <div className="relative">
-          <button onClick={() => setOpen(open === "status" ? null : "status")} aria-expanded={open === "status"} className={cn(action, "hover:bg-background/10")}>
-            <CheckSquare size={16} /> <span className="hidden sm:inline">Alterar status</span>
-          </button>
-          {open === "status" && (
-            <div role="menu" className={cn(ui.menu, "absolute left-0 bottom-12 w-48 text-foreground")}>
-              {STATUSES.map((st) => (
-                <button key={st} role="menuitem" className={ui.menuItem} onClick={() => { onBatchStatusChange(st); setOpen(null); }}>
-                  {st}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <button onClick={onBatchAddToCrm} className={cn(action, "hover:bg-background/10")}>
+          <BriefcaseBusiness size={16} /> <span className="hidden sm:inline">Adicionar ao CRM</span>
+        </button>
 
         <button onClick={onBatchExportCSV} className={cn(action, "bg-primary text-primary-foreground hover:bg-primary-hover")}>
           <Download size={16} /> <span className="hidden sm:inline">Exportar CSV</span>
