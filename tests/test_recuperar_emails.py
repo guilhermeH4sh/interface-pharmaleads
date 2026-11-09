@@ -5,10 +5,29 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from pharmaleads.recuperar_emails import resultados, varrer
+from pharmaleads.recuperar_emails import atualizar_escopo, resultados, varrer
 
 
 class TestRetomadaEmails(unittest.TestCase):
+    def test_atualiza_escopo_apenas_com_leads_recentes_sem_email(self):
+        estado = {
+            'leads': [{'chave': '1', 'nome': 'Existente'}],
+            'consultados': 1, 'encontrados': 0, 'atualizados': 0,
+            'sem_correspondencia': [],
+        }
+        cliente = Mock()
+        cliente.listar.return_value = [
+            {'chave': '1', 'nome': 'Existente', 'emails': '', 'site': ''},
+            {'chave': '2', 'nome': 'Já coberto', 'emails': 'contato@empresa.com.br', 'site': ''},
+            {'chave': '3', 'nome': 'Novo pendente', 'endereco': 'Rua A',
+             'local_busca': 'Curitiba, PR', 'link': 'https://maps.google.com/x',
+             'emails': '', 'site': 'https://empresa.com.br'},
+        ]
+
+        self.assertEqual(atualizar_escopo(cliente, estado), 1)
+        self.assertEqual([lead['chave'] for lead in estado['leads']], ['1', '3'])
+        self.assertNotIn('emails', estado['leads'][-1])
+
     def test_ignora_linha_truncada(self):
         with tempfile.TemporaryDirectory() as pasta:
             saida = Path(pasta) / 'resultado.csv'

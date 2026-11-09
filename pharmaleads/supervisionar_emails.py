@@ -10,7 +10,8 @@ from pathlib import Path
 
 from . import config
 from .config import ErroPharmaLeads
-from .recuperar_emails import bloquear_estado
+from .recuperar_emails import atualizar_escopo, bloquear_estado, salvar_estado
+from .supabase import Supabase
 
 
 def progresso(caminho: Path) -> tuple[int, int]:
@@ -18,8 +19,8 @@ def progresso(caminho: Path) -> tuple[int, int]:
     leads = estado['leads']
     total = len(leads)
     consultados = estado['consultados']
-    if total != 12298 or len({lead['chave'] for lead in leads}) != total or not 0 <= consultados <= total:
-        raise ErroPharmaLeads('O escopo salvo não corresponde aos 12.298 leads originais.')
+    if not total or len({lead['chave'] for lead in leads}) != total or not 0 <= consultados <= total:
+        raise ErroPharmaLeads('O escopo salvo da recuperação de e-mails é inválido.')
     return consultados, total
 
 
@@ -37,8 +38,16 @@ def supervisionar(caminho: Path, espera: int) -> None:
         while True:
             consultados, total = progresso(caminho)
             if consultados == total:
-                print(f'Busca concluída: {consultados}/{total}. Conferir cobertura no Supabase.', flush=True)
-                return
+                with bloquear_estado(caminho):
+                    estado = json.loads(caminho.read_text(encoding='utf-8'))
+                    adicionados = atualizar_escopo(Supabase(), estado)
+                    if adicionados:
+                        salvar_estado(caminho, estado)
+                if not adicionados:
+                    print(f'Busca concluída: {consultados}/{total}. Conferir cobertura no Supabase.', flush=True)
+                    return
+                print(f'{adicionados} leads recentes acrescentados à recuperação.', flush=True)
+                continue
             if buscar_ativo(caminho):
                 time.sleep(espera)
                 continue

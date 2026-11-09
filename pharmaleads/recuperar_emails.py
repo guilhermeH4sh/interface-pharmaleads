@@ -72,8 +72,23 @@ def bloquear_estado(caminho: Path):
         yield
 
 
+def atualizar_escopo(cliente: Supabase, estado: dict) -> int:
+    """Inclui leads recentes sem e-mail sem alterar o progresso já concluído."""
+    existentes = {lead['chave'] for lead in estado['leads']}
+    novos = []
+    for lead in cliente.listar('chave,nome,endereco,local_busca,link,site,emails'):
+        if lead['chave'] in existentes or emails_publicos(lead.get('emails') or ''):
+            continue
+        novos.append({campo: lead.get(campo) or '' for campo in
+                      ('chave', 'nome', 'endereco', 'local_busca', 'link')})
+    novos.sort(key=lambda lead: lead['chave'])
+    estado['leads'].extend(novos)
+    return len(novos)
+
+
 def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorrencia: int,
-           somente_sem_email: bool = False, timeout_min: int = 30) -> None:
+           somente_sem_email: bool = False, timeout_min: int = 30,
+           atualizar: bool = False) -> None:
     caminho.parent.mkdir(parents=True, exist_ok=True)
     if caminho.exists():
         estado = json.loads(caminho.read_text(encoding='utf-8'))
@@ -87,6 +102,11 @@ def varrer(cliente: Supabase, caminho: Path, tamanho: int, limite: int, concorre
             del lead['emails'], lead['site']
         estado = {'leads': leads, 'consultados': 0, 'encontrados': 0, 'atualizados': 0, 'sem_correspondencia': []}
         salvar_estado(caminho, estado)
+    if atualizar:
+        adicionados = atualizar_escopo(cliente, estado)
+        if adicionados:
+            salvar_estado(caminho, estado)
+        print(f'{adicionados} leads recentes sem e-mail acrescentados ao escopo.', flush=True)
 
     opcoes = Opcoes(bin=localizar_gosom(), concorrencia=concorrencia, profundidade=1,
                     emails=True, inatividade='1m', timeout_min=timeout_min)
@@ -164,13 +184,15 @@ def main() -> int:
                         help='Tempo máximo de cada lote do Gosom, em minutos.')
     parser.add_argument('--somente-sem-email', action='store_true',
                         help='Pula leads que já têm e-mail com domínio público no Supabase.')
+    parser.add_argument('--atualizar-escopo', action='store_true',
+                        help='Acrescenta ao estado leads recentes que continuam sem e-mail.')
     args = parser.parse_args()
     if args.lote < 1 or args.limite < 0 or args.timeout_min < 1:
         parser.error('Informe lote e timeout positivos e limite não negativo.')
     try:
         with bloquear_estado(args.estado):
             varrer(Supabase(), args.estado, args.lote, args.limite, args.concorrencia,
-                   args.somente_sem_email, args.timeout_min)
+                   args.somente_sem_email, args.timeout_min, args.atualizar_escopo)
         return 0
     except (ErroPharmaLeads, OSError, ValueError, subprocess.SubprocessError) as erro:
         print(f'Busca interrompida: {erro}', flush=True)
