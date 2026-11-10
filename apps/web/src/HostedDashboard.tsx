@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Activity, ChevronRight, Database, Download, Filter, RefreshCw, Search, Users, X } from "lucide-react";
 import type { Lead } from "./lib/crm";
+import type { CollectorRun } from "./lib/backend";
 import { corrigirLocal } from "./lib/locations";
 import logo from "./assets/centrus-logo-original.png";
 import "./crm.css";
@@ -16,7 +17,6 @@ const COLETA_ATIVA = ["queued", "in_progress", "waiting", "pending", "requested"
 
 type Session = { access_token: string; refresh_token: string; expires_at: number };
 type AuthResponse = { access_token?: string; refresh_token?: string; expires_in?: number; user?: { id?: string }; error_description?: string; msg?: string };
-type CollectorRun = { id: number; status: string; conclusion: string | null; url: string; created_at: string; title: string };
 class AccessError extends Error {}
 
 function savedSession(): Session | null {
@@ -122,7 +122,7 @@ export function HostedDashboard() {
   const [collectionError, setCollectionError] = useState("");
   const [collectionBusy, setCollectionBusy] = useState(false);
   const [collectorReady, setCollectorReady] = useState(false);
-  const lastCompleted = useRef(0);
+  const lastCompleted = useRef<CollectorRun["id"]>(0);
   const awaitingRun = useRef(false);
   const stoppingRef = useRef(false);
   const stoppingSince = useRef(0);

@@ -14,7 +14,7 @@ const stages: Record<string, string> = {
 export function CollectorProgress({ run, stale }: { run: CollectorRun; stale: boolean }) {
   const running = COLETA_ATIVA_STATES.includes(run.status) || run.status === "cancelling";
   const total = run.total_rounds ?? 0;
-  const completed = run.completed_rounds ?? 0;
+  const completed = run.completed_rounds;
   const national = total > 1;
   const phase = run.status === "cancelling" ? "Parando coleta"
     : run.status === "completed"
@@ -31,7 +31,7 @@ export function CollectorProgress({ run, stale }: { run: CollectorRun; stale: bo
         {run.title && <span className="text-muted-foreground">{run.title}</span>}
         {stale && <span className="w-full text-muted-foreground">Último status recebido. Tentando reconectar ao Render.</span>}
       </div>
-      {national ? (
+      {national && completed != null ? (
         <>
           <div role="progressbar" aria-label="Rodadas concluídas" aria-valuemin={0} aria-valuemax={total} aria-valuenow={completed}
             className="h-2 overflow-hidden rounded-full bg-muted">

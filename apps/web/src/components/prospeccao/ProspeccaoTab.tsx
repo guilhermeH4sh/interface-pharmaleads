@@ -44,7 +44,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           if (cancelled) return;
           if (result.session !== supabaseSession) onSessionUpdate?.(result.session);
           const run = result.run;
-          setCloudRun(run);
+          setCloudRun(previous => run && previous?.id === run.id ? { ...previous, ...run } : run);
           setCloudStale(false);
           if (!run) {
             if (hadActive.current) {

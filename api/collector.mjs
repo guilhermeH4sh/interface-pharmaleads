@@ -44,19 +44,31 @@ function configRender() {
     throw new Error('Configure RENDER_COLLECTOR_URL com a URL HTTPS do Web Service na Vercel.');
   }
   if (!token) throw new Error('Configure RENDER_COLLECTOR_TOKEN na Vercel.');
-  return { base, token };
+  return { base, token, apiKey: process.env.RENDER_API_KEY?.trim() || '' };
 }
 
 async function renderRequest(path, method = 'GET', body) {
-  const { base, token } = configRender();
-  const response = await fetch(`${base}${path}`, {
+  const { base, token, apiKey } = configRender();
+  const endpoint = apiKey ? `/v1/jobs/${path}` : `/v1/${path}`;
+  const response = await fetch(`${base}${endpoint}`, {
     method,
-    headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(apiKey ? { 'X-Render-Api-Key': apiKey } : {}),
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
     cache: 'no-store',
+    redirect: 'error',
     signal: AbortSignal.timeout(30000),
   });
   const payload = await response.json().catch(() => ({ error: `Render respondeu HTTP ${response.status}.` }));
+  if (apiKey && response.status === 404) {
+    return { status: 503, payload: { error: 'Aguarde o deploy da versão com One-Off Jobs no Render.' } };
+  }
+  if (response.status === 401) {
+    return { status: 502, payload: { error: 'O Render recusou a autenticação do coletor. Confira RENDER_COLLECTOR_TOKEN.' } };
+  }
   return { status: response.status, payload };
 }
 
@@ -68,7 +80,7 @@ export default async function handler(req, res) {
     if (req.method !== 'GET' && req.method !== 'POST') return respond(res, 405, { error: 'Método não permitido.' });
     if (!await authorized(req)) return respond(res, 401, { error: 'Entre com o usuário autorizado no Supabase.' });
     if (req.method === 'GET') {
-      const upstream = await renderRequest('/v1/status');
+      const upstream = await renderRequest('status');
       return respond(res, upstream.status, upstream.payload);
     }
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -77,11 +89,11 @@ export default async function handler(req, res) {
       let input;
       try { input = body.cobertura === 'nacional' ? entradaNacional(body, TERMS) : validateInput(body); }
       catch (error) { return respond(res, 400, { error: error.message }); }
-      const upstream = await renderRequest('/v1/start', 'POST', { ...input, request_id: crypto.randomUUID() });
+      const upstream = await renderRequest('start', 'POST', { ...input, request_id: crypto.randomUUID() });
       return respond(res, upstream.status, upstream.payload);
     }
     if (body?.action === 'stop') {
-      const upstream = await renderRequest('/v1/stop', 'POST', {});
+      const upstream = await renderRequest('stop', 'POST', {});
       return respond(res, upstream.status, upstream.payload);
     }
     return respond(res, 400, { error: 'Ação inválida.' });

@@ -3,7 +3,7 @@
 Aplicação local para buscar estabelecimentos farmacêuticos no Google Maps por meio do
 [gosom/google-maps-scraper](https://github.com/gosom/google-maps-scraper), guardar os
 resultados em SQLite e consultar, filtrar e exportar leads numa interface React.
-O scraper pode rodar localmente ou no Web Service do Render. A interface publicada na Vercel consulta
+O scraper pode rodar localmente ou em One-Off Jobs do Render. A interface publicada na Vercel consulta
 `public.pharmaleads` no Supabase após login com a conta autorizada. A Vercel não executa
 o Gosom nem armazena o SQLite local.
 
@@ -22,10 +22,10 @@ iniciada pelo navegador local continua restrita a `127.0.0.1`.
 
 ### Ativar o botão de coleta online no Render
 
-O painel publicado chama a função Vercel `/api/collector`, que valida a sessão Supabase
-e controla um Web Service persistente no Render. O contêiner reúne o Gosom, Chromium,
-Playwright e o supervisor Python, enviando somente leads com e-mail para a **mesma
-tabela** `public.pharmaleads`. Não cria outra tabela e não depende do computador local.
+O painel chama a função Vercel `/api/collector`, que valida a sessão Supabase e encaminha o
+pedido ao Web Service do Render. Com One-Off Jobs ativado, o serviço inicia uma
+instância separada de 2 GB que executa Gosom, Chromium e Playwright. Os leads com
+e-mail continuam sendo enviados para `public.pharmaleads`.
 
 1. No Render, crie um **Blueprint** a partir deste repositório. O arquivo `render.yaml`
    cria o serviço `pharmaleads-collector` no plano Starter usando `Dockerfile.render`.
@@ -34,18 +34,19 @@ tabela** `public.pharmaleads`. Não cria outra tabela e não depende do computad
 3. Copie a URL HTTPS `onrender.com` do serviço.
 4. Na Vercel, em **Settings > Environment Variables**, configure para Production:
    `RENDER_COLLECTOR_URL` e o mesmo `RENDER_COLLECTOR_TOKEN`.
-5. Faça um novo deploy na Vercel. O antigo `GITHUB_ACTIONS_TOKEN` pode ser removido.
+5. Quando o Render estiver **Live** com a versão que suporta One-Off Jobs, adicione
+   `RENDER_API_KEY` em **Vercel > Settings > Environment Variables > Production**.
+   Use uma chave da API do Render com acesso ao serviço, aos jobs e aos logs do
+   workspace. Guarde a chave somente na configuração de servidor da Vercel.
+6. Faça um **Redeploy** na Vercel. Na aba **Prospecção**, use **Pesquisar** com uma
+   cidade e um segmento. O job aparece em **One-off Jobs** no serviço do Render.
 
-O plano Free não é adequado para este coletor: ele entra em repouso após inatividade e
-pode interromper uma fila longa. O Blueprint usa Starter e concorrência 1 para caber nos
-512 MB iniciais. Para acelerar com segurança, use um plano com mais memória e aumente
-`GOSOM_CONCURRENCY` gradualmente para 2 ou 4.
-
-Depois, entre em [pharmaleads.vercel.app](https://pharmaleads.vercel.app), informe os
-locais, marque os segmentos e clique em **Iniciar coleta**. O limite é 20 buscas por
-execução; o botão **Parar coleta** cancela o job atual. A execução depende das cotas
-do plano do Render e da disponibilidade do Google Maps. O job falha com uma mensagem
-se as credenciais de sincronização não estiverem configuradas.
+Sem `RENDER_API_KEY`, o painel usa o modo anterior, que executa a coleta dentro do
+Web Service. Com a chave, a instância de 2 GB é cobrada pelo tempo do job, além do
+plano do serviço base. O painel acompanha o status pela API do Render e as etapas,
+rodadas e contagens pelos logs do job. **Parar coleta** solicita o cancelamento.
+Uma cobertura nacional encadeia as rodadas dentro do mesmo job e interrompe a fila
+em caso de falha. Os resultados já enviados ficam no Supabase.
 
 O painel também oferece **Enriquecer sites de leads novos**. Quando ativada, após a
 busca no Maps o contêiner usa o Playwright para visitar somente a

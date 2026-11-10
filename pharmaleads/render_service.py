@@ -18,6 +18,7 @@ from .cobertura import entradas_seguintes
 from .cloud_job import MARCADOR_PROGRESSO
 from .gerador import montar_consultas, validar_segmentos
 from .config import ErroPharmaLeads
+from .render_jobs import ErroRender, RenderJobs
 
 ATIVOS = {'queued', 'in_progress', 'cancelling'}
 ETAPAS_RODADA = {'searching', 'retrying', 'importing', 'enriching', 'syncing'}
@@ -68,17 +69,18 @@ def validar_entrada(body: dict) -> dict[str, str]:
 
 
 class ColetorRender:
-    def __init__(self) -> None:
+    def __init__(self, ao_atualizar=None) -> None:
         self._lock = threading.RLock()
         self._parar = threading.Event()
         self._processo: subprocess.Popen | None = None
         self._run: dict | None = None
+        self._ao_atualizar = ao_atualizar
 
     def status(self) -> dict | None:
         with self._lock:
             return dict(self._run) if self._run else None
 
-    def iniciar(self, entrada: dict) -> dict:
+    def _preparar(self, entrada: dict) -> dict:
         entrada = validar_entrada(entrada)
         with self._lock:
             if self._run and self._run['status'] in ATIVOS:
@@ -99,10 +101,19 @@ class ColetorRender:
                 'completed_rounds': 0,
                 'synced_leads': 0,
             }
-            thread = threading.Thread(target=self._executar, args=(entrada,), daemon=True,
-                                      name='pharmaleads-render-worker')
-            thread.start()
+        return entrada
+
+    def iniciar(self, entrada: dict) -> dict:
+        with self._lock:
+            entrada = self._preparar(entrada)
+            threading.Thread(target=self._executar, args=(entrada,), daemon=True,
+                             name='pharmaleads-render-worker').start()
             return dict(self._run)
+
+    def executar_job(self, entrada: dict) -> str:
+        entrada = self._preparar(entrada)
+        self._executar(entrada)
+        return self.status()['conclusion']
 
     def solicitar_parada(self) -> tuple[bool, dict | None]:
         with self._lock:
@@ -134,6 +145,8 @@ class ColetorRender:
         with self._lock:
             if self._run:
                 self._run.update(campos)
+                if self._ao_atualizar:
+                    self._ao_atualizar(dict(self._run))
 
     def _executar(self, entrada: dict) -> None:
         atual = entrada
@@ -230,8 +243,39 @@ class Handler(BaseHTTPRequestHandler):
     def coletor(self) -> ColetorRender:
         return self.server.coletor  # type: ignore[attr-defined]
 
+    def _one_off(self, caminho: str) -> None:
+        if not self._autorizado():
+            self._json(HTTPStatus.UNAUTHORIZED, {'error': 'Token inválido.'})
+            return
+        try:
+            jobs = RenderJobs(os.environ.get('RENDER_SERVICE_ID', ''), self.headers.get('X-Render-Api-Key', ''))
+            if caminho == '/v1/jobs/status':
+                self._json(HTTPStatus.OK, {'run': jobs.status()})
+                return
+            with self.server.lock_jobs:  # type: ignore[attr-defined]
+                ativos = jobs.ativos()
+                ativo = next((job for job in ativos if jobs.entrada_do_job(job) is not None), None)
+                if caminho == '/v1/jobs/stop':
+                    run = jobs.cancelar(ativo) if ativo else None
+                    self._json(HTTPStatus.ACCEPTED, {'cancelling': bool(ativo), 'run': run})
+                    return
+                anterior = self.coletor.status()
+                if ativos or (anterior and anterior['status'] in ATIVOS):
+                    run = jobs.resumir(ativo) if ativo else None
+                    self._json(HTTPStatus.CONFLICT, {'error': 'Já existe uma coleta ativa neste serviço do Render.', 'run': run})
+                    return
+                run = jobs.iniciar(validar_entrada(self._body()))
+                self._json(HTTPStatus.ACCEPTED, {'queued': True, 'run': run})
+        except ErroRender as exc:
+            self._json(HTTPStatus.BAD_GATEWAY, {'error': str(exc)})
+        except (ErroPharmaLeads, ValueError) as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {'error': str(exc)})
+
     def do_GET(self) -> None:
         caminho = urlsplit(self.path).path
+        if caminho == '/v1/jobs/status':
+            self._one_off(caminho)
+            return
         if caminho == '/health':
             self._json(HTTPStatus.OK, {'ok': True, 'service': 'pharmaleads-collector'})
             return
@@ -245,6 +289,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         caminho = urlsplit(self.path).path
+        if caminho in ('/v1/jobs/start', '/v1/jobs/stop'):
+            self._one_off(caminho)
+            return
         if caminho not in ('/v1/start', '/v1/stop'):
             self._json(HTTPStatus.NOT_FOUND, {'error': 'Rota não encontrada.'})
             return
@@ -273,6 +320,7 @@ def main() -> None:
     servidor = ThreadingHTTPServer(('0.0.0.0', porta), Handler)
     coletor = ColetorRender()
     servidor.coletor = coletor  # type: ignore[attr-defined]
+    servidor.lock_jobs = threading.Lock()  # type: ignore[attr-defined]
 
     def encerrar(_signum=None, _frame=None):
         coletor.solicitar_parada()

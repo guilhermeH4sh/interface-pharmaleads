@@ -6,6 +6,12 @@ import { montarFila } from './cobertura.mjs';
 const oldFetch = globalThis.fetch;
 const oldUrl = process.env.RENDER_COLLECTOR_URL;
 const oldToken = process.env.RENDER_COLLECTOR_TOKEN;
+const oldApiKey = process.env.RENDER_API_KEY;
+
+function setApiKey(value) {
+  if (value === undefined) delete process.env.RENDER_API_KEY;
+  else process.env.RENDER_API_KEY = value;
+}
 
 afterEach(() => {
   globalThis.fetch = oldFetch;
@@ -13,6 +19,7 @@ afterEach(() => {
   else process.env.RENDER_COLLECTOR_URL = oldUrl;
   if (oldToken === undefined) delete process.env.RENDER_COLLECTOR_TOKEN;
   else process.env.RENDER_COLLECTOR_TOKEN = oldToken;
+  setApiKey(oldApiKey);
 });
 
 function response() {
@@ -20,6 +27,7 @@ function response() {
 }
 
 function setupRender(handlerFn) {
+  setApiKey(undefined);
   process.env.RENDER_COLLECTOR_URL = 'https://pharmaleads-collector.onrender.com';
   process.env.RENDER_COLLECTOR_TOKEN = 'render-token-de-teste';
   const calls = [];
@@ -30,6 +38,29 @@ function setupRender(handlerFn) {
   };
   return calls;
 }
+
+test('usa as rotas One-Off com uma credencial exclusiva do servidor', async () => {
+  const calls = setupRender(async (url, options) => {
+    assert.equal(options.headers['X-Render-Api-Key'], 'api-key-test');
+    assert.equal(options.redirect, 'error');
+    const status = url.endsWith('/status') ? 200 : 202;
+    return { status, json: async () => ({ run: { id: 'job-test', status: 'queued' } }) };
+  });
+  setApiKey('api-key-test');
+  const headers = { authorization: 'Bearer jwt-de-teste' };
+  for (const req of [
+    { method: 'GET', headers },
+    { method: 'POST', headers, body: { action: 'start', locais: 'São Paulo, SP', segmentos: ['varejo'], profundidade: 1 } },
+    { method: 'POST', headers, body: { action: 'stop' } },
+  ]) {
+    const res = response();
+    await handler(req, res);
+    assert.equal(res.body.run.id, 'job-test');
+    assert.doesNotMatch(JSON.stringify(res.body), /api-key-test/);
+  }
+  assert.deepEqual(calls.filter(call => call.url.includes('onrender.com')).map(call => new URL(call.url).pathname),
+    ['/v1/jobs/status', '/v1/jobs/start', '/v1/jobs/stop']);
+});
 
 test('limita consultas e força e-mail e enriquecimento', () => {
   const result = validateInput({ locais: 'Curitiba, PR', segmentos: ['varejo', 'manipulacao'], profundidade: 1 });

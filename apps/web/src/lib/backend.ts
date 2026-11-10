@@ -32,7 +32,7 @@ export interface SupabaseSession {
 }
 
 export interface CollectorRun {
-  id: number;
+  id: number | string;
   status: string;
   conclusion: string | null;
   url: string;
