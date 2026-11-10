@@ -61,6 +61,7 @@ async function renderRequest(path, method = 'GET', body) {
 }
 
 export default async function handler(req, res) {
+  res.setHeader?.('Cache-Control', 'no-store');
   try {
     const origin = header(req, 'origin');
     if (origin && origin !== 'https://pharmaleads.vercel.app') return respond(res, 403, { error: 'Origem não permitida.' });

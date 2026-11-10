@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Square, ArrowRight } from "lucide-react";
-import { AccessError, COLETA_ATIVA_STATES, controlCloudCollector, fetchCloudCollectorRun, fetchLocalApiStatus, startLocalCollection, stopLocalCollection, type DataSourceMode, type SupabaseSession } from "../../lib/backend";
+import { AccessError, COLETA_ATIVA_STATES, controlCloudCollector, fetchCloudCollectorRun, fetchLocalApiStatus, startLocalCollection, stopLocalCollection, type CollectorRun, type DataSourceMode, type SupabaseSession } from "../../lib/backend";
 import { buildCollectorSearch } from "../../lib/collector-search";
 import { ESTABLISHMENTS, STATES, SOURCES } from "../../lib/prospect-options";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import { ProspectMultiSelect } from "./ProspectMultiSelect";
+import { CollectorProgress } from "./CollectorProgress";
 
 interface Props {
   dataSourceMode?: DataSourceMode;
@@ -25,32 +26,41 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
-  const [runUrl, setRunUrl] = useState("");
+  const [cloudRun, setCloudRun] = useState<CollectorRun | null>(null);
+  const [cloudStale, setCloudStale] = useState(false);
   const hadActive = useRef(false);
-  const pendingAt = useRef(0);
   const connected = dataSourceMode === "local" || (dataSourceMode === "supabase" && Boolean(supabaseSession));
 
   useEffect(() => {
+    if (busy) return;
     let cancelled = false;
+    let polling = false;
     async function poll() {
+      if (polling) return;
+      polling = true;
       try {
         if (dataSourceMode === "supabase" && supabaseSession) {
           const result = await fetchCloudCollectorRun(supabaseSession);
           if (cancelled) return;
           if (result.session !== supabaseSession) onSessionUpdate?.(result.session);
           const run = result.run;
-          if (!run) return;
-          if (pendingAt.current && new Date(run.created_at).getTime() < pendingAt.current) return;
-          pendingAt.current = 0;
+          setCloudRun(run);
+          setCloudStale(false);
+          if (!run) {
+            if (hadActive.current) {
+              hadActive.current = false;
+              setFeedback("O Render perdeu o estado da execução. Confira os logs do serviço.");
+            }
+            setActive(false);
+            return;
+          }
+          setFeedback("");
           const running = COLETA_ATIVA_STATES.includes(run.status) || run.status === "cancelling";
           setActive(running);
-          setRunUrl(run.url);
           if (running) {
             hadActive.current = true;
-            setFeedback(run.status === "cancelling" ? "Parando coleta..." : "Coleta em andamento. Os novos contatos ficam na aba Leads.");
           } else if (hadActive.current && run.status === "completed") {
             hadActive.current = false;
-            setFeedback(run.conclusion === "success" ? "Coleta concluída. Os contatos estão na aba Leads." : run.conclusion === "cancelled" ? "Coleta cancelada." : "A coleta falhou. Consulte a execução.");
             onRefreshLeads?.();
           }
         } else if (dataSourceMode === "local") {
@@ -70,13 +80,16 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
         }
       } catch (err) {
         if (!cancelled && err instanceof AccessError) onSessionInvalid?.();
-        if (!cancelled) setError(err instanceof Error ? err.message : "Não foi possível acompanhar a coleta.");
+        if (!cancelled && dataSourceMode === "supabase") setCloudStale(true);
+        else if (!cancelled) setError(err instanceof Error ? err.message : "Não foi possível acompanhar a coleta.");
+      } finally {
+        polling = false;
       }
     }
     queueMicrotask(() => { if (!cancelled) void poll(); });
     const timer = window.setInterval(() => void poll(), dataSourceMode === "local" ? 3000 : 5000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [dataSourceMode, supabaseSession, onSessionUpdate, onRefreshLeads, onSessionInvalid]);
+  }, [busy, dataSourceMode, supabaseSession, onSessionUpdate, onRefreshLeads, onSessionInvalid]);
 
   const start = useCallback(async (override?: string) => {
     setError("");
@@ -87,16 +100,17 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
       if (dataSourceMode === "supabase" && supabaseSession) {
         const result = await controlCloudCollector(supabaseSession, { action: "start", ...input, locais: input.locais.join("\n"), enriquecerSites: false });
         if (result.session !== supabaseSession) onSessionUpdate?.(result.session);
-        pendingAt.current = Date.now() - 2000;
-        setRunUrl(result.run?.url || "");
+        setCloudRun(result.run);
+        setCloudStale(false);
+        setFeedback("");
       } else {
         if (input.cobertura === "nacional") throw new Error("Conecte o Supabase para iniciar uma busca em todas as UFs.");
         await startLocalCollection(input);
+        setFeedback("Coleta solicitada. Os novos contatos serão enviados para a aba Leads.");
       }
       setText(input.locais[0] ?? "");
       hadActive.current = true;
       setActive(true);
-      setFeedback(input.cobertura === "nacional" ? "Busca nacional solicitada. Os estados serão pesquisados em rodadas e os contatos enviados para Leads." : "Coleta solicitada. Os novos contatos serão enviados para a aba Leads.");
     } catch (err) {
       if (err instanceof AccessError) onSessionInvalid?.();
       setError(err instanceof Error ? err.message : "Não foi possível iniciar a coleta.");
@@ -111,9 +125,12 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
       if (dataSourceMode === "supabase" && supabaseSession) {
         const result = await controlCloudCollector(supabaseSession, { action: "stop" });
         if (result.session !== supabaseSession) onSessionUpdate?.(result.session);
-      } else await stopLocalCollection();
-      pendingAt.current = 0;
-      setFeedback("Parada solicitada. Aguardando o encerramento da coleta...");
+        setCloudRun(result.run);
+        setCloudStale(false);
+      } else {
+        await stopLocalCollection();
+        setFeedback("Parada solicitada. Aguardando o encerramento da coleta...");
+      }
     } catch (err) { if (err instanceof AccessError) onSessionInvalid?.(); setError(err instanceof Error ? err.message : "Falha ao solicitar parada."); }
     finally { setBusy(false); }
   }
@@ -150,9 +167,12 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
         {!connected && <p className="mt-5 text-xs text-muted-foreground text-center">Conecte sua conta Supabase em Configurações para iniciar.</p>}
         {error && <p role="alert" className="mt-5 text-sm text-foreground text-center">{error}</p>}
         {feedback && <p role="status" className="mt-5 text-sm text-muted-foreground text-center">{feedback}</p>}
+        {dataSourceMode === "supabase" && cloudRun && <CollectorProgress run={cloudRun} stale={cloudStale} />}
+        {dataSourceMode === "supabase" && cloudStale && !cloudRun && (
+          <p role="status" className="mt-5 text-center text-sm text-muted-foreground">Status do coletor indisponível. Tentando reconectar ao Render.</p>
+        )}
         <div className="mt-6 flex flex-wrap justify-center items-center gap-4 text-sm">
           {active && <button type="button" onClick={() => void stop()} disabled={busy} className={cn(ui.btnSecondary, "h-10 px-4")}><Square size={14} /> Parar coleta</button>}
-          {active && runUrl && <a href={runUrl} target="_blank" rel="noreferrer" className="text-brand hover:underline">Acompanhar execução</a>}
           <button type="button" onClick={onOpenLeads} className="inline-flex items-center gap-1.5 text-brand hover:underline">Ver leads <ArrowRight size={15} /></button>
         </div>
       </div>

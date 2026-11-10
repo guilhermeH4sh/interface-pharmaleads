@@ -15,10 +15,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 from .cobertura import entradas_seguintes
+from .cloud_job import MARCADOR_PROGRESSO
 from .gerador import montar_consultas, validar_segmentos
 from .config import ErroPharmaLeads
 
 ATIVOS = {'queued', 'in_progress', 'cancelling'}
+ETAPAS_RODADA = {'searching', 'retrying', 'importing', 'enriching', 'syncing'}
 MAX_BODY = 16_384
 
 
@@ -82,6 +84,8 @@ class ColetorRender:
             if self._run and self._run['status'] in ATIVOS:
                 raise ErroPharmaLeads('Já existe uma coleta online em andamento.')
             self._parar.clear()
+            nacional = entrada['modo'] == 'nacional'
+            rodada = int(entrada['rodada']) if nacional else 1
             self._run = {
                 'id': int(time.time() * 1000),
                 'status': 'queued',
@@ -89,6 +93,11 @@ class ColetorRender:
                 'url': self._url_publica(),
                 'created_at': _agora(),
                 'title': self._titulo(entrada),
+                'stage': 'queued',
+                'round': rodada,
+                'total_rounds': int(entrada['total_rodadas']) - rodada + 1 if nacional else 1,
+                'completed_rounds': 0,
+                'synced_leads': 0,
             }
             thread = threading.Thread(target=self._executar, args=(entrada,), daemon=True,
                                       name='pharmaleads-render-worker')
@@ -102,11 +111,12 @@ class ColetorRender:
                 self._parar.set()
                 self._run['status'] = 'cancelling'
                 processo = self._processo
-            else:
-                processo = None
+                if processo and processo.poll() is None:
+                    try:
+                        processo.terminate()
+                    except ProcessLookupError:
+                        pass
             run = dict(self._run) if self._run else None
-        if processo and processo.poll() is None:
-            processo.terminate()
         return ativo, run
 
     @staticmethod
@@ -127,9 +137,10 @@ class ColetorRender:
 
     def _executar(self, entrada: dict) -> None:
         atual = entrada
+        concluidas = enviados = 0
+        resultado = 'success'
         try:
             while atual and not self._parar.is_set():
-                self._atualizar(status='in_progress', title=self._titulo(atual))
                 ambiente = os.environ.copy()
                 ambiente.update({
                     'LOCAIS': atual['locais'],
@@ -139,19 +150,40 @@ class ColetorRender:
                     'ENRIQUECER_SITES': atual['enriquecer_sites'],
                     'GOSOM_BIN': ambiente.get('GOSOM_BIN', '/usr/bin/google-maps-scraper'),
                     'PHARMALEADS_HOME': ambiente.get('PHARMALEADS_HOME', '/tmp/pharmaleads'),
+                    'PHARMALEADS_PROGRESS': '1',
                 })
-                processo = subprocess.Popen([sys.executable, '-m', 'pharmaleads.cloud_job'], env=ambiente)
                 with self._lock:
+                    if self._parar.is_set():
+                        break
+                    rodada = int(atual['rodada']) if atual['modo'] == 'nacional' else 1
+                    self._atualizar(status='in_progress', stage='preparing', round=rodada, title=self._titulo(atual))
+                    processo = subprocess.Popen(
+                        [sys.executable, '-m', 'pharmaleads.cloud_job'], env=ambiente,
+                        stdout=subprocess.PIPE, text=True, encoding='utf-8', errors='replace',
+                    )
                     self._processo = processo
+                with processo.stdout as saida:
+                    for linha in saida:
+                        if not linha.startswith(MARCADOR_PROGRESSO):
+                            print(linha, end='', flush=True)
+                            continue
+                        evento = json.loads(linha[len(MARCADOR_PROGRESSO):])
+                        etapa = evento.get('stage')
+                        if etapa in ETAPAS_RODADA:
+                            self._atualizar(stage=etapa)
+                        elif etapa == 'synced':
+                            enviados += evento['synced_leads']
+                            self._atualizar(synced_leads=enviados)
                 codigo = processo.wait()
                 with self._lock:
                     self._processo = None
                 if self._parar.is_set():
-                    self._atualizar(status='completed', conclusion='cancelled')
-                    return
+                    break
                 if codigo != 0:
-                    self._atualizar(status='completed', conclusion='failure')
-                    return
+                    resultado = 'failure'
+                    break
+                concluidas += 1
+                self._atualizar(completed_rounds=concluidas)
                 if atual['modo'] != 'nacional':
                     atual = None
                     continue
@@ -160,13 +192,15 @@ class ColetorRender:
                     'true', atual['enriquecer_sites'], atual['request_id'])
                 if atual:
                     atual['modo'] = 'nacional'
-            self._atualizar(status='completed', conclusion='cancelled' if self._parar.is_set() else 'success')
         except Exception as exc:  # mantém o servidor vivo e registra o erro nos logs do Render
             print(f'Falha no supervisor da coleta: {exc}', file=sys.stderr, flush=True)
-            self._atualizar(status='completed', conclusion='failure')
+            resultado = 'failure'
         finally:
             with self._lock:
                 self._processo = None
+                if self._parar.is_set():
+                    resultado = 'cancelled'
+                self._atualizar(status='completed', conclusion=resultado, stage=resultado)
 
 
 class Handler(BaseHTTPRequestHandler):

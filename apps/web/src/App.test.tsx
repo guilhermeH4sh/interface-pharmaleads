@@ -51,12 +51,14 @@ test("a barra envia a cidade corrigida e os filtros para o scraper local", async
 });
 
 test("a barra inicia o coletor em nuvem e desabilita fontes não integradas", async () => {
+  let started = false;
+  const run = { id: 1, status: "queued", title: "Coleta · Curitiba, PR" };
   const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
     if (input === "/api/collector" && init?.method === "POST") {
       expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", locais: "Curitiba, PR", segmentos: ["varejo"], profundidade: 1, emails: true });
-      return new Response(JSON.stringify({ run: { id: 0, status: "queued", url: "https://github.com/example/actions" } }));
+      started = true;
     }
-    return new Response(JSON.stringify({ run: null }));
+    return new Response(JSON.stringify({ run: started ? run : null }));
   });
   vi.stubGlobal("fetch", fetcher);
   render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
@@ -66,6 +68,19 @@ test("a barra inicia o coletor em nuvem e desabilita fontes não integradas", as
   await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
   await waitFor(() => expect(fetcher.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  expect(await screen.findByRole("status")).toHaveTextContent("Na fila");
+});
+
+test("o painel usa a etapa e as rodadas concluídas informadas pelo Render", async () => {
+  const run = {
+    id: 1, status: "in_progress", stage: "enriching", title: "Nacional 3/10 · Curitiba, PR",
+    round: 3, completed_rounds: 2, total_rounds: 10, synced_leads: 13,
+  };
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run }))));
+  render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
+  expect(await screen.findByRole("status")).toHaveTextContent("Buscando contatos nos sites");
+  expect(screen.getByRole("progressbar", { name: "Rodadas concluídas" })).toHaveAttribute("aria-valuenow", "2");
+  expect(screen.getByText("13 leads enviados ao Supabase nesta coleta")).toBeInTheDocument();
 });
 
 
@@ -274,12 +289,13 @@ test("Leads mostra o e-mail sem responsável e filtra com ou sem endereço váli
 
 
 test("Todas as UFs com pesquisa vazia despacha cobertura nacional ao clicar Pesquisar", async () => {
+  let started = false;
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url === "/api/collector" && init?.method === "POST") {
       expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", cobertura: "nacional", segmentos: ["varejo"], profundidade: 1, emails: true });
-      return new Response(JSON.stringify({ run: { id: 0, status: "queued", url: "https://example.test/actions" } }));
+      started = true;
     }
-    return new Response(JSON.stringify({ run: null }));
+    return new Response(JSON.stringify({ run: started ? { id: 1, status: "queued", title: "Nacional 1/10" } : null }));
   });
   vi.stubGlobal("fetch", fetcher);
   render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
@@ -287,6 +303,6 @@ test("Todas as UFs com pesquisa vazia despacha cobertura nacional ao clicar Pesq
   expect(screen.getByRole("option", { name: "Todas as UFs" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
   await waitFor(() => expect(fetcher.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
-  expect(screen.getByRole("status")).toHaveTextContent("Busca nacional solicitada");
+  expect(await screen.findByRole("status")).toHaveTextContent("Nacional 1/10");
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });

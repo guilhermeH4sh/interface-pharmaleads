@@ -1,8 +1,10 @@
 import os
 import unittest
+from io import StringIO
 from unittest.mock import MagicMock, patch
 
 from pharmaleads.config import ErroPharmaLeads
+from pharmaleads.cloud_job import MARCADOR_PROGRESSO
 from pharmaleads.render_service import ColetorRender, validar_entrada
 
 
@@ -40,7 +42,16 @@ class TestRenderService(unittest.TestCase):
     @patch('pharmaleads.render_service.subprocess.Popen')
     def test_ultima_rodada_nacional_conclui_com_sucesso(self, popen, _seguinte):
         popen.return_value.wait.return_value = 0
+        popen.return_value.stdout = StringIO(
+            MARCADOR_PROGRESSO + '{"stage":"syncing"}\n' +
+            MARCADOR_PROGRESSO + '{"stage":"synced","synced_leads":12}\n'
+        )
         coletor = ColetorRender()
+        def verificar_progresso():
+            self.assertEqual(coletor.status()['stage'], 'syncing')
+            self.assertEqual(coletor.status()['synced_leads'], 12)
+            return 0
+        popen.return_value.wait.side_effect = verificar_progresso
         coletor._run = {
             'id': 1, 'status': 'queued', 'conclusion': None, 'url': '',
             'created_at': '2026-11-10T00:00:00+00:00', 'title': 'Na fila',
@@ -52,6 +63,7 @@ class TestRenderService(unittest.TestCase):
         coletor._executar(entrada)
         self.assertEqual(coletor.status()['status'], 'completed')
         self.assertEqual(coletor.status()['conclusion'], 'success')
+        self.assertEqual(coletor.status()['completed_rounds'], 1)
         ambiente = popen.call_args.kwargs['env']
         self.assertEqual(ambiente['GOSOM_BIN'], '/usr/bin/google-maps-scraper')
         self.assertEqual(ambiente['EMAILS'], 'true')

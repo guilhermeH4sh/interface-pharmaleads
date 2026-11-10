@@ -1,6 +1,7 @@
 """Executa uma rodada do coletor; cada CSV válido é salvo em public.pharmaleads."""
 from __future__ import annotations
 
+import json
 import os
 import signal
 import subprocess
@@ -11,6 +12,8 @@ from pathlib import Path
 from .banco import Banco
 from .config import ErroPharmaLeads
 from .gerador import montar_consultas, validar_segmentos
+
+MARCADOR_PROGRESSO = 'PHARMALEADS_PROGRESS '
 
 TERMOS_POR_SEGMENTO = {'varejo': 3, 'manipulacao': 1, 'homeopatia': 1,
                        'veterinaria': 1, 'distribuidoras': 2}
@@ -50,11 +53,12 @@ def _encerrar(proc: subprocess.Popen) -> None:
 
 def _rodar_processo(comando: list[str], timeout: int = 1500) -> None:
     """Roda o Gosom e encerra o processo quando o serviço recebe SIGTERM."""
-    proc = subprocess.Popen(comando)
+    proc = subprocess.Popen(comando, stdout=sys.stderr if os.environ.get('PHARMALEADS_PROGRESS') == '1' else None)
     anterior = signal.getsignal(signal.SIGTERM) if hasattr(signal, 'SIGTERM') else None
 
     def _parar(_signum=None, _frame=None):
         _encerrar(proc)
+        raise SystemExit(143)
 
     try:
         if hasattr(signal, 'SIGTERM'):
@@ -95,6 +99,11 @@ def _comando_gosom(base: Path, saida: Path, profundidade: int, emails: bool) -> 
     return ['docker', 'run', '--rm', '-v', f'{base.resolve()}:/gmapsdata', imagem, *argumentos]
 
 
+def _progresso(etapa: str, **dados: int) -> None:
+    if os.environ.get('PHARMALEADS_PROGRESS') == '1':
+        print(MARCADOR_PROGRESSO + json.dumps({'stage': etapa, **dados}), flush=True)
+
+
 def main() -> int:
     try:
         consultas, profundidade, emails, enriquecer = configuracao()
@@ -113,9 +122,11 @@ def main() -> int:
                 for tentativa in range(1, 3):
                     saida.unlink(missing_ok=True)
                     try:
+                        _progresso('searching' if tentativa == 1 else 'retrying')
                         _rodar_docker(comando, timeout=int(os.environ.get('GOSOM_TIMEOUT', '1500')))
                         if not saida.is_file() or saida.stat().st_size < 10:
                             raise ErroPharmaLeads('Gosom retornou um CSV vazio.')
+                        _progresso('importing')
                         novos, existentes = banco.importar_csv(saida, sincronizar=False)
                         break
                     except (ErroPharmaLeads, OSError, subprocess.CalledProcessError,
@@ -127,12 +138,16 @@ def main() -> int:
                     raise ErroPharmaLeads(f'Rodada falhou após duas tentativas: {ultimo_erro}')
                 enriquecidos = 0
                 if enriquecer:
+                    _progresso('enriching')
                     from .enriquecedor import enriquecer_sites
                     candidatos = banco.candidatos_enriquecimento(banco.ultimas_chaves_novas)
                     for contato in enriquecer_sites(candidatos, limite=100):
                         enriquecidos += banco.registrar_enriquecimento(contato)
                 pendentes = banco.con.execute('SELECT count(*) FROM sync_pendente').fetchone()[0]
-                enviados = banco.sincronizar_pendentes(obrigatorio=True) if pendentes else 0
+                _progresso('syncing')
+                enviados = banco.sincronizar_pendentes(
+                    obrigatorio=True, ao_enviar=lambda total: _progresso('synced', synced_leads=total)
+                ) if pendentes else 0
                 print(f'Coleta concluída: {novos} novos, {existentes} atualizados; '
                       f'{enriquecidos} enriquecidos; {enviados} com e-mail enviados ao Supabase.', flush=True)
             finally:

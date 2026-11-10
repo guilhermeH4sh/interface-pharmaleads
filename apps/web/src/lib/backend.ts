@@ -38,6 +38,11 @@ export interface CollectorRun {
   url: string;
   created_at: string;
   title: string;
+  stage?: string;
+  round?: number;
+  total_rounds?: number;
+  completed_rounds?: number;
+  synced_leads?: number;
 }
 
 export interface UfCoverageItem {
@@ -362,6 +367,7 @@ export async function fetchCloudCollectorRun(
   const active = await validSupabaseSession(session);
   const response = await fetch("/api/collector", {
     headers: { Authorization: `Bearer ${active.access_token}` },
+    cache: "no-store",
   });
   const body = (await response.json().catch(() => ({}))) as {
     run?: CollectorRun | null;

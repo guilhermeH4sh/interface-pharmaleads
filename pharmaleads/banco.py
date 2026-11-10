@@ -196,7 +196,7 @@ class Banco:
             self.con.execute('INSERT OR IGNORE INTO sync_pendente(chave) VALUES(?)', (contato.chave,))
         return True
 
-    def sincronizar_pendentes(self, obrigatorio=False):
+    def sincronizar_pendentes(self, obrigatorio=False, *, ao_enviar=None):
         """Envia para public.pharmaleads, em lotes idempotentes, quando há login local."""
         from .supabase import Supabase, ler_configuracao
         cfg = ler_configuracao()
@@ -223,6 +223,8 @@ class Banco:
             with self.con:
                 self.con.executemany('DELETE FROM sync_pendente WHERE chave=?',[(chave,) for chave in chaves])
             enviados += len(registros)
+            if ao_enviar and registros:
+                ao_enviar(len(registros))
 
     def resumo(self):
         def unico(sql): return self.con.execute(sql).fetchone()[0]
