@@ -48,11 +48,13 @@ try {
     }
 
     $etapa = 'iniciar o job'
-    $comando = @'
-sh -c 'export LOCAIS="Curitiba, PR" SEGMENTOS=manipulacao PROFUNDIDADE=1 ENRIQUECER_SITES=true GOSOM_CONCURRENCY=1; exec python -m pharmaleads.cloud_job'
-'@
-    $corpo = @{ planId = 'plan-srv-008'; startCommand = $comando.Trim() } | ConvertTo-Json -Compress
-    Write-Host 'Solicitando um job de 2 GB para Curitiba, PR...'
+    $comando = @(
+        '/usr/bin/env', 'LOCAIS=Curitiba', 'SEGMENTOS=manipulacao', 'PROFUNDIDADE=1',
+        'ENRIQUECER_SITES=true', 'GOSOM_CONCURRENCY=1',
+        '/opt/pharmaleads-venv/bin/python', '-m', 'pharmaleads.cloud_job'
+    ) -join ' '
+    $corpo = @{ planId = 'plan-srv-008'; startCommand = $comando } | ConvertTo-Json -Compress
+    Write-Host 'Solicitando um job de 2 GB para Curitiba...'
     $job = Invoke-RestMethod -Uri $jobsUri -Method Post -Headers $cabecalhos -ContentType 'application/json' -Body $corpo -TimeoutSec 30
     if ($job.id -notmatch '^job-[a-z0-9]+$') {
         throw 'O Render nao retornou um ID de job. Consulte a aba One-off Jobs antes de tentar novamente.'
