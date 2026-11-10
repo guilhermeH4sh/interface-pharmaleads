@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: pharmaleads-collector
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile.render
+    healthCheckPath: /health
+    maxShutdownDelaySeconds: 30
+    autoDeployTrigger: commit
+    envVars:
+      - key: RENDER_COLLECTOR_TOKEN
+        sync: false
+      - key: SUPABASE_URL
+        value: https://qxsdcrywsjkrpcbfgbxb.supabase.co
+      - key: SUPABASE_AUTH_MODE
+        value: user
+      - key: SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_9AdBAjeEHFysAVpC7VCLMw_cDgQ4Fl0
+      - key: SUPABASE_USER_ID
+        value: 677ed1e4-3e73-4f2c-951f-e77386f305da
+      - key: SUPABASE_EMAIL
+        sync: false
+      - key: SUPABASE_PASSWORD
+        sync: false
+      - key: GOSOM_TIMEOUT
+        value: "1500"
+      - key: GOSOM_CONCURRENCY
+        value: "1"

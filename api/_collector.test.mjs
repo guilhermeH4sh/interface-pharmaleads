@@ -4,195 +4,113 @@ import handler, { validateInput } from './collector.mjs';
 import { montarFila } from './cobertura.mjs';
 
 const oldFetch = globalThis.fetch;
-const oldToken = process.env.GITHUB_ACTIONS_TOKEN;
+const oldUrl = process.env.RENDER_COLLECTOR_URL;
+const oldToken = process.env.RENDER_COLLECTOR_TOKEN;
+
 afterEach(() => {
   globalThis.fetch = oldFetch;
-  if (oldToken === undefined) delete process.env.GITHUB_ACTIONS_TOKEN;
-  else process.env.GITHUB_ACTIONS_TOKEN = oldToken;
+  if (oldUrl === undefined) delete process.env.RENDER_COLLECTOR_URL;
+  else process.env.RENDER_COLLECTOR_URL = oldUrl;
+  if (oldToken === undefined) delete process.env.RENDER_COLLECTOR_TOKEN;
+  else process.env.RENDER_COLLECTOR_TOKEN = oldToken;
 });
 
 function response() {
   return { statusCode: 0, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
 }
 
-test('limita consultas e recusa entradas inválidas', () => {
-  assert.equal(validateInput({ locais: 'Curitiba, PR', segmentos: ['varejo', 'manipulacao'], profundidade: 1 }).segmentos, 'varejo,manipulacao');
-  assert.equal(validateInput({ locais: 'Curitiba, PR', segmentos: ['varejo'], profundidade: 1, enriquecerSites: true }).enriquecer_sites, 'true');
-  assert.equal(validateInput({ locais: 'Curitiba, PR', segmentos: ['varejo'], profundidade: 1, emails: false }).emails, 'true');
+function setupRender(handlerFn) {
+  process.env.RENDER_COLLECTOR_URL = 'https://pharmaleads-collector.onrender.com';
+  process.env.RENDER_COLLECTOR_TOKEN = 'render-token-de-teste';
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url.includes('/auth/v1/user')) return { ok: true, status: 200, json: async () => ({ id: '677ed1e4-3e73-4f2c-951f-e77386f305da' }) };
+    return handlerFn(url, options);
+  };
+  return calls;
+}
+
+test('limita consultas e força e-mail e enriquecimento', () => {
+  const result = validateInput({ locais: 'Curitiba, PR', segmentos: ['varejo', 'manipulacao'], profundidade: 1 });
+  assert.equal(result.segmentos, 'varejo,manipulacao');
+  assert.equal(result.emails, 'true');
+  assert.equal(result.enriquecer_sites, 'true');
+  assert.equal(result.modo, 'avulsa');
   assert.throws(() => validateInput({ locais: 'Curitiba, PR\nFlorianópolis, SC\nSão Paulo, SP\nManaus, AM\nRecife, PE\nSalvador, BA', segmentos: ['varejo', 'manipulacao'], profundidade: 1 }), /excede 20 buscas/);
   assert.throws(() => validateInput({ locais: 'Curitiba, PR', segmentos: ['invalido'], profundidade: 1 }), /segmento válido/);
 });
 
-test('autentica e despacha a coleta sem expor o token GitHub', async () => {
-  process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
-  const calls = [];
-  globalThis.fetch = async (url, options) => {
-    calls.push({ url, options });
-    if (url.includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: '677ed1e4-3e73-4f2c-951f-e77386f305da' }) };
-    if (url.includes('/runs?')) return { ok: true, status: 200, json: async () => ({ workflow_runs: [] }) };
-    if (url.endsWith('/dispatches')) return { ok: true, status: 204 };
-    throw new Error('URL inesperada');
-  };
-  const req = { method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'start', locais: 'Curitiba, PR', segmentos: ['varejo'], profundidade: 1, emails: false } };
+test('autentica e encaminha coleta ao Render sem expor o token', async () => {
+  const calls = setupRender(async (url, options) => {
+    assert.equal(url, 'https://pharmaleads-collector.onrender.com/v1/start');
+    assert.equal(options.headers.Authorization, 'Bearer render-token-de-teste');
+    return { ok: true, status: 202, json: async () => ({ queued: true, run: { id: 1, status: 'queued' } }) };
+  });
+  const req = { method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'start', locais: 'Curitiba, PR', segmentos: ['varejo'], profundidade: 1 } };
   const res = response();
   await handler(req, res);
   assert.equal(res.statusCode, 202);
-  assert.equal(res.body.queued, true);
   assert.equal(res.body.run.status, 'queued');
-  const dispatch = calls.find(x => x.url.endsWith('/dispatches'));
-  assert.equal(JSON.parse(dispatch.options.body).inputs.locais, 'Curitiba, PR');
-  assert.equal(JSON.parse(dispatch.options.body).inputs.emails, 'true');
-  assert.equal(JSON.parse(dispatch.options.body).inputs.enriquecer_sites, 'true');
-  assert.ok(!JSON.stringify(res.body).includes('github-token-de-teste'));
+  const dispatch = calls.find(call => call.url.endsWith('/v1/start'));
+  const body = JSON.parse(dispatch.options.body);
+  assert.equal(body.locais, 'Curitiba, PR');
+  assert.equal(body.emails, 'true');
+  assert.equal(body.enriquecer_sites, 'true');
+  assert.ok(!JSON.stringify(res.body).includes('render-token-de-teste'));
 });
 
-test('despacha uma rodada da cobertura nacional dentro do limite', async () => {
-  process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
-  const calls = [];
-  globalThis.fetch = async (url, options) => {
-    calls.push({ url, options });
-    if (url.includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: '677ed1e4-3e73-4f2c-951f-e77386f305da' }) };
-    if (url.includes('/runs?')) return { ok: true, status: 200, json: async () => ({ workflow_runs: [] }) };
-    if (url.endsWith('/dispatches')) return { ok: true, status: 204 };
-    throw new Error('URL inesperada');
-  };
+test('encaminha primeira rodada nacional e o Render continua a fila', async () => {
+  const calls = setupRender(async () => ({ ok: true, status: 202, json: async () => ({ queued: true, run: { id: 2, status: 'queued' } }) }));
   const res = response();
-  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'start', cobertura: 'nacional', segmentos: ['varejo', 'manipulacao'], profundidade: 1, emails: true } }, res);
+  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste' }, body: { action: 'start', cobertura: 'nacional', segmentos: ['varejo', 'manipulacao'], profundidade: 1 } }, res);
   assert.equal(res.statusCode, 202);
-  const inputs = JSON.parse(calls.find(x => x.url.endsWith('/dispatches')).options.body).inputs;
-  assert.equal(inputs.modo, 'nacional');
-  assert.equal(inputs.rodada, '1');
-  assert.equal(inputs.emails, 'true');
-  assert.equal(inputs.enriquecer_sites, 'true');
-  assert.equal(inputs.locais.split('\n').length, 5);
-  assert.ok(Number(inputs.total_rodadas) > 1);
-  assert.ok(!JSON.stringify(res.body).includes('github-token-de-teste'));
+  const input = JSON.parse(calls.find(call => call.url.endsWith('/v1/start')).options.body);
+  assert.equal(input.modo, 'nacional');
+  assert.equal(input.rodada, '1');
+  assert.equal(input.locais.split('\n').length, 2);
+  assert.ok(Number(input.total_rodadas) > 1);
 });
 
-test('bloqueia nova cobertura nacional depois da rodada final concluída', async () => {
-  process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
-  const calls = [];
-  globalThis.fetch = async (url, options) => {
-    calls.push({ url, options });
-    if (url.includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: '677ed1e4-3e73-4f2c-951f-e77386f305da' }) };
-    if (url.includes('/runs?')) return { ok: true, status: 200, json: async () => ({ workflow_runs: [
-      { id: 25, status: 'completed', conclusion: 'success', html_url: 'https://example.test/25', created_at: '', display_title: 'Nacional 25/25 · Mossoró, RN · Arapiraca, AL' },
-    ] }) };
-    throw new Error('Não deveria despachar outra rodada');
-  };
-  const res = response();
-  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'start', cobertura: 'nacional', rodada: 25, segmentos: ['varejo', 'manipulacao'], profundidade: 5 } }, res);
-  assert.equal(res.statusCode, 409);
-  assert.match(res.body.error, /já foi concluída/);
-  assert.equal(calls.some(call => call.url.endsWith('/dispatches')), false);
-});
-
-test('iniciar coleta nacional sem rodada reinicia pela primeira rodada', async () => {
-  process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
-  const calls = [];
-  globalThis.fetch = async (url, options) => {
-    calls.push({ url, options });
-    if (url.includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: '677ed1e4-3e73-4f2c-951f-e77386f305da' }) };
-    if (url.includes('/runs?')) return { ok: true, status: 200, json: async () => ({ workflow_runs: [{ id: 25, status: 'completed', conclusion: 'success', display_title: 'Nacional 25/25' }] }) };
-    if (url.endsWith('/dispatches')) return { ok: true, status: 204 };
+test('consulta status e solicita parada no Render', async () => {
+  const calls = setupRender(async (url) => {
+    if (url.endsWith('/v1/status')) return { ok: true, status: 200, json: async () => ({ run: { id: 9, status: 'in_progress' } }) };
+    if (url.endsWith('/v1/stop')) return { ok: true, status: 202, json: async () => ({ cancelling: true, run: { id: 9, status: 'cancelling' } }) };
     throw new Error('URL inesperada');
-  };
-  const res = response();
-  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'start', cobertura: 'nacional', segmentos: ['varejo', 'manipulacao'], profundidade: 1 } }, res);
-  assert.equal(res.statusCode, 202);
-  assert.equal(JSON.parse(calls.find(call => call.url.endsWith('/dispatches')).options.body).inputs.rodada, '1');
+  });
+  const getRes = response();
+  await handler({ method: 'GET', headers: { authorization: 'Bearer jwt-de-teste' } }, getRes);
+  assert.equal(getRes.body.run.status, 'in_progress');
+  const stopRes = response();
+  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste' }, body: { action: 'stop' } }, stopRes);
+  assert.equal(stopRes.statusCode, 202);
+  assert.equal(stopRes.body.cancelling, true);
+  assert.deepEqual(calls.filter(call => call.url.includes('onrender.com')).map(call => call.url), [
+    'https://pharmaleads-collector.onrender.com/v1/status',
+    'https://pharmaleads-collector.onrender.com/v1/stop',
+  ]);
 });
 
-test('quando já há job, devolve a execução ativa para o painel poder parar', async () => {
-  process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
-  globalThis.fetch = async (url) => {
-    if (url.includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: '677ed1e4-3e73-4f2c-951f-e77386f305da' }) };
-    if (url.includes('/runs?')) return { ok: true, status: 200, json: async () => ({ workflow_runs: [{ id: 44, status: 'in_progress', conclusion: null, html_url: 'https://example.test/44', created_at: '', display_title: 'Atual' }] }) };
-    throw new Error('URL inesperada');
-  };
+test('propaga conflito de coleta já ativa', async () => {
+  setupRender(async () => ({ ok: false, status: 409, json: async () => ({ error: 'Já existe uma coleta online em andamento.', run: { id: 44, status: 'in_progress' } }) }));
   const res = response();
-  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'start', locais: 'Curitiba, PR', segmentos: ['varejo'], profundidade: 1 } }, res);
+  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste' }, body: { action: 'start', locais: 'Curitiba, PR', segmentos: ['varejo'], profundidade: 1 } }, res);
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.run.id, 44);
-  assert.equal(res.body.run.status, 'in_progress');
 });
 
-test('parar sem job ativo não falha', async () => {
-  process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
-  process.env.COLETA_STOP_RETRY_MS = '0';
-  globalThis.fetch = async (url) => {
-    if (url.includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: '677ed1e4-3e73-4f2c-951f-e77386f305da' }) };
-    if (url.includes('/runs?')) return { ok: true, status: 200, json: async () => ({ workflow_runs: [] }) };
-    throw new Error('URL inesperada');
-  };
-  const res = response();
-  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'stop' } }, res);
-  assert.equal(res.statusCode, 202);
-  assert.equal(res.body.cancelling, false);
-  delete process.env.COLETA_STOP_RETRY_MS;
-});
-
-test('parar a coleta espera o job aparecer no GitHub e então cancela', async () => {
-  process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
-  process.env.COLETA_STOP_RETRY_MS = '0';
-  const calls = [];
-  let consultas = 0;
-  globalThis.fetch = async (url, options) => {
-    calls.push({ url, options });
-    if (url.includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: '677ed1e4-3e73-4f2c-951f-e77386f305da' }) };
-    if (url.includes('/runs?')) {
-      consultas += 1;
-      const runs = consultas < 3 ? [] : [{ id: 9, status: 'queued', conclusion: null, html_url: 'https://example.test/9', created_at: '', display_title: 'Na fila' }];
-      return { ok: true, status: 200, json: async () => ({ workflow_runs: runs }) };
-    }
-    if (url.endsWith('/cancel')) return { ok: true, status: 204 };
-    throw new Error('URL inesperada');
-  };
-  const res = response();
-  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'stop' } }, res);
-  assert.equal(res.statusCode, 202);
-  assert.equal(consultas, 3);
-  assert.equal(calls.filter(x => x.url.endsWith('/cancel')).length, 1);
-  delete process.env.COLETA_STOP_RETRY_MS;
-});
-
-test('parar a coleta cancela a rodada atual e a próxima já agendada', async () => {
-  process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
-  const calls = [];
-  globalThis.fetch = async (url, options) => {
-    calls.push({ url, options });
-    if (url.includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: '677ed1e4-3e73-4f2c-951f-e77386f305da' }) };
-    if (url.includes('/runs?')) return { ok: true, status: 200, json: async () => ({ workflow_runs: [
-      { id: 2, status: 'queued', conclusion: null, html_url: 'https://example.test/2', created_at: '', display_title: 'Nacional 2/10 · Salvador, BA' },
-      { id: 1, status: 'in_progress', conclusion: null, html_url: 'https://example.test/1', created_at: '', display_title: 'Nacional 1/10 · Rio Branco, AC' },
-    ] }) };
-    if (url.endsWith('/cancel')) return { ok: true, status: 204 };
-    throw new Error('URL inesperada');
-  };
-  const res = response();
-  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste', origin: 'https://pharmaleads.vercel.app' }, body: { action: 'stop' } }, res);
-  assert.equal(res.statusCode, 202);
-  const cancelados = calls.filter(x => x.url.endsWith('/cancel')).map(x => x.url);
-  assert.deepEqual(cancelados, ['https://api.github.com/repos/guilhermeH4sh/interface-pharmaleads/actions/runs/2/cancel', 'https://api.github.com/repos/guilhermeH4sh/interface-pharmaleads/actions/runs/1/cancel']);
-  assert.equal(res.body.run.id, 1);
-});
-
-test('a fila nacional cabe em 20 buscas e cobre as 27 UFs antes do interior', () => {
+test('a fila nacional cabe em oito buscas e cobre as 27 UFs antes do interior', () => {
   const termos = { varejo: 3, manipulacao: 1, homeopatia: 1, veterinaria: 1, distribuidoras: 2 };
   const fila = montarFila(['varejo', 'manipulacao'], termos);
-  assert.equal(fila[0].length, 5);
-  assert.deepEqual(fila[0].map(local => local.slice(-2)), ['AC', 'AL', 'DF', 'ES', 'PR']);
+  assert.equal(fila[0].length, 2);
   assert.equal(new Set(fila.flat().slice(0, 27).map(local => local.slice(-2))).size, 27);
   assert.equal(fila.flat()[27], 'Santarém, PA');
-  assert.ok(fila.flat().filter(local => local.endsWith('SP')).length >= 2);
-  for (const segmentos of [['manipulacao'], ['varejo', 'manipulacao'], ['varejo', 'manipulacao', 'homeopatia', 'veterinaria', 'distribuidoras']]) {
-    const porLocal = segmentos.reduce((soma, nome) => soma + termos[nome], 0);
-    for (const rodada of montarFila(segmentos, termos)) assert.ok(rodada.length * porLocal <= 20);
-  }
+  for (const rodada of fila) assert.ok(rodada.length * 4 <= 8);
 });
 
-test('recusa usuário sem permissão antes de chamar GitHub', async () => {
-  process.env.GITHUB_ACTIONS_TOKEN = 'github-token-de-teste';
+test('recusa usuário sem permissão antes de chamar Render', async () => {
+  process.env.RENDER_COLLECTOR_URL = 'https://pharmaleads-collector.onrender.com';
+  process.env.RENDER_COLLECTOR_TOKEN = 'segredo';
   let calls = 0;
   globalThis.fetch = async () => { calls++; return { ok: true, json: async () => ({ id: 'outro-usuario' }) }; };
   const res = response();

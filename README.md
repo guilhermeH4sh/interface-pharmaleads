@@ -3,7 +3,7 @@
 Aplicação local para buscar estabelecimentos farmacêuticos no Google Maps por meio do
 [gosom/google-maps-scraper](https://github.com/gosom/google-maps-scraper), guardar os
 resultados em SQLite e consultar, filtrar e exportar leads numa interface React.
-O scraper e a API Python rodam localmente. A interface publicada na Vercel consulta
+O scraper pode rodar localmente ou no Web Service do Render. A interface publicada na Vercel consulta
 `public.pharmaleads` no Supabase após login com a conta autorizada. A Vercel não executa
 o Gosom nem armazena o SQLite local.
 
@@ -20,32 +20,35 @@ automaticamente à tabela online. Falhas de rede deixam os registros numa fila S
 local; rode `python -m pharmaleads sincronizar-supabase` para reenviá-los. A coleta
 iniciada pelo navegador local continua restrita a `127.0.0.1`.
 
-### Ativar o botão de coleta online
+### Ativar o botão de coleta online no Render
 
-O painel publicado inicia um workflow sob demanda no GitHub Actions. Esse workflow roda
-o contêiner oficial do Gosom em Linux e envia os CSVs para a **mesma tabela**
-`public.pharmaleads`; ele não depende do seu computador ligado e não cria outra tabela.
-O painel mostra o estado do job (na fila, em andamento, concluído, falhou ou cancelado).
+O painel publicado chama a função Vercel `/api/collector`, que valida a sessão Supabase
+e controla um Web Service persistente no Render. O contêiner reúne o Gosom, Chromium,
+Playwright e o supervisor Python, enviando somente leads com e-mail para a **mesma
+tabela** `public.pharmaleads`. Não cria outra tabela e não depende do computador local.
 
-Configure estes segredos **nas próprias plataformas, sem colá-los em chats**:
+1. No Render, crie um **Blueprint** a partir deste repositório. O arquivo `render.yaml`
+   cria o serviço `pharmaleads-collector` no plano Starter usando `Dockerfile.render`.
+2. Durante a criação, preencha `SUPABASE_EMAIL`, `SUPABASE_PASSWORD` e
+   `RENDER_COLLECTOR_TOKEN`. Gere uma chave longa e aleatória e não a publique.
+3. Copie a URL HTTPS `onrender.com` do serviço.
+4. Na Vercel, em **Settings > Environment Variables**, configure para Production:
+   `RENDER_COLLECTOR_URL` e o mesmo `RENDER_COLLECTOR_TOKEN`.
+5. Faça um novo deploy na Vercel. O antigo `GITHUB_ACTIONS_TOKEN` pode ser removido.
 
-1. No repositório `guilhermeH4sh/interface-pharmaleads`, acesse **Settings > Secrets and
-   variables > Actions > New repository secret**. Crie `SUPABASE_EMAIL` e
-   `SUPABASE_PASSWORD` com os valores correspondentes do `.env` local.
-2. Crie um **fine-grained personal access token** no GitHub, limitado apenas ao
-   repositório `interface-pharmaleads`, com permissão **Actions: Read and write**.
-3. No projeto `pharmaleads` da Vercel, acesse **Settings > Environment Variables** e
-   crie `GITHUB_ACTIONS_TOKEN` com esse token para **Production**. Faça um novo deploy
-   para a variável entrar em vigor.
+O plano Free não é adequado para este coletor: ele entra em repouso após inatividade e
+pode interromper uma fila longa. O Blueprint usa Starter e concorrência 1 para caber nos
+512 MB iniciais. Para acelerar com segurança, use um plano com mais memória e aumente
+`GOSOM_CONCURRENCY` gradualmente para 2 ou 4.
 
 Depois, entre em [pharmaleads.vercel.app](https://pharmaleads.vercel.app), informe os
 locais, marque os segmentos e clique em **Iniciar coleta**. O limite é 20 buscas por
 execução; o botão **Parar coleta** cancela o job atual. A execução depende das cotas
-de GitHub Actions e da disponibilidade do Google Maps. O job falha com uma mensagem
+do plano do Render e da disponibilidade do Google Maps. O job falha com uma mensagem
 se as credenciais de sincronização não estiverem configuradas.
 
 O painel também oferece **Enriquecer sites de leads novos**. Quando ativada, após a
-busca no Maps o GitHub Actions instala o Chromium e o Playwright visita somente a
+busca no Maps o contêiner usa o Playwright para visitar somente a
 página inicial pública de até 25 sites dos novos estabelecimentos. Ele procura e-mails,
 links de WhatsApp e redes sociais. E-mails e WhatsApp complementam o registro existente;
 as redes sociais ficam em `dados_brutos`. Esta opção aumenta a duração da rodada e não
@@ -98,10 +101,10 @@ que o e-mail pertence ao estabelecimento. Confirme nome e endereço antes de usa
 Em **Filtros da coleta**, marque **Cobertura nacional** e use **Iniciar coleta** para
 percorrer as 27 capitais, intercalando as regiões,
 e depois uma cidade do interior nos estados grandes — São Paulo entra com duas. Cada
-rodada continua limitada a 20 buscas. Se ela termina bem, o GitHub Actions agenda a
-próxima; **Parar coleta** cancela a rodada em andamento e qualquer rodada seguinte que
-já esteja na fila. Uma falha interrompe a fila. Busca de e-mails e enriquecimento ficam desligados nessa fila,
-para a rodada caber no tempo do job. A grade **Cobertura por UF** lê `ultima_coleta`
+rodada continua limitada a oito consultas para preservar estabilidade. O supervisor do
+Render inicia a próxima rodada automaticamente; **Parar coleta** encerra a rodada em
+andamento e impede as seguintes. Uma falha interrompe a fila. E-mail é obrigatório e o
+enriquecimento permanece ativo. A grade **Cobertura por UF** lê `ultima_coleta`
 dos leads já salvos em `public.pharmaleads` e mostra a data mais recente de cada estado.
 
 ## Requisitos

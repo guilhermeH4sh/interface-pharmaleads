@@ -1,4 +1,4 @@
-"""Execução sob demanda no GitHub Actions; cada CSV é salvo em public.pharmaleads."""
+"""Executa uma rodada do coletor; cada CSV válido é salvo em public.pharmaleads."""
 from __future__ import annotations
 
 import os
@@ -32,7 +32,7 @@ def configuracao() -> tuple[list[str], int, bool, bool]:
     if len(montar_consultas(locais, segmentos)) > 20:
         raise ErroPharmaLeads('Esta coleta excede 20 buscas.')
     if not all(os.environ.get(x) for x in ('SUPABASE_EMAIL', 'SUPABASE_PASSWORD')):
-        raise ErroPharmaLeads('Configure SUPABASE_EMAIL e SUPABASE_PASSWORD em GitHub Actions Secrets.')
+        raise ErroPharmaLeads('Configure SUPABASE_EMAIL e SUPABASE_PASSWORD no ambiente do coletor.')
     return (montar_consultas(locais, segmentos), profundidade,
             True, os.environ.get('ENRIQUECER_SITES') == 'true')
 
@@ -48,8 +48,8 @@ def _encerrar(proc: subprocess.Popen) -> None:
         proc.wait(timeout=5)
 
 
-def _rodar_docker(comando: list[str], timeout: int = 1500) -> None:
-    """Roda o Gosom e encerra o contêiner se o job do Actions for cancelado."""
+def _rodar_processo(comando: list[str], timeout: int = 1500) -> None:
+    """Roda o Gosom e encerra o processo quando o serviço recebe SIGTERM."""
     proc = subprocess.Popen(comando)
     anterior = signal.getsignal(signal.SIGTERM) if hasattr(signal, 'SIGTERM') else None
 
@@ -72,10 +72,32 @@ def _rodar_docker(comando: list[str], timeout: int = 1500) -> None:
             _encerrar(proc)
 
 
+# Compatibilidade com testes e integrações que ainda substituem o executor antigo.
+_rodar_docker = _rodar_processo
+
+
+def _comando_gosom(base: Path, saida: Path, profundidade: int, emails: bool) -> list[str]:
+    """Monta o comando local no Render ou o comando Docker usado no desenvolvimento."""
+    binario = os.environ.get('GOSOM_BIN', '').strip()
+    concorrencia = os.environ.get('GOSOM_CONCURRENCY', '2')
+    if concorrencia not in {'1', '2', '3', '4'}:
+        concorrencia = '2'
+    argumentos = ['-input', str(base / 'input.txt'), '-results', str(saida),
+                  '-c', concorrencia, '-depth', str(profundidade), '-lang', 'pt-BR',
+                  '-exit-on-inactivity', '3m']
+    if emails:
+        argumentos.append('-email')
+    if binario:
+        return [binario, *argumentos]
+    imagem = os.environ.get('GOSOM_IMAGE', 'gosom/google-maps-scraper:latest')
+    argumentos[1] = '/gmapsdata/input.txt'
+    argumentos[3] = '/gmapsdata/results.csv'
+    return ['docker', 'run', '--rm', '-v', f'{base.resolve()}:/gmapsdata', imagem, *argumentos]
+
+
 def main() -> int:
     try:
         consultas, profundidade, emails, enriquecer = configuracao()
-        imagem = os.environ.get('GOSOM_IMAGE', 'gosom/google-maps-scraper:latest')
         with tempfile.TemporaryDirectory(prefix='pharmaleads-cloud-') as tmp:
             base = Path(tmp)
             banco = Banco()
@@ -85,18 +107,13 @@ def main() -> int:
                 # continuam corretos mesmo com várias consultas no mesmo CSV.
                 (base / 'input.txt').write_text('\n'.join(consultas) + '\n', encoding='utf-8')
                 saida = base / 'results.csv'
-                comando = ['docker', 'run', '--rm', '-v', f'{base.resolve()}:/gmapsdata',
-                           imagem, '-input', '/gmapsdata/input.txt', '-results',
-                           '/gmapsdata/results.csv', '-c', '2', '-depth', str(profundidade),
-                           '-lang', 'pt-BR', '-exit-on-inactivity', '3m']
-                if emails:
-                    comando.append('-email')
+                comando = _comando_gosom(base, saida, profundidade, emails)
                 ultimo_erro: Exception | None = None
-                print(f'Rodada com {len(consultas)} buscas; concorrência 2.', flush=True)
+                print(f"Rodada com {len(consultas)} buscas; concorrência {comando[comando.index('-c') + 1]}.", flush=True)
                 for tentativa in range(1, 3):
                     saida.unlink(missing_ok=True)
                     try:
-                        _rodar_docker(comando, timeout=1500)
+                        _rodar_docker(comando, timeout=int(os.environ.get('GOSOM_TIMEOUT', '1500')))
                         if not saida.is_file() or saida.stat().st_size < 10:
                             raise ErroPharmaLeads('Gosom retornou um CSV vazio.')
                         novos, existentes = banco.importar_csv(saida, sincronizar=False)

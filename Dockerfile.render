@@ -1,0 +1,22 @@
+FROM gosom/google-maps-scraper:v1.17.1
+
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && python3 -m venv /opt/pharmaleads-venv \
+    && /opt/pharmaleads-venv/bin/pip install --no-cache-dir "playwright>=1.40,<2" \
+    && /opt/pharmaleads-venv/bin/python -m playwright install chromium
+
+ENV PATH="/opt/pharmaleads-venv/bin:${PATH}" \
+    PYTHONUNBUFFERED=1 \
+    GOSOM_BIN=/usr/bin/google-maps-scraper \
+    PHARMALEADS_HOME=/tmp/pharmaleads \
+    DISABLE_TELEMETRY=1
+
+WORKDIR /app
+COPY pharmaleads ./pharmaleads
+COPY api/cobertura_nacional.json ./api/cobertura_nacional.json
+
+ENTRYPOINT []
+CMD ["python", "-m", "pharmaleads.render_service"]

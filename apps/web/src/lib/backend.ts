@@ -354,7 +354,7 @@ export async function stopLocalCollection(): Promise<boolean> {
   return Boolean(body.parando);
 }
 
-// ---------- Coletor Nuvem (/api/collector -> GitHub Actions) ----------
+// ---------- Coletor Nuvem (/api/collector -> Render) ----------
 
 export async function fetchCloudCollectorRun(
   session: SupabaseSession

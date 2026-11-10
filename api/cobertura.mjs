@@ -11,7 +11,7 @@ export const LOCAIS_NACIONAIS = [...CAPITAIS, ...INTERIOR];
 export function montarFila(segmentos, termos) {
   const porLocal = segmentos.reduce((soma, nome) => soma + termos[nome], 0);
   const tamanho = Math.floor(LIMITE_BUSCAS_NACIONAL / porLocal);
-  if (!porLocal || tamanho < 1) throw new Error('Os segmentos escolhidos não cabem em 20 buscas.');
+  if (!porLocal || tamanho < 1) throw new Error('Os segmentos escolhidos não cabem no limite da rodada.');
   const fila = [];
   for (let i = 0; i < LOCAIS_NACIONAIS.length; i += tamanho) fila.push(LOCAIS_NACIONAIS.slice(i, i + tamanho));
   return fila;

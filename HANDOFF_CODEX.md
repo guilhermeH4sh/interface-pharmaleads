@@ -13,7 +13,7 @@ Cole esta frase na primeira mensagem da outra conta:
 ## Estado entregue
 
 - Interface publicada: <https://pharmaleads.vercel.app>
-- Repositório único (interface, scraper, Actions e deploy Vercel):
+- Repositório único (interface, scraper, Render e deploy Vercel):
   <https://github.com/guilhermeH4sh/interface-pharmaleads>
 - O repositório antigo `scraper-pharmaleads` não recebe mais o produto; a Vercel
   lê somente `interface-pharmaleads`.
@@ -48,11 +48,11 @@ usar o número acima como estado atual.
 1. A interface React/Vite está em `apps/web` e é publicada na Vercel.
 2. No domínio publicado, a interface autentica o usuário pelo Supabase Auth e lê
    diretamente `public.pharmaleads`, respeitando RLS.
-3. O endpoint Vercel `api/collector.mjs` valida a sessão Supabase e dispara o workflow
-   `.github/workflows/cloud-collect.yml` no GitHub Actions.
-4. O workflow usa o contêiner oficial `gosom/google-maps-scraper:latest`.
-5. `pharmaleads/cloud_job.py` executa toda a rodada de consultas do Gosom em um
-   contêiner e sincroniza o CSV consolidado com a tabela `public.pharmaleads`.
+3. O endpoint Vercel `api/collector.mjs` valida a sessão Supabase e chama o Web Service
+   protegido do Render.
+4. `Dockerfile.render` deriva da imagem oficial do Gosom e inclui Python e Playwright.
+5. `pharmaleads/render_service.py` supervisiona a fila e `cloud_job.py` executa cada
+   rodada diretamente, sincronizando o CSV consolidado com `public.pharmaleads`.
 6. A chave `chave` identifica e deduplica estabelecimentos no Supabase.
 7. O modo local continua disponível com `python -m pharmaleads.api` e SQLite, mas o
    produto publicado usa o Supabase como base online.
@@ -79,15 +79,16 @@ usar o número acima como estado atual.
 Os valores não ficam no Git. A nova conta precisa ter acesso às plataformas ou pedir
 ao proprietário para reconectá-las.
 
-### GitHub Actions — `interface-pharmaleads`
+### Render — `pharmaleads-collector`
 
 - `SUPABASE_EMAIL`
 - `SUPABASE_PASSWORD`
+- `RENDER_COLLECTOR_TOKEN`
 
 ### Vercel — projeto `pharmaleads`, ambiente Production
 
-- `GITHUB_ACTIONS_TOKEN`: token fine-grained limitado ao repositório
-  `interface-pharmaleads`, com `Actions: Read and write`.
+- `RENDER_COLLECTOR_URL`: URL HTTPS do Web Service.
+- `RENDER_COLLECTOR_TOKEN`: o mesmo segredo configurado no Render.
 
 ### Desenvolvimento local
 
@@ -105,7 +106,7 @@ ao proprietário para reconectá-las.
 3. Para coletar, informe cidades, estados ou regiões, escolha os segmentos e inicie a
    coleta.
 4. Para `varejo` + `manipulacao`, use no máximo cinco locais em cada rodada.
-5. Os resultados são enviados ao Supabase durante a execução do GitHub Actions.
+5. Os resultados são enviados ao Supabase durante a execução no Render.
 
 ### Desenvolvimento local
 
@@ -119,11 +120,12 @@ A interface local fica em <http://127.0.0.1:8765>.
 
 ## Arquivos centrais
 
-- `pharmaleads/cloud_job.py`: execução do Gosom no GitHub Actions e sincronização.
+- `pharmaleads/render_service.py`: API protegida e supervisão da fila no Render.
+- `pharmaleads/cloud_job.py`: execução direta do Gosom e sincronização.
 - `pharmaleads/supabase.py`: autenticação e acesso exclusivo a `public.pharmaleads`.
 - `pharmaleads/banco.py`: importação, deduplicação local e fila de sincronização.
 - `api/collector.mjs`: autenticação do painel e controle do workflow online.
-- `.github/workflows/cloud-collect.yml`: job de coleta em nuvem.
+- `render.yaml` e `Dockerfile.render`: infraestrutura e imagem do coletor.
 - `apps/web/src/HostedDashboard.tsx`: painel publicado e consulta dos leads.
 - `README.md`: instalação, operação e limites conhecidos.
 
@@ -134,18 +136,18 @@ A interface local fica em <http://127.0.0.1:8765>.
 - Busca e filtros por texto, UF, segmento e situação.
 - Exportação CSV dos resultados filtrados.
 - Coleta local pelo Gosom.
-- Coleta online iniciada pelo painel, executada no GitHub Actions.
+- Coleta online iniciada pelo painel, executada no Render.
 - Botões para iniciar e interromper a coleta online.
 - Sincronização automática e deduplicada com o Supabase.
 - Execução consolidada de até 20 consultas por rodada, com concorrência 2, repetição
   integral uma vez em falhas transitórias e sincronização deduplicada.
 - Enriquecimento opcional de sites públicos com Playwright para novos leads, limitado
-  a 25 sites por rodada para controlar duração e consumo do GitHub Actions.
+  a 100 sites novos por rodada para controlar duração e consumo do Render.
 - Cobertura nacional no painel: 27 capitais, intercaladas por região, e depois uma
   cidade do interior nos estados grandes (São Paulo tem duas). Cada rodada respeita
-  as 20 buscas. Ao terminar bem, o workflow agenda a seguinte com o `GITHUB_TOKEN`.
-  Parar cancela a rodada atual e a que já estiver na fila. E-mails e enriquecimento
-  ficam desligados nessa fila. A grade por UF usa `ultima_coleta`, sem tabela nova.
+  as oito consultas configuradas. Ao terminar bem, o supervisor inicia a seguinte.
+  Parar encerra a rodada atual e impede as seguintes. E-mails e enriquecimento ficam
+  ligados. A grade por UF usa `ultima_coleta`, sem tabela nova.
 
 ## Próximos passos recomendados
 

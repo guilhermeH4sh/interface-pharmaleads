@@ -51,3 +51,15 @@ class TestCloudJob(unittest.TestCase):
             self.assertEqual(len(records), 1)
             self.assertEqual(records[0]['chave'], 'cid-cloud-1')
             self.assertEqual(records[0]['emails'], 'contato@farmacia.com.br')
+
+    def test_render_executa_o_binario_sem_docker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            saida = base / 'results.csv'
+            with patch.dict(os.environ, {'GOSOM_BIN': '/usr/bin/google-maps-scraper'}, clear=True):
+                comando = cloud_job._comando_gosom(base, saida, 2, True)
+            self.assertEqual(comando[0], '/usr/bin/google-maps-scraper')
+            self.assertNotIn('docker', comando)
+            self.assertEqual(comando[comando.index('-input') + 1], str(base / 'input.txt'))
+            self.assertEqual(comando[comando.index('-results') + 1], str(saida))
+            self.assertIn('-email', comando)

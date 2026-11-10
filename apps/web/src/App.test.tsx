@@ -50,7 +50,7 @@ test("a barra envia a cidade corrigida e os filtros para o scraper local", async
   expect(screen.getByRole("button", { name: "Parar coleta" })).toBeInTheDocument();
 });
 
-test("a barra inicia o GitHub Actions e desabilita fontes não integradas", async () => {
+test("a barra inicia o coletor em nuvem e desabilita fontes não integradas", async () => {
   const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
     if (input === "/api/collector" && init?.method === "POST") {
       expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", locais: "Curitiba, PR", segmentos: ["varejo"], profundidade: 1, emails: true });

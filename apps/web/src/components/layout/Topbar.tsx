@@ -189,7 +189,7 @@ export function Topbar({
                   {dataSourceMode === "local"
                     ? "API Python local ativa em 127.0.0.1:8765 com Gosom Scraper."
                     : dataSourceMode === "supabase"
-                      ? "Sincronizado com public.pharmaleads e GitHub Actions."
+                      ? "Sincronizado com public.pharmaleads e coletor no Render."
                       : "Use Configurações para alternar entre SQLite Local e Supabase."}
                 </p>
               </div>
