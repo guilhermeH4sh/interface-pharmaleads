@@ -23,7 +23,7 @@ class TestTransporte(unittest.TestCase):
                           for c in chamadas], ['0', '1', '2'])
 
     def test_upsert_restrito_a_tabela_com_chave_e_json(self):
-        self.cliente.opener.open.side_effect = [io.BytesIO(b''), io.BytesIO(b'')]
+        self.cliente.opener.open.side_effect = [io.BytesIO(b'[]'), io.BytesIO(b'[{"chave":"1"}]'), io.BytesIO(b'')]
         self.cliente.adicionar_emails = Mock(return_value=True)
         self.cliente.salvar([{'chave': '1', 'emails': 'contato@farmacia.com.br',
                              'dados_brutos': {'title': 'Farmácia'}}])
@@ -33,14 +33,30 @@ class TestTransporte(unittest.TestCase):
         self.assertEqual(req.method, 'POST')
         self.assertIsInstance(json.loads(req.data)[0]['dados_brutos'], dict)
         self.assertNotIn('Authorization', req.headers)  # sb_secret não é JWT
-        primeira = self.cliente.opener.open.call_args_list[0].args[0]
+        primeira = self.cliente.opener.open.call_args_list[1].args[0]
         self.assertEqual(json.loads(primeira.data)[0]['emails'], 'contato@farmacia.com.br')
         self.assertIn('resolution=ignore-duplicates', primeira.headers['Prefer'])
+        self.assertEqual(self.cliente.ultimo_novos, 1)
 
     def test_recoleta_sem_email_nao_cria_novo_lead(self):
         self.cliente.opener.open.return_value = io.BytesIO(b'')
         self.assertEqual(self.cliente.salvar([{'chave': '1', 'nome': 'Farmácia', 'emails': ''}]), 0)
         self.cliente.opener.open.assert_not_called()
+
+    def test_recoleta_nao_consulta_cada_email_nem_apaga_cnpj(self):
+        antigo = {'chave': '1', 'emails': 'contato@farmacia.com.br',
+                  'primeira_coleta': '2026-01-01T00:00:00Z',
+                  'dados_brutos': {'cnpj': '11222333000181', 'cnpj_origem': 'https://farmacia.com.br'}}
+        self.cliente.opener.open.side_effect = [
+            io.BytesIO(json.dumps([antigo]).encode()), io.BytesIO(b'[]'), io.BytesIO(b'')]
+        self.cliente.adicionar_emails = Mock()
+        registro = {'chave': '1', 'emails': 'contato@farmacia.com.br',
+                    'primeira_coleta': '2026-11-11T00:00:00Z', 'dados_brutos': {'title': 'Farmácia'}}
+        self.assertEqual(self.cliente.salvar([registro]), 1)
+        self.assertEqual(self.cliente.ultimo_novos, 0)
+        self.cliente.adicionar_emails.assert_not_called()
+        self.assertEqual(registro['dados_brutos']['cnpj'], '11222333000181')
+        self.assertEqual(registro['primeira_coleta'], '2026-01-01T00:00:00Z')
 
     def test_nao_grava_enderecos_reservados_ou_placeholders(self):
         self.assertFalse(self.cliente.adicionar_emails(
@@ -104,7 +120,7 @@ class TestLoginJWT(unittest.TestCase):
 
     def test_renova_token_antes_do_upsert(self):
         self.cliente.opener.open.side_effect = [self.sessao(), io.BytesIO(b'[]'),
-            self.sessao('jwt2', 'refresh2'), io.BytesIO(b''), io.BytesIO(b'')]
+            self.sessao('jwt2', 'refresh2'), io.BytesIO(b'[]'), io.BytesIO(b'[{"chave":"1"}]'), io.BytesIO(b'')]
         self.cliente.verificar(['chave'])
         self.cliente.expira = 0
         self.cliente.adicionar_emails = Mock(return_value=True)

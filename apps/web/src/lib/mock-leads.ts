@@ -12,6 +12,8 @@ export interface LeadItem {
   id: string;
   nome: string;
   cnpj: string;
+  cnpjOrigem?: string;
+  cnpjConfianca?: string;
   cidade: string;
   uf: string;
   bairro: string;
@@ -26,6 +28,7 @@ export interface LeadItem {
   email?: string;
   avaliacao?: number;
   qtdAvaliacoes?: number;
+  avaliacoesRecentes?: Array<{ nota?: string; texto?: string; data?: string }>;
   link?: string;
   whatsappLink?: string;
   ultimaColeta?: string;

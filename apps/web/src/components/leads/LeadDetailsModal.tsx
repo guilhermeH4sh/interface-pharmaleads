@@ -116,6 +116,7 @@ export function LeadDetailsModal({ lead, onClose, onChangeStatus, onAddToCrm, sh
               CNPJ / Registro
             </span>
             <span className="font-mono text-foreground font-semibold">{formatCNPJ(lead.cnpj)}</span>
+            {lead.cnpj && lead.cnpjOrigem && <a href={lead.cnpjOrigem} target="_blank" rel="noreferrer" className="mt-1 block text-xs text-brand hover:underline">Fonte do CNPJ: site vinculado no Maps · confiança média</a>}
           </div>
 
           {/* Localização */}
@@ -204,6 +205,20 @@ export function LeadDetailsModal({ lead, onClose, onChangeStatus, onAddToCrm, sh
               <span className="text-foreground text-xs font-semibold">
                 {lead.avaliacao} ★ ({lead.qtdAvaliacoes || 0} avaliações)
               </span>
+            </div>
+          )}
+          {Boolean(lead.avaliacoesRecentes?.length) && (
+            <div className="p-3.5 rounded-xl bg-surface border border-border md:col-span-2">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-2">Avaliações recentes disponíveis</span>
+              <div className="space-y-2">
+                {lead.avaliacoesRecentes?.map((avaliacao, index) => (
+                  <div key={index} className="border-t border-border pt-2 text-xs">
+                    <span className="font-semibold">{avaliacao.nota ? `${avaliacao.nota} ★` : "Sem nota"}</span>
+                    {avaliacao.data && <span className="ml-2 text-muted-foreground">{/^\d{16}$/.test(avaliacao.data) ? new Date(Number(avaliacao.data) / 1000).toLocaleDateString("pt-BR") : avaliacao.data}</span>}
+                    {avaliacao.texto && <p className="mt-1 text-foreground">{avaliacao.texto}</p>}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

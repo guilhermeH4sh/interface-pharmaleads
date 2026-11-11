@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import ipaddress
+import asyncio
+import os
 import re
 from dataclasses import dataclass
 from functools import lru_cache
@@ -9,6 +11,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from .config import ErroPharmaLeads, pasta_dados
+from .cnpj import unico_publicado
 
 EMAIL = re.compile(r"(?<![\w.+-])[\w.+-]{1,64}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
 REDES = {
@@ -58,6 +61,7 @@ class ContatoSite:
     emails: tuple[str, ...]
     whatsapp_link: str
     redes_sociais: dict[str, str]
+    cnpj: str = ''
 
 
 def url_publica(url: str) -> bool:
@@ -107,37 +111,50 @@ def _redes(links: list[str]) -> dict[str, str]:
 
 
 def enriquecer_sites(leads: list[dict], limite: int = 25) -> list[ContatoSite]:
-    """Visita a página inicial de cada site e extrai somente contatos públicos."""
+    """Visita sites com paralelismo limitado e extrai apenas dados publicados."""
     try:
-        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
+        from playwright.async_api import async_playwright
     except ImportError as exc:
         raise ErroPharmaLeads('Playwright não está instalado para o enriquecimento de sites.') from exc
 
-    resultados: list[ContatoSite] = []
     candidatos = [lead for lead in leads if url_publica(str(lead.get('site', '')))][:limite]
     if not candidatos:
-        return resultados
-    with sync_playwright() as runtime:
-        navegador = runtime.chromium.launch(headless=True)
-        contexto = navegador.new_context(user_agent='PharmaLeads/1.0 (+contato público)')
-        try:
-            for lead in candidatos:
-                pagina = contexto.new_page()
-                try:
-                    pagina.goto(lead['site'], wait_until='domcontentloaded', timeout=15_000)
-                    links = pagina.locator('a[href]').evaluate_all('(els) => els.map((a) => a.href)')
-                    texto = pagina.locator('body').inner_text(timeout=5_000)[:100_000]
-                    resultados.append(ContatoSite(
-                        chave=lead['chave'], emails=_emails(texto, links),
-                        whatsapp_link=_whatsapp(links), redes_sociais=_redes(links)))
-                except PlaywrightTimeoutError:
-                    continue
-                except Exception:
-                    # Um site individual não pode interromper a coleta do Maps.
-                    continue
-                finally:
-                    pagina.close()
-        finally:
-            contexto.close()
-            navegador.close()
-    return resultados
+        return []
+    try:
+        concorrencia = max(1, min(3, int(os.environ.get('SITE_CONCURRENCY', '2'))))
+        timeout = max(3000, min(15000, int(os.environ.get('SITE_TIMEOUT_MS', '8000'))))
+    except ValueError:
+        raise ErroPharmaLeads('SITE_CONCURRENCY e SITE_TIMEOUT_MS devem ser números inteiros.') from None
+
+    async def coletar() -> list[ContatoSite]:
+        async with async_playwright() as runtime:
+            navegador = await runtime.chromium.launch(headless=True)
+            contexto = await navegador.new_context(user_agent='PharmaLeads/1.0 (+contato público)')
+            semaforo = asyncio.Semaphore(concorrencia)
+
+            async def visitar(lead: dict) -> ContatoSite | None:
+                async with semaforo:
+                    pagina = await contexto.new_page()
+                    try:
+                        await pagina.goto(lead['site'], wait_until='domcontentloaded', timeout=timeout)
+                        links = await pagina.locator('a[href]').evaluate_all('(els) => els.map((a) => a.href)')
+                        texto = (await pagina.locator('body').inner_text(timeout=timeout))[:100_000]
+                        return ContatoSite(
+                            chave=lead['chave'], emails=_emails(texto, links),
+                            whatsapp_link=_whatsapp(links), redes_sociais=_redes(links),
+                            cnpj=unico_publicado(texto),
+                        )
+                    except Exception:
+                        # A falha de um site não encerra a rodada.
+                        return None
+                    finally:
+                        await pagina.close()
+
+            try:
+                resultados = await asyncio.gather(*(visitar(lead) for lead in candidatos))
+                return [contato for contato in resultados if contato is not None]
+            finally:
+                await contexto.close()
+                await navegador.close()
+
+    return asyncio.run(coletar())

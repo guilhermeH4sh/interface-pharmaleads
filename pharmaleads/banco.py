@@ -80,6 +80,23 @@ def analisar_telefone(texto: str) -> tuple[str, bool]:
     return "55" + d, len(d) == 11 and d[2] == "9"
 
 
+def dados_maps(linha: dict) -> dict:
+    """Mantém só avaliações publicadas e campos leves do resultado do Maps."""
+    brutos = {k: v for k, v in linha.items() if k not in CAMPOS_PESADOS and v}
+    brutos['fonte_dados'] = 'Google Maps'
+    try:
+        avaliacoes = json.loads(linha.get('user_reviews') or '[]')
+        if isinstance(avaliacoes, list) and avaliacoes:
+            brutos['avaliacoes_recentes'] = [
+                {'nota': item.get('Rating'), 'texto': str(item.get('Description') or '')[:1500],
+                 'data': item.get('posted_at_unix_micros') or item.get('When')}
+                for item in avaliacoes[:5] if isinstance(item, dict)
+            ]
+    except (TypeError, ValueError):
+        pass
+    return brutos
+
+
 
 
 class Banco:
@@ -100,6 +117,7 @@ class Banco:
         CREATE TABLE IF NOT EXISTS consultas (id INTEGER PRIMARY KEY AUTOINCREMENT, execucao_id INTEGER NOT NULL REFERENCES execucoes(id), texto TEXT NOT NULL, estado TEXT NOT NULL DEFAULT 'pendente', tentativas INTEGER NOT NULL DEFAULT 0, erro TEXT);
         CREATE INDEX IF NOT EXISTS consultas_execucao ON consultas(execucao_id, estado);
         CREATE TABLE IF NOT EXISTS sync_pendente (chave TEXT PRIMARY KEY);
+        CREATE INDEX IF NOT EXISTS lugares_nome_endereco ON lugares(nome, endereco);
         """)
         self.ultimas_chaves_novas: list[str] = []
         self.con.commit()
@@ -123,6 +141,8 @@ class Banco:
 
     def importar_csv(self, caminho, *, sincronizar=True):
         novos=existentes=0; agora=_agora(); novas_chaves=[]; csv.field_size_limit(20*1024*1024)
+        consultas_com_resultado = set()
+        linhas_csv = 0
         with open(caminho,encoding='utf-8-sig',newline='') as f:
             leitor=csv.DictReader(f)
             if not leitor.fieldnames or not {'title','name'}.intersection(leitor.fieldnames):
@@ -130,17 +150,25 @@ class Banco:
             with self.con:
                 for linha in leitor:
                     if None in linha or any(v is None for v in linha.values()): raise ErroPharmaLeads('CSV incompleto ou inválido.')
+                    linhas_csv += 1
+                    if linha.get('input_id'):
+                        consultas_com_resultado.add(linha['input_id'])
                     nome=pegar(linha,'title','name'); endereco=pegar(linha,'address')
                     chave=pegar(linha,'cid','place_id','data_id','link') or f'{nome}|{endereco}'.lower()
                     if not chave.strip('|'): continue
                     anterior=self.con.execute('SELECT * FROM lugares WHERE chave=?',(chave,)).fetchone()
+                    if anterior is None and nome and endereco:
+                        anterior=self.con.execute('SELECT * FROM lugares WHERE nome=? AND endereco=? LIMIT 1',
+                                                  (nome, endereco)).fetchone()
+                        if anterior is not None:
+                            chave=anterior['chave']
                     ant=dict(anterior) if anterior else {}
                     rotulo=pegar(linha,'input_id'); segmento,local=rotulo.split('|',1) if '|' in rotulo else ('','')
                     telefone=pegar(linha,'phone') or ant.get('telefone') or ''
                     site=pegar(linha,'website') or ant.get('site') or ''
                     emails=pegar(linha,'emails','email') or ant.get('emails') or ''
                     normalizado,celular=analisar_telefone(telefone); status=pegar(linha,'status')
-                    registro=dict(chave=chave,nome=nome,segmento=ant.get('segmento') or segmento,categoria=pegar(linha,'category'),endereco=endereco,local_busca=ant.get('local_busca') or local,telefone=telefone,telefone_normalizado=normalizado,celular=int(celular),whatsapp_link=f'https://wa.me/{normalizado}' if celular else '',site=site,emails=emails,score_contato=sum(bool(x) for x in (telefone,site,emails)),latitude=pegar(linha,'latitude'),longitude=pegar(linha,'longitude','longtitude'),avaliacao=pegar(linha,'review_rating'),qtd_avaliacoes=pegar(linha,'review_count'),status_maps=status,situacao=classificar_situacao(status),link=pegar(linha,'link'),dados_brutos=json.dumps({k:v for k,v in linha.items() if k not in CAMPOS_PESADOS and v},ensure_ascii=False),primeira_coleta=ant.get('primeira_coleta') or agora,ultima_coleta=agora)
+                    registro=dict(chave=chave,nome=nome,segmento=ant.get('segmento') or segmento,categoria=pegar(linha,'category'),endereco=endereco,local_busca=ant.get('local_busca') or local,telefone=telefone,telefone_normalizado=normalizado,celular=int(celular),whatsapp_link=f'https://wa.me/{normalizado}' if celular else '',site=site,emails=emails,score_contato=sum(bool(x) for x in (telefone,site,emails)),latitude=pegar(linha,'latitude'),longitude=pegar(linha,'longitude','longtitude'),avaliacao=pegar(linha,'review_rating'),qtd_avaliacoes=pegar(linha,'review_count'),status_maps=status,situacao=classificar_situacao(status),link=pegar(linha,'link'),dados_brutos=json.dumps(dados_maps(linha),ensure_ascii=False),primeira_coleta=ant.get('primeira_coleta') or agora,ultima_coleta=agora)
                     cols=','.join(COLUNAS_LUGARES); params=','.join(':'+c for c in COLUNAS_LUGARES)
                     self.con.execute(f'INSERT OR REPLACE INTO lugares ({cols}) VALUES ({params})',registro)
                     self.con.execute('INSERT OR IGNORE INTO sync_pendente(chave) VALUES(?)',(chave,))
@@ -149,6 +177,9 @@ class Banco:
                         novos+=1
                         novas_chaves.append(chave)
         self.ultimas_chaves_novas = novas_chaves
+        self.ultimas_metricas = {'linhas_csv': linhas_csv,
+                                 'consultas_com_resultado': len(consultas_com_resultado),
+                                 'duplicados_locais': existentes}
         if sincronizar:
             try:
                 self.sincronizar_pendentes()
@@ -157,7 +188,7 @@ class Banco:
         return novos,existentes
 
     def candidatos_enriquecimento(self, chaves, limite=100):
-        """Leads novos sem e-mail e com site público para enriquecimento."""
+        """Prioriza sites sem e-mail; também verifica CNPJ em alguns com e-mail."""
         chaves = list(dict.fromkeys(chaves))
         if not chaves:
             return []
@@ -165,7 +196,9 @@ class Banco:
         from .enriquecedor import emails_publicos
         candidatos = [dict(r) for r in self.con.execute(
             f"SELECT chave,site,emails FROM lugares WHERE chave IN ({marcadores}) AND site<>''", chaves)]
-        return [r for r in candidatos if not emails_publicos(r['emails'])][:limite]
+        sem_email = [r for r in candidatos if not emails_publicos(r['emails'])]
+        com_email = [r for r in candidatos if emails_publicos(r['emails'])]
+        return (sem_email[:limite] + com_email[:20])[:limite]
 
     def registrar_enriquecimento(self, contato):
         """Mescla contatos públicos extraídos do site e agenda o upsert no Supabase."""
@@ -179,12 +212,17 @@ class Banco:
                 emails.append(email)
         novo_email = ', '.join(emails)
         novo_whatsapp = antigo['whatsapp_link'] or contato.whatsapp_link
-        if novo_email == antigo['emails'] and novo_whatsapp == antigo['whatsapp_link'] and not contato.redes_sociais:
-            return False
         try:
             brutos = json.loads(antigo['dados_brutos'] or '{}')
         except (TypeError, ValueError):
             brutos = {}
+        if contato.cnpj and not brutos.get('cnpj'):
+            brutos['cnpj'] = contato.cnpj
+            brutos['cnpj_origem'] = antigo['site']
+            brutos['cnpj_confianca'] = 'media_site_vinculado_maps'
+        elif (novo_email == antigo['emails'] and novo_whatsapp == antigo['whatsapp_link']
+              and not contato.redes_sociais):
+            return False
         brutos['enriquecimento_site'] = {
             'emails': list(contato.emails), 'whatsapp_link': contato.whatsapp_link,
             'redes_sociais': contato.redes_sociais, 'verificado_em': _agora(),
@@ -196,7 +234,7 @@ class Banco:
             self.con.execute('INSERT OR IGNORE INTO sync_pendente(chave) VALUES(?)', (contato.chave,))
         return True
 
-    def sincronizar_pendentes(self, obrigatorio=False, *, ao_enviar=None):
+    def sincronizar_pendentes(self, obrigatorio=False, *, ao_enviar=None, ao_novos=None):
         """Envia para public.pharmaleads, em lotes idempotentes, quando há login local."""
         from .supabase import Supabase, ler_configuracao
         cfg = ler_configuracao()
@@ -220,6 +258,8 @@ class Banco:
             registros = [r for r in registros if emails_publicos(r.get('emails'))]
             if registros:
                 cliente.salvar(registros)
+                if ao_novos:
+                    ao_novos(cliente.ultimo_novos)
             with self.con:
                 self.con.executemany('DELETE FROM sync_pendente WHERE chave=?',[(chave,) for chave in chaves])
             enviados += len(registros)

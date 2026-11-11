@@ -159,7 +159,9 @@ class RenderJobs:
             titulo = dados.get('title')
             if isinstance(titulo, str):
                 progresso['title'] = titulo[:220]
-            for campo in ('round', 'completed_rounds', 'synced_leads', 'found_leads',
+            for campo in ('round', 'completed_rounds', 'synced_leads', 'new_supabase_leads',
+                          'goal_leads', 'new_leads_per_hour', 'queries_completed',
+                          'queries_with_results', 'local_duplicates', 'found_leads',
                           'new_leads', 'with_email', 'without_email'):
                 valor = dados.get(campo)
                 if type(valor) is int and valor >= 0:

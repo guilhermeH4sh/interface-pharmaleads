@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 from .banco import Banco
@@ -106,6 +107,7 @@ def _progresso(etapa: str, **dados: int) -> None:
 
 def main() -> int:
     try:
+        inicio = time.monotonic()
         consultas, profundidade, emails, enriquecer = configuracao()
         with tempfile.TemporaryDirectory(prefix='pharmaleads-cloud-') as tmp:
             base = Path(tmp)
@@ -134,6 +136,7 @@ def main() -> int:
                         ultimo_erro = exc
                         if tentativa < 2:
                             print('Resultado inválido; repetindo a rodada uma vez.', flush=True)
+                            time.sleep(5)
                 else:
                     raise ErroPharmaLeads(f'Rodada falhou após duas tentativas: {ultimo_erro}')
                 enriquecidos = 0
@@ -149,11 +152,24 @@ def main() -> int:
                     'SELECT lugares.emails FROM lugares JOIN sync_pendente USING(chave)'))
                 _progresso('syncing', found_leads=novos + existentes, new_leads=novos,
                            with_email=elegiveis, without_email=max(0, novos + existentes - elegiveis))
+                novos_supabase = 0
+                def contar_novos(total: int) -> None:
+                    nonlocal novos_supabase
+                    novos_supabase += total
+
                 enviados = banco.sincronizar_pendentes(
-                    obrigatorio=True, ao_enviar=lambda total: _progresso('synced', synced_leads=total)
+                    obrigatorio=True, ao_enviar=lambda total: _progresso('synced', synced_leads=total),
+                    ao_novos=contar_novos,
                 ) if pendentes else 0
+                duracao = max(time.monotonic() - inicio, 1)
+                _progresso('round_complete', new_supabase_leads=novos_supabase,
+                           queries=len(consultas), duration_seconds=int(duracao),
+                           queries_with_results=banco.ultimas_metricas['consultas_com_resultado'],
+                           local_duplicates=banco.ultimas_metricas['duplicados_locais'],
+                           new_leads_per_hour=int(novos_supabase * 3600 / duracao))
                 print(f'Coleta concluída: {novos} novos, {existentes} atualizados; '
-                      f'{enriquecidos} enriquecidos; {enviados} com e-mail enviados ao Supabase.', flush=True)
+                      f'{enriquecidos} enriquecidos; {enviados} enviados, '
+                      f'{novos_supabase} novos no Supabase em {duracao:.0f}s.', flush=True)
             finally:
                 banco.fechar()
         return 0

@@ -17,7 +17,7 @@ export const CRM_STORAGE_KEY = "pharmaleads-crm-overrides";
 export const DELETED_STORAGE_KEY = "pharmaleads-deleted-ids";
 
 const SUPABASE_BASE_COLUMNS =
-  "chave,nome,segmento,categoria,endereco,local_busca,telefone,telefone_normalizado,celular,whatsapp_link,site,emails,situacao,avaliacao,qtd_avaliacoes,latitude,longitude,link,ultima_coleta";
+  "chave,nome,segmento,categoria,endereco,local_busca,telefone,telefone_normalizado,celular,whatsapp_link,site,emails,situacao,avaliacao,qtd_avaliacoes,latitude,longitude,link,ultima_coleta,dados_brutos";
 const SUPABASE_COLUMNS = `${SUPABASE_BASE_COLUMNS},crm_included,crm_status`;
 
 export const COLETA_ATIVA_STATES = ["queued", "in_progress", "waiting", "pending", "requested"];
@@ -43,6 +43,12 @@ export interface CollectorRun {
   total_rounds?: number;
   completed_rounds?: number;
   synced_leads?: number;
+  new_supabase_leads?: number;
+  goal_leads?: number;
+  new_leads_per_hour?: number;
+  queries_completed?: number;
+  queries_with_results?: number;
+  local_duplicates?: number;
   found_leads?: number;
   new_leads?: number;
   with_email?: number;
@@ -464,7 +470,9 @@ export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
       return {
         id: row.chave,
         nome: row.nome || "Estabelecimento Farmacêutico",
-        cnpj: "",
+        cnpj: row.dados_brutos?.cnpj || "",
+        cnpjOrigem: row.dados_brutos?.cnpj_origem,
+        cnpjConfianca: row.dados_brutos?.cnpj_confianca,
         cidade,
         uf,
         bairro,
@@ -472,7 +480,7 @@ export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
         whatsappLink: row.whatsapp_link || undefined,
         // Dados não contatados iniciam zerados nas métricas de Qualificados / Em contato / Respondido
         status: row.crm_included === false ? "Não contatado" : persistedCrmStatus || override?.status || "Não contatado",
-        origem: "Google Maps",
+        origem: row.dados_brutos?.fonte_dados === "Google Meu Negócio" ? "Google Meu Negócio" : "Google Maps",
         endereco: row.endereco || undefined,
         categoria: row.categoria || row.segmento || "Farmácia",
         segmento: row.segmento || "",
@@ -481,6 +489,7 @@ export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
         email: row.emails || undefined,
         avaliacao: Number.isFinite(avaliacaoNum) ? avaliacaoNum : undefined,
         qtdAvaliacoes: Number.isFinite(qtdNum) ? qtdNum : undefined,
+        avaliacoesRecentes: row.dados_brutos?.avaliacoes_recentes,
         link: row.link || undefined,
         ultimaColeta: row.ultima_coleta || undefined,
         updatedAt: override?.updatedAt,

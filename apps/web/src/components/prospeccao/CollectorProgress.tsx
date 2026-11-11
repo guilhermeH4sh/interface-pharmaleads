@@ -44,9 +44,12 @@ export function CollectorProgress({ run, stale }: { run: CollectorRun; stale: bo
         <div role="progressbar" aria-label="Coleta em andamento" className="h-2 rounded-full bg-primary/40 motion-safe:animate-pulse" />
       ) : null}
       {run.synced_leads != null && (
-        <p className="text-muted-foreground">{run.synced_leads.toLocaleString("pt-BR")} leads enviados ao Supabase nesta coleta</p>
+        <p className="text-muted-foreground">{run.synced_leads.toLocaleString("pt-BR")} registros enviados ao Supabase, incluindo atualizações</p>
       )}
-      {run.found_leads != null && <p className="text-muted-foreground">Nesta rodada: {run.found_leads.toLocaleString("pt-BR")} estabelecimentos encontrados, {run.new_leads?.toLocaleString("pt-BR") ?? "?"} novos e {run.with_email?.toLocaleString("pt-BR") ?? "?"} com e-mail validado.</p>}
+      {run.new_supabase_leads != null && <p className="text-muted-foreground">{run.new_supabase_leads.toLocaleString("pt-BR")} leads únicos novos nesta sessão · meta {run.goal_leads?.toLocaleString("pt-BR") ?? "1.000"} · {run.new_leads_per_hour?.toLocaleString("pt-BR") ?? "?"} novos/h · {run.queries_completed?.toLocaleString("pt-BR") ?? "?"} consultas concluídas</p>}
+      {run.queries_with_results != null && <p className="text-muted-foreground">{run.queries_with_results.toLocaleString("pt-BR")} consultas com resultados · {run.local_duplicates?.toLocaleString("pt-BR") ?? "?"} duplicatas no lote local</p>}
+      {run.found_leads != null && <p className="text-muted-foreground">Nesta rodada: {run.found_leads.toLocaleString("pt-BR")} resultados processados, {run.new_leads?.toLocaleString("pt-BR") ?? "?"} inéditos no lote local e {run.with_email?.toLocaleString("pt-BR") ?? "?"} com e-mail validado.</p>}
+      {run.status === "completed" && run.conclusion === "success" && run.new_supabase_leads != null && run.new_supabase_leads < (run.goal_leads ?? 1000) && <p className="text-muted-foreground">A fila terminou antes da meta de novos leads. Amplie as localidades ou revise o rendimento das consultas.</p>}
       {run.status === "completed" && run.conclusion === "success" && run.found_leads != null && run.with_email === 0 && <p className="text-muted-foreground">A busca encontrou estabelecimentos, mas nenhum tinha e-mail público validado para entrar na base.</p>}
     </section>
   );

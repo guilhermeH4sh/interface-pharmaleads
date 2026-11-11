@@ -25,4 +25,8 @@ services:
       - key: GOSOM_TIMEOUT
         value: "1500"
       - key: GOSOM_CONCURRENCY
-        value: "1"
+        value: "2"
+      - key: SITE_CONCURRENCY
+        value: "2"
+      - key: SITE_TIMEOUT_MS
+        value: "8000"

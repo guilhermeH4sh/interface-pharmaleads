@@ -112,16 +112,23 @@ class Supabase:
             corpo = json.dumps(dados, ensure_ascii=False, allow_nan=False).encode('utf-8')
             headers.update({'Content-Type': 'application/json', 'Content-Profile': 'public',
                             'Prefer': prefer or 'resolution=merge-duplicates,return=minimal'})
-        req = Request(url, data=corpo, headers=headers, method=metodo)
-        try:
-            with self.opener.open(req, timeout=60) as resposta:
-                texto = resposta.read()
-                return json.loads(texto) if texto else []
-        except HTTPError as erro:
-            # Respostas do servidor podem conter dados privados. Só exibe o status.
-            raise ErroPharmaLeads(f'Supabase respondeu HTTP {erro.code}. Confira a chave/JWT, as permissões RLS de pharmaleads e suas 23 colunas; o CSV foi preservado.') from None
-        except (URLError, TimeoutError, OSError, ValueError):
-            raise ErroPharmaLeads('Não foi possível comunicar com o Supabase. Confira a conexão; o CSV foi preservado.') from None
+        for tentativa in range(3):
+            req = Request(url, data=corpo, headers=headers, method=metodo)
+            try:
+                with self.opener.open(req, timeout=60) as resposta:
+                    texto = resposta.read()
+                    return json.loads(texto) if texto else []
+            except HTTPError as erro:
+                if erro.code in (429, 502, 503, 504) and tentativa < 2:
+                    time.sleep(2 ** tentativa)
+                    continue
+                # Respostas do servidor podem conter dados privados. Só exibe o status.
+                raise ErroPharmaLeads(f'Supabase respondeu HTTP {erro.code}. Confira a chave/JWT e as permissões RLS de pharmaleads; o CSV foi preservado.') from None
+            except (URLError, TimeoutError, OSError, ValueError):
+                if tentativa < 2:
+                    time.sleep(2 ** tentativa)
+                    continue
+                raise ErroPharmaLeads('Não foi possível comunicar com o Supabase. Confira a conexão; o CSV foi preservado.') from None
 
     def verificar(self, colunas):
         self._requisicao(parametros={'select': ','.join(colunas), 'limit': '0'})
@@ -176,17 +183,47 @@ class Supabase:
     def salvar(self, registros):
         from .enriquecedor import emails_publicos
         registros = [r for r in registros if emails_publicos(r.get('emails'))]
+        self.ultimo_novos = 0
         if not registros:
             return 0
+        # Uma leitura por lote evita uma consulta por lead já conhecido.
+        chaves = [r['chave'] for r in registros]
+        citado = lambda x: '"' + x.replace('\\', '\\\\').replace('"', '\\"') + '"'
+        existentes = {r['chave']: r for r in self._requisicao(parametros={
+            'select': 'chave,emails,dados_brutos,primeira_coleta', 'chave': 'in.(' + ','.join(citado(x) for x in chaves) + ')',
+        })}
+        for registro in registros:
+            anterior = existentes.get(registro['chave']) or {}
+            if anterior.get('primeira_coleta'):
+                registro['primeira_coleta'] = anterior['primeira_coleta']
+            brutos = registro.get('dados_brutos') or {}
+            antigos = anterior.get('dados_brutos') or {}
+            if isinstance(brutos, dict) and isinstance(antigos, dict):
+                if brutos.get('cnpj') and antigos.get('cnpj') and brutos['cnpj'] != antigos['cnpj']:
+                    brutos['cnpj_conflito'] = brutos['cnpj']
+                    brutos['cnpj'] = antigos['cnpj']
+                    brutos['cnpj_origem'] = antigos.get('cnpj_origem')
+                    brutos['cnpj_confianca'] = antigos.get('cnpj_confianca')
+                for campo, valor in antigos.items():
+                    brutos.setdefault(campo, valor)
         # Insere novos leads já com e-mail. Duplicatas são ignoradas nesta etapa
         # para não substituir contatos encontrados em coletas anteriores.
         com_emails = [{**r, 'emails': ', '.join(emails_publicos(r['emails']))}
                       for r in registros]
-        self._requisicao('POST', {'on_conflict': 'chave'}, com_emails,
-                        prefer='resolution=ignore-duplicates,return=minimal')
+        inseridos = self._requisicao('POST', {'on_conflict': 'chave', 'select': 'chave'}, com_emails,
+                                    prefer='resolution=ignore-duplicates,return=representation')
+        self.ultimo_novos = len(inseridos)
+        chaves_inseridas = {item['chave'] for item in inseridos}
         # Atualiza os demais dados sem tocar na coluna de e-mails.
         sem_emails = [{k: v for k, v in registro.items() if k != 'emails'} for registro in registros]
         self._requisicao('POST', {'on_conflict': 'chave'}, sem_emails)
         for registro in registros:
-            self.adicionar_emails(registro['chave'], registro['emails'])
+            anterior = existentes.get(registro['chave'])
+            if anterior is not None:
+                atuais = {e.casefold() for e in emails_publicos(anterior.get('emails'))}
+                novos = {e.casefold() for e in emails_publicos(registro['emails'])}
+                if not novos.issubset(atuais):
+                    self.adicionar_emails(registro['chave'], registro['emails'])
+            elif registro['chave'] not in chaves_inseridas:
+                self.adicionar_emails(registro['chave'], registro['emails'])
         return len(registros)

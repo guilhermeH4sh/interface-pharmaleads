@@ -9,6 +9,24 @@ from pharmaleads.render_service import ColetorRender, validar_entrada
 
 
 class TestRenderService(unittest.TestCase):
+    @patch('pharmaleads.render_service.entradas_seguintes')
+    @patch('pharmaleads.render_service.subprocess.Popen')
+    def test_meta_para_sem_iniciar_proxima_rodada(self, popen, seguinte):
+        popen.return_value.wait.return_value = 0
+        popen.return_value.stdout = StringIO(
+            MARCADOR_PROGRESSO + '{"stage":"round_complete","new_supabase_leads":1000,"queries":8,"queries_with_results":6}\n'
+        )
+        coletor = ColetorRender()
+        coletor._run = {'id': 1, 'status': 'queued', 'conclusion': None}
+        entrada = validar_entrada({'locais': 'Curitiba, PR', 'segmentos': 'manipulacao',
+                                   'modo': 'nacional', 'rodada': 1, 'total_rodadas': 2})
+        coletor._executar(entrada)
+        self.assertEqual(coletor.status()['new_supabase_leads'], 1000)
+        self.assertEqual(coletor.status()['status'], 'completed')
+        self.assertEqual(coletor.status()['conclusion'], 'success')
+        seguinte.assert_not_called()
+        popen.assert_called_once()
+
     def test_valida_e_forca_emails(self):
         entrada = validar_entrada({
             'locais': 'Curitiba, PR', 'segmentos': 'varejo,manipulacao',

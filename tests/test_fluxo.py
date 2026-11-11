@@ -60,6 +60,19 @@ class TestFluxoCompleto(unittest.TestCase):
         os.environ.pop("PHARMALEADS_HOME", None)
         self.tmp.cleanup()
 
+    def test_ids_diferentes_mesmo_nome_e_endereco_viram_um_lead(self):
+        caminho = Path(self.tmp.name) / 'duplicados.csv'
+        with caminho.open('w', encoding='utf-8', newline='') as arquivo:
+            writer = csv.DictWriter(arquivo, fieldnames=['cid', 'title', 'address', 'input_id'])
+            writer.writeheader()
+            for cid in ('cid-1', 'cid-2'):
+                writer.writerow({'cid': cid, 'title': 'Farmácia Centro',
+                                 'address': 'Rua Exemplo 1, Curitiba - PR',
+                                 'input_id': 'varejo|Curitiba, PR'})
+        self.assertEqual(self.banco.importar_csv(caminho, sincronizar=False), (1, 1))
+        self.assertEqual(self.banco.con.execute('SELECT count(*) FROM lugares').fetchone()[0], 1)
+        self.assertEqual(self.banco.ultimas_metricas['consultas_com_resultado'], 1)
+
     def test_sync_pendente_retem_lead_apos_falha_e_reenvia(self):
         caminho = Path(self.tmp.name) / 'um.csv'
         with caminho.open('w', encoding='utf-8', newline='') as f:

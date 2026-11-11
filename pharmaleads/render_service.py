@@ -22,6 +22,7 @@ from .render_jobs import ErroRender, RenderJobs
 
 ATIVOS = {'queued', 'in_progress', 'cancelling'}
 ETAPAS_RODADA = {'searching', 'retrying', 'importing', 'enriching', 'syncing'}
+META_LEADS = 1000
 MAX_BODY = 16_384
 
 
@@ -100,6 +101,8 @@ class ColetorRender:
                 'total_rounds': int(entrada['total_rodadas']) - rodada + 1 if nacional else 1,
                 'completed_rounds': 0,
                 'synced_leads': 0,
+                'new_supabase_leads': 0,
+                'goal_leads': META_LEADS,
             }
         return entrada
 
@@ -150,7 +153,8 @@ class ColetorRender:
 
     def _executar(self, entrada: dict) -> None:
         atual = entrada
-        concluidas = enviados = 0
+        concluidas = enviados = novos_supabase = 0
+        inicio = time.monotonic()
         resultado = 'success'
         try:
             while atual and not self._parar.is_set():
@@ -190,6 +194,14 @@ class ColetorRender:
                         elif etapa == 'synced':
                             enviados += evento['synced_leads']
                             self._atualizar(synced_leads=enviados)
+                        elif etapa == 'round_complete':
+                            novos_supabase += evento.get('new_supabase_leads', 0)
+                            duracao = max(time.monotonic() - inicio, 1)
+                            self._atualizar(new_supabase_leads=novos_supabase,
+                                           new_leads_per_hour=int(novos_supabase * 3600 / duracao),
+                                           queries_completed=(self._run or {}).get('queries_completed', 0) + evento.get('queries', 0),
+                                           queries_with_results=(self._run or {}).get('queries_with_results', 0) + evento.get('queries_with_results', 0),
+                                           local_duplicates=(self._run or {}).get('local_duplicates', 0) + evento.get('local_duplicates', 0))
                 codigo = processo.wait()
                 with self._lock:
                     self._processo = None
@@ -200,6 +212,9 @@ class ColetorRender:
                     break
                 concluidas += 1
                 self._atualizar(completed_rounds=concluidas)
+                if novos_supabase >= META_LEADS:
+                    print(f'Meta atingida: {novos_supabase} leads únicos novos.', flush=True)
+                    break
                 if atual['modo'] != 'nacional':
                     atual = None
                     continue
@@ -208,6 +223,9 @@ class ColetorRender:
                     'true', atual['enriquecer_sites'], atual['request_id'])
                 if atual:
                     atual['modo'] = 'nacional'
+            if not self._parar.is_set() and resultado == 'success' and novos_supabase < META_LEADS:
+                print(f'Fila concluída: {novos_supabase}/{META_LEADS} leads únicos novos. '
+                      'As consultas restantes acabaram; revise o rendimento e amplie as localidades.', flush=True)
         except Exception as exc:  # mantém o servidor vivo e registra o erro nos logs do Render
             print(f'Falha no supervisor da coleta: {exc}', file=sys.stderr, flush=True)
             resultado = 'failure'

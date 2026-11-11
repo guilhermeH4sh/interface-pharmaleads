@@ -29,6 +29,7 @@ class TestCloudJob(unittest.TestCase):
                       'EMAILS':'false', 'PHARMALEADS_HOME':tmp, 'SUPABASE_EMAIL':'teste@example.com',
                       'SUPABASE_PASSWORD':'senha'}
             fake_client = MagicMock()
+            fake_client.ultimo_novos = 1
             fake_config = {'SUPABASE_URL':'https://teste.supabase.co', 'SUPABASE_SECRET_KEY':'sb_secret_fake'}
 
             def docker(command, **_):
