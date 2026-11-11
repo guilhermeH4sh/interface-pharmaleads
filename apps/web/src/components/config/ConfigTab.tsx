@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { Settings, Database, Check, Sun, Moon, TableProperties, Search, MailCheck } from "lucide-react";
+import { Settings, Database, Check, TableProperties, Search, MailCheck } from "lucide-react";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import { getPreferences, savePreferences } from "../../lib/preferences";
-import type { Theme } from "../../lib/theme";
 
-export function ConfigTab({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () => void }) {
+export function ConfigTab() {
   const [pageSize, setPageSize] = useState(() => getPreferences().pageSize);
   function changePageSize(value: string) {
     const size = Number(value);
@@ -18,10 +17,6 @@ export function ConfigTab({ theme, onToggleTheme }: { theme: Theme; onToggleThem
       <h2 className={cn(ui.pageTitle, "flex items-center gap-2.5")}><Settings size={24} className="text-brand" />Configurações</h2>
       <section className={cn(ui.card, "p-6 space-y-5")}>
         <h3 className={ui.cardTitle}><TableProperties size={18} className="text-brand" />Preferências da interface</h3>
-        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
-          <div><p className="font-medium">Aparência</p><p className="text-sm text-muted-foreground">Escolha o tema usado nesta plataforma.</p></div>
-          <button type="button" onClick={onToggleTheme} className={ui.btnSecondary} aria-label="Alternar tema">{theme === "dark" ? <Sun size={16}/> : <Moon size={16}/>} Tema {theme === "dark" ? "escuro" : "claro"}</button>
-        </div>
         <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
           <div><p className="font-medium">Leads por página</p><p className="text-sm text-muted-foreground">Ajuste quantos registros aparecem na tabela.</p></div>
           <select aria-label="Leads por página" className={cn(ui.input,"w-32")} value={pageSize} onChange={e => changePageSize(e.target.value)}>

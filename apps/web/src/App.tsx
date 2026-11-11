@@ -323,10 +323,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
           )}
 
           {activeTab === "config" && (
-            <ConfigTab
-              theme={theme}
-              onToggleTheme={toggleTheme}
-            />
+            <ConfigTab />
           )}
 
           {activeTab === "relatorios" && (
