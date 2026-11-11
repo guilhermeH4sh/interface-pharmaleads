@@ -324,7 +324,8 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
 
           {activeTab === "config" && (
             <ConfigTab
-              supabaseLeadsCount={rawSupabaseRows.length || null}
+              theme={theme}
+              onToggleTheme={toggleTheme}
             />
           )}
 

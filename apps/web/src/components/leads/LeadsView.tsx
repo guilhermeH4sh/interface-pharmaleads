@@ -10,6 +10,7 @@ import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import type { EmailAvailability } from "../../lib/email";
 import { ESTABLISHMENTS } from "../../lib/prospect-options";
+import { getPreferences } from "../../lib/preferences";
 import {
   buildDynamicLocations,
   computeSummaryFromItems,
@@ -65,6 +66,12 @@ export function LeadsView({
   const [currentPage, setCurrentPage] = useState<number>(
     parseInt(getUrlParam("page", "1"), 10) || 1
   );
+  const [pageSize, setPageSize] = useState(() => getPreferences().pageSize);
+  useEffect(() => {
+    const update = () => { setPageSize(getPreferences().pageSize); setCurrentPage(1); };
+    window.addEventListener("pharmaleads-preferences-change", update);
+    return () => window.removeEventListener("pharmaleads-preferences-change", update);
+  }, []);
   const [selectedUF, setSelectedUF] = useState(getUrlParam("uf", ""));
   const [selectedMunicipio, setSelectedMunicipio] = useState(getUrlParam("municipio", ""));
   const [selectedBairro, setSelectedBairro] = useState(getUrlParam("bairro", ""));
@@ -130,7 +137,7 @@ export function LeadsView({
         segmentos: selectedSegmentos,
         emailAvailability: selectedEmailAvailability,
         page: currentPage,
-        pageSize: 5,
+        pageSize,
       });
 
       setMockLeads(res.items);
@@ -142,7 +149,7 @@ export function LeadsView({
         selectedEmailAvailability !== "todos";
 
       setMockTotalLeads(hasSpecificFilter ? res.total : MOCK_SUMMARY.totalLeads);
-      setMockTotalPages(hasSpecificFilter ? res.totalPages : Math.ceil(MOCK_SUMMARY.totalLeads / 5));
+      setMockTotalPages(hasSpecificFilter ? res.totalPages : Math.ceil(MOCK_SUMMARY.totalLeads / pageSize));
     } catch (err) {
       console.error("Falha ao consultar leads:", err);
     } finally {
@@ -158,6 +165,7 @@ export function LeadsView({
     selectedSegmentos,
     selectedEmailAvailability,
     currentPage,
+    pageSize,
   ]);
 
   useEffect(() => {
@@ -197,7 +205,7 @@ export function LeadsView({
             segmentos: selectedSegmentos,
             emailAvailability: selectedEmailAvailability,
             page: currentPage,
-            pageSize: 5,
+            pageSize,
           })
         : null,
     [
@@ -211,6 +219,7 @@ export function LeadsView({
       selectedSegmentos,
       selectedEmailAvailability,
       currentPage,
+      pageSize,
     ]
   );
 
