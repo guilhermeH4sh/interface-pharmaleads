@@ -87,12 +87,17 @@ class RenderJobs:
         return {**self.resumir(job), 'status': 'cancelling'}
 
     def status(self) -> dict | None:
-        ativos = [job for job in self.ativos() if self.entrada_do_job(job) is not None]
+        ativos = [job for job in self.ativos() if self.e_coleta(job)]
         if ativos:
             return self.resumir(ativos[0], consultar_progresso=True)
         recentes = self._listar([('limit', 20)])
-        job = next((item for item in recentes if self.entrada_do_job(item) is not None), None)
+        job = next((item for item in recentes if self.e_coleta(item)), None)
         return self.resumir(job, consultar_progresso=True) if job else None
+
+    @classmethod
+    def e_coleta(cls, job: dict) -> bool:
+        """Inclui a coleta manual anterior à integração do painel."""
+        return cls.entrada_do_job(job) is not None or 'pharmaleads.cloud_job' in (job.get('startCommand') or '')
 
     @staticmethod
     def entrada_do_job(job: dict) -> dict | None:
@@ -105,11 +110,13 @@ class RenderJobs:
             return None
 
     def resumir(self, job: dict, consultar_progresso=False) -> dict:
-        entrada = self.entrada_do_job(job) or {}
+        entrada = self.entrada_do_job(job)
+        acompanhavel = entrada is not None
+        entrada = entrada or {}
         nacional = entrada.get('modo') == 'nacional'
         rodada = int(entrada['rodada']) if nacional else 1
         total = int(entrada['total_rodadas']) if nacional else 1
-        titulo = f'Nacional {rodada}/{total}' if nacional else 'Coleta'
+        titulo = f'Nacional {rodada}/{total}' if nacional else ('Coleta' if acompanhavel else 'Coleta iniciada fora do painel')
         if entrada.get('resumo'):
             titulo += f" · {entrada['resumo']}"
         estado = job['status']
@@ -120,10 +127,11 @@ class RenderJobs:
             'id': job['id'], 'status': status, 'conclusion': CONCLUSOES.get(estado),
             'url': '', 'created_at': job['createdAt'], 'title': titulo,
             'round': rodada, 'total_rounds': total_execucao,
+            'can_stop': acompanhavel,
         }
         if concluiu or estado == 'pending':
             run['completed_rounds'] = total_execucao if concluiu else 0
-        if consultar_progresso and estado != 'pending':
+        if consultar_progresso and acompanhavel and estado != 'pending':
             run.update(self._progresso(job, total_execucao, status))
         return run
 
@@ -151,7 +159,8 @@ class RenderJobs:
             titulo = dados.get('title')
             if isinstance(titulo, str):
                 progresso['title'] = titulo[:220]
-            for campo in ('round', 'completed_rounds', 'synced_leads'):
+            for campo in ('round', 'completed_rounds', 'synced_leads', 'found_leads',
+                          'new_leads', 'with_email', 'without_email'):
                 valor = dados.get(campo)
                 if type(valor) is int and valor >= 0:
                     if campo == 'completed_rounds':

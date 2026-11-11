@@ -66,6 +66,62 @@ class TestRenderJobs(unittest.TestCase):
         ]):
             self.assertEqual(self.cliente.cancelar(self.job)['conclusion'], 'success')
 
+    def test_status_mostra_coleta_manual_sem_inventar_progresso(self):
+        manual = {**self.job, 'status': 'running',
+                  'startCommand': '/usr/bin/env LOCAIS=Curitiba /opt/pharmaleads-venv/bin/python -m pharmaleads.cloud_job'}
+        with patch.object(self.cliente, '_api', return_value=[{'job': manual}]) as api:
+            run = self.cliente.status()
+        self.assertEqual((run['id'], run['status'], run['can_stop']), ('job-teste', 'in_progress', False))
+        self.assertNotIn('stage', run)
+        self.assertNotIn('synced_leads', run)
+        api.assert_called_once()
+
+    @patch('pharmaleads.render_service.RenderJobs')
+    def test_inicio_bloqueado_retorna_job_manual_visivel(self, classe_jobs):
+        jobs = classe_jobs.return_value
+        jobs.ativos.return_value = [self.job]
+        jobs.entrada_do_job.return_value = None
+        jobs.e_coleta.return_value = True
+        jobs.resumir.return_value = {'id': 'job-teste', 'status': 'in_progress', 'can_stop': False}
+        handler = object.__new__(Handler)
+        handler.server = SimpleNamespace(lock_jobs=threading.Lock(), coletor=Mock())
+        handler.server.coletor.status.return_value = None
+        handler.headers = {'X-Render-Api-Key': 'chave-ficticia'}
+        handler._autorizado = Mock(return_value=True)
+        handler._json = Mock()
+        handler._one_off('/v1/jobs/start')
+        self.assertEqual(handler._json.call_args.args[0], 409)
+        self.assertEqual(handler._json.call_args.args[1]['run']['id'], 'job-teste')
+
+    @patch('pharmaleads.render_service.RenderJobs')
+    def test_status_mostra_coleta_antiga_ativa_no_servico_web(self, classe_jobs):
+        jobs = classe_jobs.return_value
+        jobs.status.return_value = None
+        legado = {'id': 123, 'status': 'in_progress', 'stage': 'searching'}
+        handler = object.__new__(Handler)
+        handler.server = SimpleNamespace(lock_jobs=threading.Lock(), coletor=Mock())
+        handler.server.coletor.status.return_value = legado
+        handler.headers = {'X-Render-Api-Key': 'chave-ficticia'}
+        handler._autorizado = Mock(return_value=True)
+        handler._json = Mock()
+        handler._one_off('/v1/jobs/status')
+        self.assertEqual(handler._json.call_args.args[1]['run'], legado)
+
+    @patch('pharmaleads.render_service.RenderJobs')
+    def test_conflito_de_coleta_antiga_retorna_execucao(self, classe_jobs):
+        jobs = classe_jobs.return_value
+        jobs.ativos.return_value = []
+        legado = {'id': 123, 'status': 'in_progress', 'stage': 'searching'}
+        handler = object.__new__(Handler)
+        handler.server = SimpleNamespace(lock_jobs=threading.Lock(), coletor=Mock())
+        handler.server.coletor.status.return_value = legado
+        handler.headers = {'X-Render-Api-Key': 'chave-ficticia'}
+        handler._autorizado = Mock(return_value=True)
+        handler._json = Mock()
+        handler._one_off('/v1/jobs/start')
+        self.assertEqual(handler._json.call_args.args[0], 409)
+        self.assertEqual(handler._json.call_args.args[1]['run'], legado)
+
     @patch('pharmaleads.render_service.RenderJobs')
     def test_rota_bloqueia_inicio_com_um_job_manual_ativo(self, classe_jobs):
         jobs = classe_jobs.return_value

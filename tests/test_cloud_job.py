@@ -1,7 +1,9 @@
 import csv
+import io
 import os
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -45,8 +47,11 @@ class TestCloudJob(unittest.TestCase):
                                      'address':'Curitiba, PR','input_id':'manipulacao|Curitiba, PR',
                                      'emails':''})
 
-            with patch.dict(os.environ, config, clear=True), patch('pharmaleads.cloud_job._rodar_docker', side_effect=docker), patch('pharmaleads.supabase.ler_configuracao', return_value=fake_config), patch('pharmaleads.supabase.Supabase', return_value=fake_client):
+            saida = io.StringIO()
+            with patch.dict(os.environ, {**config, 'PHARMALEADS_PROGRESS': '1'}, clear=True), patch('pharmaleads.cloud_job._rodar_docker', side_effect=docker), patch('pharmaleads.supabase.ler_configuracao', return_value=fake_config), patch('pharmaleads.supabase.Supabase', return_value=fake_client), redirect_stdout(saida):
                 self.assertEqual(cloud_job.main(), 0)
+            self.assertIn('"found_leads": 2', saida.getvalue())
+            self.assertIn('"with_email": 1', saida.getvalue())
             records = fake_client.salvar.call_args.args[0]
             self.assertEqual(len(records), 1)
             self.assertEqual(records[0]['chave'], 'cid-cloud-1')

@@ -144,7 +144,11 @@ def main() -> int:
                     for contato in enriquecer_sites(candidatos, limite=100):
                         enriquecidos += banco.registrar_enriquecimento(contato)
                 pendentes = banco.con.execute('SELECT count(*) FROM sync_pendente').fetchone()[0]
-                _progresso('syncing')
+                from .enriquecedor import emails_publicos
+                elegiveis = sum(bool(emails_publicos(registro[0])) for registro in banco.con.execute(
+                    'SELECT lugares.emails FROM lugares JOIN sync_pendente USING(chave)'))
+                _progresso('syncing', found_leads=novos + existentes, new_leads=novos,
+                           with_email=elegiveis, without_email=max(0, novos + existentes - elegiveis))
                 enviados = banco.sincronizar_pendentes(
                     obrigatorio=True, ao_enviar=lambda total: _progresso('synced', synced_leads=total)
                 ) if pendentes else 0

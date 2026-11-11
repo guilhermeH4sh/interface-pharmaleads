@@ -43,6 +43,11 @@ export interface CollectorRun {
   total_rounds?: number;
   completed_rounds?: number;
   synced_leads?: number;
+  found_leads?: number;
+  new_leads?: number;
+  with_email?: number;
+  without_email?: number;
+  can_stop?: boolean;
 }
 
 export interface UfCoverageItem {

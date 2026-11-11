@@ -11,8 +11,9 @@ from .render_service import ColetorRender
 
 
 def registrar_progresso(estado: dict) -> None:
-    campos = ('title', 'stage', 'round', 'completed_rounds', 'synced_leads')
-    print(MARCADOR_JOB + json.dumps({campo: estado[campo] for campo in campos}), flush=True)
+    campos = ('title', 'stage', 'round', 'completed_rounds', 'synced_leads',
+              'found_leads', 'new_leads', 'with_email', 'without_email')
+    print(MARCADOR_JOB + json.dumps({campo: estado[campo] for campo in campos if campo in estado}), flush=True)
 
 
 def main() -> int:

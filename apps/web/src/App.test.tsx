@@ -83,6 +83,24 @@ test("o painel usa a etapa e as rodadas concluídas informadas pelo Render", asy
   expect(screen.getByText("13 leads enviados ao Supabase nesta coleta")).toBeInTheDocument();
 });
 
+test("progresso explica quando a busca encontra locais mas nenhum e-mail", async () => {
+  const run = { id: "job-um", status: "completed", conclusion: "success", title: "Coleta", found_leads: 12, new_leads: 10, with_email: 0, synced_leads: 0 };
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run }))));
+  render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
+  expect(await screen.findByText(/Nesta rodada: 12 estabelecimentos encontrados/)).toBeInTheDocument();
+  expect(screen.getByText(/nenhum tinha e-mail público validado/)).toBeInTheDocument();
+});
+
+test("job manual aparece em andamento sem botão de parar ou progresso inventado", async () => {
+  const run = { id: "job-manual", status: "in_progress", title: "Coleta iniciada fora do painel", can_stop: false };
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run }))));
+  render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
+  expect(await screen.findByText(/Este job foi iniciado fora do painel/)).toBeInTheDocument();
+  expect(screen.getByRole("progressbar", { name: "Coleta em andamento" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Parar coleta" })).not.toBeInTheDocument();
+  expect(screen.queryByText(/perdeu o estado/)).not.toBeInTheDocument();
+});
+
 
 test("configurações mostram apenas Supabase e preservam a conexão existente", async () => {
   sessionStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));

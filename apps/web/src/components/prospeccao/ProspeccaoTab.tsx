@@ -49,12 +49,13 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           if (!run) {
             if (hadActive.current) {
               hadActive.current = false;
-              setFeedback("O Render perdeu o estado da execução. Confira os logs do serviço.");
+              setFeedback("Nenhuma coleta ativa encontrada no Render. Confira os jobs recentes no serviço.");
             }
             setActive(false);
             return;
           }
           setFeedback("");
+          setError("");
           const running = COLETA_ATIVA_STATES.includes(run.status) || run.status === "cancelling";
           setActive(running);
           if (running) {
@@ -172,7 +173,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           <p role="status" className="mt-5 text-center text-sm text-muted-foreground">Status do coletor indisponível. Tentando reconectar ao Render.</p>
         )}
         <div className="mt-6 flex flex-wrap justify-center items-center gap-4 text-sm">
-          {active && <button type="button" onClick={() => void stop()} disabled={busy} className={cn(ui.btnSecondary, "h-10 px-4")}><Square size={14} /> Parar coleta</button>}
+          {active && (dataSourceMode !== "supabase" || cloudRun?.can_stop !== false) && <button type="button" onClick={() => void stop()} disabled={busy} className={cn(ui.btnSecondary, "h-10 px-4")}><Square size={14} /> Parar coleta</button>}
           <button type="button" onClick={onOpenLeads} className="inline-flex items-center gap-1.5 text-brand hover:underline">Ver leads <ArrowRight size={15} /></button>
         </div>
       </div>

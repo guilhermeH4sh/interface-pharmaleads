@@ -31,6 +31,7 @@ export function CollectorProgress({ run, stale }: { run: CollectorRun; stale: bo
         {run.title && <span className="text-muted-foreground">{run.title}</span>}
         {stale && <span className="w-full text-muted-foreground">Último status recebido. Tentando reconectar ao Render.</span>}
       </div>
+      {run.can_stop === false && <p className="text-muted-foreground">Este job foi iniciado fora do painel. O Render informa se está em execução, mas esta versão não registra etapas ou contagem parcial. Acompanhe os detalhes em One-off Jobs.</p>}
       {national && completed != null ? (
         <>
           <div role="progressbar" aria-label="Rodadas concluídas" aria-valuemin={0} aria-valuemax={total} aria-valuenow={completed}
@@ -45,6 +46,8 @@ export function CollectorProgress({ run, stale }: { run: CollectorRun; stale: bo
       {run.synced_leads != null && (
         <p className="text-muted-foreground">{run.synced_leads.toLocaleString("pt-BR")} leads enviados ao Supabase nesta coleta</p>
       )}
+      {run.found_leads != null && <p className="text-muted-foreground">Nesta rodada: {run.found_leads.toLocaleString("pt-BR")} estabelecimentos encontrados, {run.new_leads?.toLocaleString("pt-BR") ?? "?"} novos e {run.with_email?.toLocaleString("pt-BR") ?? "?"} com e-mail validado.</p>}
+      {run.status === "completed" && run.conclusion === "success" && run.found_leads != null && run.with_email === 0 && <p className="text-muted-foreground">A busca encontrou estabelecimentos, mas nenhum tinha e-mail público validado para entrar na base.</p>}
     </section>
   );
 }

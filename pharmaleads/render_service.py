@@ -183,7 +183,10 @@ class ColetorRender:
                         evento = json.loads(linha[len(MARCADOR_PROGRESSO):])
                         etapa = evento.get('stage')
                         if etapa in ETAPAS_RODADA:
-                            self._atualizar(stage=etapa)
+                            contagens = {campo: evento[campo] for campo in
+                                        ('found_leads', 'new_leads', 'with_email', 'without_email')
+                                        if type(evento.get(campo)) is int and evento[campo] >= 0}
+                            self._atualizar(stage=etapa, **contagens)
                         elif etapa == 'synced':
                             enviados += evento['synced_leads']
                             self._atualizar(synced_leads=enviados)
@@ -250,18 +253,30 @@ class Handler(BaseHTTPRequestHandler):
         try:
             jobs = RenderJobs(os.environ.get('RENDER_SERVICE_ID', ''), self.headers.get('X-Render-Api-Key', ''))
             if caminho == '/v1/jobs/status':
-                self._json(HTTPStatus.OK, {'run': jobs.status()})
+                run = jobs.status()
+                anterior = self.coletor.status()
+                if anterior and anterior['status'] in ATIVOS and (not run or run['status'] == 'completed'):
+                    run = anterior
+                self._json(HTTPStatus.OK, {'run': run})
                 return
             with self.server.lock_jobs:  # type: ignore[attr-defined]
                 ativos = jobs.ativos()
                 ativo = next((job for job in ativos if jobs.entrada_do_job(job) is not None), None)
+                outra_coleta = next((job for job in ativos if jobs.e_coleta(job)), None)
                 if caminho == '/v1/jobs/stop':
-                    run = jobs.cancelar(ativo) if ativo else None
-                    self._json(HTTPStatus.ACCEPTED, {'cancelling': bool(ativo), 'run': run})
+                    if ativo:
+                        run = jobs.cancelar(ativo)
+                        cancelling = True
+                    elif outra_coleta:
+                        run = jobs.resumir(outra_coleta)
+                        cancelling = False
+                    else:
+                        cancelling, run = self.coletor.solicitar_parada()
+                    self._json(HTTPStatus.ACCEPTED, {'cancelling': cancelling, 'run': run})
                     return
                 anterior = self.coletor.status()
                 if ativos or (anterior and anterior['status'] in ATIVOS):
-                    run = jobs.resumir(ativo) if ativo else None
+                    run = jobs.resumir(outra_coleta) if outra_coleta else anterior
                     self._json(HTTPStatus.CONFLICT, {'error': 'Já existe uma coleta ativa neste serviço do Render.', 'run': run})
                     return
                 run = jobs.iniciar(validar_entrada(self._body()))
