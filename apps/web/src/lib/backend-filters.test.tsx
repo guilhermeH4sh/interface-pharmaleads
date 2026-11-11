@@ -18,6 +18,19 @@ test("localidade usa o endereço real e não inventa bairro ou UF ausente", () =
   expect(filterLeadItems(items, { uf: "SP", emailAvailability: "sem" })).toHaveLength(0);
 });
 
+test("tipo de estabelecimento combina seleções com UF e e-mail antes da paginação", () => {
+  const rows = [
+    { chave: "1", nome: "Farmácia de bairro", segmento: "varejo", local_busca: "Curitiba, PR", emails: "contato@exemplo.com.br" },
+    { chave: "2", nome: "Manipulação", segmento: "manipulacao", local_busca: "Curitiba, PR", emails: "contato@exemplo.com.br" },
+    { chave: "3", nome: "Veterinária", segmento: "veterinaria", local_busca: "Curitiba, PR", emails: "" },
+    { chave: "4", nome: "Sem segmento", segmento: "", local_busca: "Curitiba, PR", emails: "contato@exemplo.com.br" },
+  ] as Lead[];
+  const items = mapRawLeadsToItems(rows);
+  expect(filterLeadItems(items, { uf: "PR", segmentos: ["varejo", "manipulacao"], emailAvailability: "com" }).map(item => item.id)).toEqual(["1", "2"]);
+  expect(filterLeadItems(items, { segmentos: ["veterinaria"], emailAvailability: "com" })).toHaveLength(0);
+  expect(filterLeadItems(items, { segmentos: ["varejo"] }).map(item => item.id)).toEqual(["1"]);
+});
+
 test("pagina por chave sem repetir linhas quando novas coletas alteram a base", async () => {
   const first = Array.from({ length: 1000 }, (_, index) => ({ chave: String(index).padStart(4, "0"), nome: "Farmácia" }));
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {

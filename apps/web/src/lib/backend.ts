@@ -475,7 +475,7 @@ export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
         origem: "Google Maps",
         endereco: row.endereco || undefined,
         categoria: row.categoria || row.segmento || "Farmácia",
-        segmento: row.segmento || "varejo",
+        segmento: row.segmento || "",
         situacao: row.situacao || "ativa_ou_desconhecida",
         site: row.site || undefined,
         email: row.emails || undefined,
@@ -577,6 +577,7 @@ export function filterLeadItems(
     bairro = "",
     statusSelect = "",
     origem = "",
+    segmentos = [],
     emailAvailability = "todos",
   } = params;
 
@@ -603,6 +604,9 @@ export function filterLeadItems(
       return false;
     }
     if (origem && origem !== "Todas as origens" && item.origem !== origem) {
+      return false;
+    }
+    if (segmentos.length && !segmentos.includes(item.segmento || "")) {
       return false;
     }
     if (emailAvailability !== "todos" && (parseLeadEmails(item.email).length > 0) !== (emailAvailability === "com")) {

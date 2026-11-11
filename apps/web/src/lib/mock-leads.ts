@@ -57,6 +57,7 @@ export interface LeadFilterParams {
   bairro?: string;
   statusSelect?: string;
   origem?: string;
+  segmentos?: string[];
   emailAvailability?: EmailAvailability;
   page?: number;
   pageSize?: number;
@@ -149,6 +150,7 @@ export async function fetchMockLeads(params: LeadFilterParams): Promise<LeadPagi
     bairro = "",
     statusSelect = "",
     origem = "",
+    segmentos = [],
     emailAvailability = "todos",
     page = 1,
     pageSize = 5,
@@ -169,6 +171,10 @@ export async function fetchMockLeads(params: LeadFilterParams): Promise<LeadPagi
   // 3. Filtro de Origem
   if (origem && origem !== "Todas as origens") {
     filtered = filtered.filter((item) => item.origem === origem);
+  }
+
+  if (segmentos.length) {
+    filtered = filtered.filter((item) => segmentos.includes(item.segmento || ""));
   }
 
   if (emailAvailability !== "todos") {

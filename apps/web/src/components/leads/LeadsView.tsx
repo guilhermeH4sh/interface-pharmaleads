@@ -9,6 +9,7 @@ import { downloadLeadsCsv } from "../../lib/csv";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import type { EmailAvailability } from "../../lib/email";
+import { ESTABLISHMENTS } from "../../lib/prospect-options";
 import {
   buildDynamicLocations,
   computeSummaryFromItems,
@@ -68,6 +69,10 @@ export function LeadsView({
   const [selectedMunicipio, setSelectedMunicipio] = useState(getUrlParam("municipio", ""));
   const [selectedBairro, setSelectedBairro] = useState(getUrlParam("bairro", ""));
   const [selectedOrigem, setSelectedOrigem] = useState(getUrlParam("origem", "Todas as origens"));
+  const [selectedSegmentos, setSelectedSegmentos] = useState<string[]>(() => {
+    const validos = new Set(ESTABLISHMENTS.map(item => item.value));
+    return [...new Set(getUrlParam("segmentos").split(",").filter(item => validos.has(item)))];
+  });
   const [selectedEmailAvailability, setSelectedEmailAvailability] = useState<EmailAvailability>(() => {
     const value = getUrlParam("email", "todos");
     return value === "com" || value === "sem" ? value : "todos";
@@ -94,6 +99,7 @@ export function LeadsView({
     if (selectedMunicipio) params.set("municipio", selectedMunicipio);
     if (selectedBairro) params.set("bairro", selectedBairro);
     if (selectedOrigem && selectedOrigem !== "Todas as origens") params.set("origem", selectedOrigem);
+    if (selectedSegmentos.length) params.set("segmentos", selectedSegmentos.join(","));
     if (selectedEmailAvailability !== "todos") params.set("email", selectedEmailAvailability);
 
     const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
@@ -105,6 +111,7 @@ export function LeadsView({
     selectedMunicipio,
     selectedBairro,
     selectedOrigem,
+    selectedSegmentos,
     selectedEmailAvailability,
   ]);
 
@@ -120,6 +127,7 @@ export function LeadsView({
         bairro: selectedBairro,
         statusSelect: "Todos os status",
         origem: selectedOrigem,
+        segmentos: selectedSegmentos,
         emailAvailability: selectedEmailAvailability,
         page: currentPage,
         pageSize: 5,
@@ -130,6 +138,7 @@ export function LeadsView({
         Boolean(searchQuery) ||
         Boolean(selectedUF) ||
         selectedOrigem !== "Todas as origens" ||
+        selectedSegmentos.length > 0 ||
         selectedEmailAvailability !== "todos";
 
       setMockTotalLeads(hasSpecificFilter ? res.total : MOCK_SUMMARY.totalLeads);
@@ -146,6 +155,7 @@ export function LeadsView({
     selectedMunicipio,
     selectedBairro,
     selectedOrigem,
+    selectedSegmentos,
     selectedEmailAvailability,
     currentPage,
   ]);
@@ -184,6 +194,7 @@ export function LeadsView({
             bairro: selectedBairro,
             statusSelect: "Todos os status",
             origem: selectedOrigem,
+            segmentos: selectedSegmentos,
             emailAvailability: selectedEmailAvailability,
             page: currentPage,
             pageSize: 5,
@@ -197,6 +208,7 @@ export function LeadsView({
       selectedMunicipio,
       selectedBairro,
       selectedOrigem,
+      selectedSegmentos,
       selectedEmailAvailability,
       currentPage,
     ]
@@ -222,6 +234,7 @@ export function LeadsView({
     setSelectedMunicipio(filters.municipio);
     setSelectedBairro(filters.bairro);
     setSelectedOrigem(filters.origem);
+    setSelectedSegmentos(filters.segmentos);
     setSelectedEmailAvailability(filters.emailAvailability);
     setCurrentPage(1);
     setSelectedLeadIds([]);
@@ -232,6 +245,7 @@ export function LeadsView({
     setSelectedMunicipio("");
     setSelectedBairro("");
     setSelectedOrigem("Todas as origens");
+    setSelectedSegmentos([]);
     setSelectedEmailAvailability("todos");
     setCurrentPage(1);
   };
@@ -353,15 +367,16 @@ export function LeadsView({
       <MetricsCards summary={activeSummary} isLoading={activeLoading && !activeItems.length} />
 
       {/* Filtros e tabela ocupam a largura principal sem a coluna lateral. */}
-      <div className={cn(ui.cardInteractive, "w-full overflow-hidden flex flex-col")}>
+      <div className={cn(ui.cardInteractive, "w-full flex flex-col")}>
         <div className="p-4 md:p-6 border-b border-border">
           <FiltersSidebar
-            key={`${selectedUF}|${selectedMunicipio}|${selectedBairro}|${selectedOrigem}|${selectedEmailAvailability}`}
+            key={`${selectedUF}|${selectedMunicipio}|${selectedBairro}|${selectedOrigem}|${selectedSegmentos.join(",")}|${selectedEmailAvailability}`}
             selectedUF={selectedUF}
             selectedMunicipio={selectedMunicipio}
             selectedBairro={selectedBairro}
             selectedStatus="Todos os status"
             selectedOrigem={selectedOrigem}
+            selectedSegmentos={selectedSegmentos}
             selectedEmailAvailability={selectedEmailAvailability}
             onApplyFilters={handleApplySideFilters}
             onResetFilters={handleResetFilters}

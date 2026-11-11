@@ -5,6 +5,8 @@ import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import type { EmailAvailability } from "../../lib/email";
 import type { LeadStatus } from "../../lib/mock-leads";
+import { ESTABLISHMENTS } from "../../lib/prospect-options";
+import { ProspectMultiSelect } from "../prospeccao/ProspectMultiSelect";
 
 export interface SideFilters {
   uf: string;
@@ -12,6 +14,7 @@ export interface SideFilters {
   bairro: string;
   statusSelect: string;
   origem: string;
+  segmentos: string[];
   emailAvailability: EmailAvailability;
 }
 
@@ -21,6 +24,7 @@ interface FiltersSidebarProps {
   selectedBairro: string;
   selectedStatus: string;
   selectedOrigem: string;
+  selectedSegmentos: string[];
   selectedEmailAvailability: EmailAvailability;
   onApplyFilters: (filters: SideFilters) => void;
   onResetFilters: () => void;
@@ -66,6 +70,7 @@ export function FiltersSidebar({
   selectedBairro,
   selectedStatus,
   selectedOrigem,
+  selectedSegmentos,
   selectedEmailAvailability,
   onApplyFilters,
   onResetFilters,
@@ -80,6 +85,7 @@ export function FiltersSidebar({
   const [bairro, setBairro] = useState(selectedBairro);
   const [status, setStatus] = useState(selectedStatus || STATUS_ALL);
   const [origem, setOrigem] = useState(selectedOrigem || ORIGEM_ALL);
+  const [segmentos, setSegmentos] = useState(selectedSegmentos);
   const [emailAvailability, setEmailAvailability] = useState<EmailAvailability>(selectedEmailAvailability);
 
   const ufsList = dynamicLocations !== undefined ? Object.keys(dynamicLocations).sort() : getUFs();
@@ -93,7 +99,7 @@ export function FiltersSidebar({
       ? dynamicLocations[uf]?.[municipio] || []
       : getBairros(uf, municipio)
     : [];
-  const hasFilters = Boolean(uf || municipio || bairro) || (showStatusFilter && status !== STATUS_ALL) || origem !== ORIGEM_ALL || emailAvailability !== "todos";
+  const hasFilters = Boolean(uf || municipio || bairro || segmentos.length) || (showStatusFilter && status !== STATUS_ALL) || origem !== ORIGEM_ALL || emailAvailability !== "todos";
 
   const reset = () => {
     setUf("");
@@ -101,6 +107,7 @@ export function FiltersSidebar({
     setBairro("");
     setStatus(STATUS_ALL);
     setOrigem(ORIGEM_ALL);
+    setSegmentos([]);
     setEmailAvailability("todos");
     onResetFilters();
   };
@@ -121,11 +128,11 @@ export function FiltersSidebar({
       <form
         className={cn(
           "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end",
-          showStatusFilter ? "2xl:grid-cols-7" : "2xl:grid-cols-6"
+          "2xl:grid-cols-4"
         )}
         onSubmit={(event) => {
           event.preventDefault();
-          onApplyFilters({ uf, municipio, bairro, statusSelect: showStatusFilter ? status : STATUS_ALL, origem, emailAvailability });
+          onApplyFilters({ uf, municipio, bairro, statusSelect: showStatusFilter ? status : STATUS_ALL, origem, segmentos, emailAvailability });
         }}
       >
         <Select id={`${id}-uf`} label="UF" value={uf} onChange={(value) => { setUf(value); setMunicipio(""); setBairro(""); }}>
@@ -149,6 +156,8 @@ export function FiltersSidebar({
             {statusOptions.map(item => <option key={item} value={item}>{item}</option>)}
           </Select>
         )}
+
+        <ProspectMultiSelect label="Tipo de estabelecimento" options={ESTABLISHMENTS} values={segmentos} onChange={setSegmentos} />
 
         <Select id={`${id}-origem`} label="Origem" value={origem} onChange={setOrigem}>
           <option value={ORIGEM_ALL}>{ORIGEM_ALL}</option>
