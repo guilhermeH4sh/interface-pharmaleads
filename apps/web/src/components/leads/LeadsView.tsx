@@ -57,6 +57,7 @@ export function LeadsView({
   onBatchAddToCrm,
   onNewProspect,
 }: LeadsViewProps) {
+  const [exportPeriod, setExportPeriod] = useState("7");
   const getUrlParam = (param: string, fallback = "") => {
     if (typeof window === "undefined") return fallback;
     const urlParams = new URLSearchParams(window.location.search);
@@ -288,17 +289,24 @@ export function LeadsView({
     downloadLeadsCsv(dataToExport, "pharmaleads_export");
   };
 
-  const getRecentLeads = () => {
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const getLeadsForExportPeriod = () => {
+    if (exportPeriod === "all") return realLeads;
+    const now = new Date();
+    const cutoff = exportPeriod === "month"
+      ? new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+      : Date.now() - Number(exportPeriod) * 24 * 60 * 60 * 1000;
     return realLeads.filter((lead) => {
       const collected = lead.ultimaColeta ? Date.parse(lead.ultimaColeta) : NaN;
       return Number.isFinite(collected) && collected >= cutoff;
     });
   };
 
-  const handleExportRecent = () => {
-    const recent = getRecentLeads();
-    if (recent.length) downloadLeadsCsv(recent, "pharmaleads_coletados_ultimos_7_dias");
+  const handleExportByPeriod = () => {
+    const records = getLeadsForExportPeriod();
+    if (!records.length) return;
+    const suffix = exportPeriod === "all" ? "todo_periodo"
+      : exportPeriod === "month" ? "mes_atual" : `ultimos_${exportPeriod}_dias`;
+    downloadLeadsCsv(records, `pharmaleads_${suffix}`);
   };
 
   const handleToggleSelect = (id: string) => {
@@ -329,9 +337,18 @@ export function LeadsView({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={handleExportRecent} disabled={!getRecentLeads().length} className={cn(ui.btnSecondary, "h-12 px-4 text-sm shrink-0")}>
-            <Download size={17} /><span>Exportar recentes</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <select aria-label="Período para exportação" value={exportPeriod} onChange={(event) => setExportPeriod(event.target.value)} className={cn(ui.input, "h-12 w-40 text-sm")}>
+              <option value="7">Últimos 7 dias</option>
+              <option value="15">Últimos 15 dias</option>
+              <option value="30">Últimos 30 dias</option>
+              <option value="month">Este mês</option>
+              <option value="all">Todo o período</option>
+            </select>
+            <button type="button" onClick={handleExportByPeriod} disabled={!getLeadsForExportPeriod().length} className={cn(ui.btnSecondary, "h-12 px-4 text-sm shrink-0")}>
+              <Download size={17} /><span>Exportar</span>
+            </button>
+          </div>
           <button onClick={onNewProspect} className={cn(ui.btnBrand, "h-12 px-6 sm:px-8 text-sm sm:text-base shrink-0")}>
             <Plus size={18} strokeWidth={2.5} /><span>Nova Prospecção</span>
           </button>
@@ -388,7 +405,7 @@ export function LeadsView({
 
       {/* 4. Quatro cards de métricas em linha */}
       <MetricsCards summary={activeSummary} isLoading={activeLoading && !activeItems.length} />
-      <p className="-mt-4 text-xs text-muted-foreground">“Exportar recentes” inclui todos os leads coletados nos últimos 7 dias, não só os registros da página visível.</p>
+      <p className="-mt-4 text-xs text-muted-foreground">A exportação inclui todos os leads do período escolhido, não só os registros da página visível.</p>
 
       {/* Filtros e tabela ocupam a largura principal sem a coluna lateral. */}
       <div className={cn(ui.cardInteractive, "w-full flex flex-col")}>
