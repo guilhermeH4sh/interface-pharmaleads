@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, AlertCircle, Lock } from "lucide-react";
+import { Plus, AlertCircle, Lock, Download } from "lucide-react";
 import { MetricsCards } from "./MetricsCards";
 import { LeadsTable } from "./LeadsTable";
 import { FiltersSidebar, type SideFilters } from "./FiltersSidebar";
@@ -288,6 +288,19 @@ export function LeadsView({
     downloadLeadsCsv(dataToExport, "pharmaleads_export");
   };
 
+  const getRecentLeads = () => {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return realLeads.filter((lead) => {
+      const collected = lead.ultimaColeta ? Date.parse(lead.ultimaColeta) : NaN;
+      return Number.isFinite(collected) && collected >= cutoff;
+    });
+  };
+
+  const handleExportRecent = () => {
+    const recent = getRecentLeads();
+    if (recent.length) downloadLeadsCsv(recent, "pharmaleads_coletados_ultimos_7_dias");
+  };
+
   const handleToggleSelect = (id: string) => {
     setSelectedLeadIds((current) =>
       current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
@@ -315,13 +328,14 @@ export function LeadsView({
           </p>
         </div>
 
-        <button
-          onClick={onNewProspect}
-          className={cn(ui.btnBrand, "h-12 px-6 sm:px-8 text-sm sm:text-base shrink-0")}
-        >
-          <Plus size={18} strokeWidth={2.5} />
-          <span>Nova Prospecção</span>
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={handleExportRecent} disabled={!getRecentLeads().length} className={cn(ui.btnSecondary, "h-12 px-4 text-sm shrink-0")}>
+            <Download size={17} /><span>Exportar recentes</span>
+          </button>
+          <button onClick={onNewProspect} className={cn(ui.btnBrand, "h-12 px-6 sm:px-8 text-sm sm:text-base shrink-0")}>
+            <Plus size={18} strokeWidth={2.5} /><span>Nova Prospecção</span>
+          </button>
+        </div>
       </div>
 
       {/* Aviso quando Supabase está selecionado mas ainda não autenticado */}
@@ -374,6 +388,7 @@ export function LeadsView({
 
       {/* 4. Quatro cards de métricas em linha */}
       <MetricsCards summary={activeSummary} isLoading={activeLoading && !activeItems.length} />
+      <p className="-mt-4 text-xs text-muted-foreground">“Exportar recentes” inclui todos os leads coletados nos últimos 7 dias, não só os registros da página visível.</p>
 
       {/* Filtros e tabela ocupam a largura principal sem a coluna lateral. */}
       <div className={cn(ui.cardInteractive, "w-full flex flex-col")}>
