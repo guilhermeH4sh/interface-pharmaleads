@@ -84,7 +84,7 @@ class RenderJobs:
             if atual['status'] in ATIVOS:
                 raise
             return self.resumir(atual)
-        return {**self.resumir(job), 'status': 'cancelling'}
+        return {**self.resumir(job), 'status': 'cancelling', 'can_stop': True}
 
     def status(self) -> dict | None:
         ativos = [job for job in self.ativos() if self.e_coleta(job)]

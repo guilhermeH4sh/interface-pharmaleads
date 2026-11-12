@@ -24,6 +24,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
   const [segments, setSegments] = useState<string[]>(["varejo"]);
   const [active, setActive] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
   const [cloudRun, setCloudRun] = useState<CollectorRun | null>(null);
@@ -48,6 +49,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           setCloudStale(false);
           if (!run) {
             setCloudRun(null);
+            setStopping(false);
             if (hadActive.current) {
               hadActive.current = false;
               setFeedback("Nenhuma coleta ativa encontrada no Render. Confira os jobs recentes no serviço.");
@@ -59,6 +61,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           setError("");
           const running = COLETA_ATIVA_STATES.includes(run.status) || run.status === "cancelling";
           setActive(running);
+          setStopping(previous => run.status === "cancelling" || (previous && running));
           if (running) {
             hadActive.current = true;
           } else if (hadActive.current && run.status === "completed") {
@@ -71,6 +74,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           const run = status.execucao;
           const running = ["executando", "parando"].includes(run.estado);
           setActive(running);
+          setStopping(previous => run.estado === "parando" || (previous && running));
           if (running) {
             hadActive.current = true;
             setFeedback(run.estado === "parando" ? "Parando coleta..." : "Coleta em andamento. Os novos contatos ficam na aba Leads.");
@@ -112,6 +116,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
       }
       setText(input.locais[0] ?? "");
       hadActive.current = true;
+      setStopping(false);
       setActive(true);
     } catch (err) {
       if (err instanceof AccessError) onSessionInvalid?.();
@@ -128,12 +133,14 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
         const result = await controlCloudCollector(supabaseSession, { action: "stop" });
         if (result.session !== supabaseSession) onSessionUpdate?.(result.session);
         setCloudRun(result.run);
+        setStopping(result.run?.status === "cancelling");
         setCloudStale(false);
       } else {
         await stopLocalCollection();
+        setStopping(true);
         setFeedback("Parada solicitada. Aguardando o encerramento da coleta...");
       }
-    } catch (err) { if (err instanceof AccessError) onSessionInvalid?.(); setError(err instanceof Error ? err.message : "Falha ao solicitar parada."); }
+    } catch (err) { setStopping(false); if (err instanceof AccessError) onSessionInvalid?.(); setError(err instanceof Error ? err.message : "Falha ao solicitar parada."); }
     finally { setBusy(false); }
   }
 
@@ -174,7 +181,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           <p role="status" className="mt-5 text-center text-sm text-muted-foreground">Status do coletor indisponível. Tentando reconectar ao Render.</p>
         )}
         <div className="mt-6 flex flex-wrap justify-center items-center gap-4 text-sm">
-          {active && (dataSourceMode !== "supabase" || cloudRun?.can_stop !== false) && <button type="button" onClick={() => void stop()} disabled={busy} className={cn(ui.btnSecondary, "h-10 px-4")}><Square size={14} /> Parar coleta</button>}
+          {active && <button type="button" onClick={() => void stop()} disabled={busy || stopping} aria-live="polite" className={cn(ui.btnSecondary, "h-10 px-4")}><Square size={14} /> {stopping ? "Parando…" : "Parar coleta"}</button>}
           <button type="button" onClick={onOpenLeads} className="inline-flex items-center gap-1.5 text-brand hover:underline">Ver leads <ArrowRight size={15} /></button>
         </div>
       </div>

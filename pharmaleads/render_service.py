@@ -289,8 +289,10 @@ class Handler(BaseHTTPRequestHandler):
                         run = jobs.cancelar(ativo)
                         cancelling = True
                     elif outra_coleta:
-                        run = jobs.resumir(outra_coleta)
-                        cancelling = False
+                        # Coletas iniciadas manualmente antes da integração com
+                        # o painel também são One-Off Jobs canceláveis no Render.
+                        run = jobs.cancelar(outra_coleta)
+                        cancelling = True
                     else:
                         cancelling, run = self.coletor.solicitar_parada()
                     self._json(HTTPStatus.ACCEPTED, {'cancelling': cancelling, 'run': run})

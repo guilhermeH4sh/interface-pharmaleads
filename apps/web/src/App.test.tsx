@@ -91,13 +91,13 @@ test("progresso explica quando a busca encontra locais mas nenhum e-mail", async
   expect(screen.getByText(/nenhum tinha e-mail público validado/)).toBeInTheDocument();
 });
 
-test("job manual aparece em andamento sem botão de parar ou progresso inventado", async () => {
+test("job manual aparece em andamento e oferece parada pelo painel", async () => {
   const run = { id: "job-manual", status: "in_progress", title: "Coleta iniciada fora do painel", can_stop: false };
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run }))));
   render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
   expect(await screen.findByText(/Este job foi iniciado fora do painel/)).toBeInTheDocument();
   expect(screen.getByRole("progressbar", { name: "Coleta em andamento" })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Parar coleta" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Parar coleta" })).toBeInTheDocument();
   expect(screen.queryByText(/perdeu o estado/)).not.toBeInTheDocument();
 });
 
