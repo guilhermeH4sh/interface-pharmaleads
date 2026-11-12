@@ -34,7 +34,7 @@ class TestCloudJob(unittest.TestCase):
 
             def docker(command, **_):
                 pasta = Path(command[command.index('-v') + 1].split(':/gmapsdata')[0])
-                self.assertEqual(command[command.index('-c') + 1], '2')
+                self.assertEqual(command[command.index('-c') + 1], '1')
                 self.assertIn('-email', command)
                 entradas = (pasta / 'input.txt').read_text(encoding='utf-8').splitlines()
                 self.assertEqual(entradas, ['farmácia de manipulação em Curitiba, PR #!#manipulacao|Curitiba, PR'])

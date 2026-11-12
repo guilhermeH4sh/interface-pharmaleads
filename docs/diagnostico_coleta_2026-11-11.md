@@ -34,7 +34,7 @@ Não há alteração de colunas no Supabase. `dados_brutos` já é JSONB e guard
 CREATE INDEX IF NOT EXISTS lugares_nome_endereco ON lugares(nome, endereco);
 ```
 
-Variáveis do Render: `GOSOM_CONCURRENCY=2`, `SITE_CONCURRENCY=2`, `SITE_TIMEOUT_MS=8000`. O job de 2 GB executa Gosom e depois Playwright; não aumente concorrência sem observar memória e respostas do Maps. CNPJ de site vinculado recebe confiança média; um dígito válido não comprova sozinho a titularidade do estabelecimento. Dados cadastrais da Receita, QSA e CNPJ de leads antigos ainda exigem uma fonte de correspondência verificável e um processo de revisão. Não são preenchidos por aproximação.
+Após uma falha do One-Off Job por uso acima de 2 GB, `GOSOM_CONCURRENCY` e `SITE_CONCURRENCY` foram reduzidas para `1`. `SITE_TIMEOUT_MS` continua em `8000`. A busca por e-mail e o enriquecimento público de sites (incluindo tentativa de extrair CNPJ) continuam habilitados. CNPJ de site vinculado recebe confiança média; um dígito válido não comprova sozinho a titularidade do estabelecimento. Dados cadastrais da Receita, QSA e CNPJ de leads antigos ainda exigem uma fonte de correspondência verificável e um processo de revisão. Não são preenchidos por aproximação.
 
 ## Validação operacional
 

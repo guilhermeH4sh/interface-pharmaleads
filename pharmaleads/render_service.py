@@ -165,6 +165,10 @@ class ColetorRender:
                     'PROFUNDIDADE': atual['profundidade'],
                     'EMAILS': 'true',
                     'ENRIQUECER_SITES': atual['enriquecer_sites'],
+                    # O plano One-Off atual tem 2 GB. Limita a uma sessão em
+                    # cada fase para evitar que os navegadores excedam a RAM.
+                    'GOSOM_CONCURRENCY': '1',
+                    'SITE_CONCURRENCY': '1',
                     'GOSOM_BIN': ambiente.get('GOSOM_BIN', '/usr/bin/google-maps-scraper'),
                     'PHARMALEADS_HOME': ambiente.get('PHARMALEADS_HOME', '/tmp/pharmaleads'),
                     'PHARMALEADS_PROGRESS': '1',

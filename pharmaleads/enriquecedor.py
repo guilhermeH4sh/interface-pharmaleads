@@ -121,7 +121,7 @@ def enriquecer_sites(leads: list[dict], limite: int = 25) -> list[ContatoSite]:
     if not candidatos:
         return []
     try:
-        concorrencia = max(1, min(3, int(os.environ.get('SITE_CONCURRENCY', '2'))))
+        concorrencia = max(1, min(3, int(os.environ.get('SITE_CONCURRENCY', '1'))))
         timeout = max(3000, min(15000, int(os.environ.get('SITE_TIMEOUT_MS', '8000'))))
     except ValueError:
         raise ErroPharmaLeads('SITE_CONCURRENCY e SITE_TIMEOUT_MS devem ser números inteiros.') from None

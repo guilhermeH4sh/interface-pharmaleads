@@ -84,9 +84,9 @@ _rodar_docker = _rodar_processo
 def _comando_gosom(base: Path, saida: Path, profundidade: int, emails: bool) -> list[str]:
     """Monta o comando local no Render ou o comando Docker usado no desenvolvimento."""
     binario = os.environ.get('GOSOM_BIN', '').strip()
-    concorrencia = os.environ.get('GOSOM_CONCURRENCY', '2')
+    concorrencia = os.environ.get('GOSOM_CONCURRENCY', '1')
     if concorrencia not in {'1', '2', '3', '4'}:
-        concorrencia = '2'
+        concorrencia = '1'
     argumentos = ['-input', str(base / 'input.txt'), '-results', str(saida),
                   '-c', concorrencia, '-depth', str(profundidade), '-lang', 'pt-BR',
                   '-exit-on-inactivity', '3m']
