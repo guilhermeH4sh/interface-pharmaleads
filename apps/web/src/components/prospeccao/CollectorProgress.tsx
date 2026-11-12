@@ -1,4 +1,4 @@
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, X } from "lucide-react";
 import { COLETA_ATIVA_STATES, type CollectorRun } from "../../lib/backend";
 
 const stages: Record<string, string> = {
@@ -11,7 +11,7 @@ const stages: Record<string, string> = {
   syncing: "Enviando leads ao Supabase",
 };
 
-export function CollectorProgress({ run, stale }: { run: CollectorRun; stale: boolean }) {
+export function CollectorProgress({ run, stale, onDismiss }: { run: CollectorRun; stale: boolean; onDismiss?: () => void }) {
   const running = COLETA_ATIVA_STATES.includes(run.status) || run.status === "cancelling";
   const total = run.total_rounds ?? 0;
   const completed = run.completed_rounds;
@@ -30,6 +30,7 @@ export function CollectorProgress({ run, stale }: { run: CollectorRun; stale: bo
         <strong>{phase}</strong>
         {run.title && <span className="text-muted-foreground">{run.title}</span>}
         {stale && <span className="w-full text-muted-foreground">Último status recebido. Tentando reconectar ao Render.</span>}
+        {!running && onDismiss && <button type="button" onClick={onDismiss} aria-label="Fechar status da coleta" className="ml-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={16} aria-hidden="true" /></button>}
       </div>
       {run.can_stop === false && <p className="text-muted-foreground">Este job foi iniciado fora do painel. O Render informa se está em execução, mas esta versão não registra etapas ou contagem parcial. Acompanhe os detalhes em One-off Jobs.</p>}
       {national && completed != null ? (

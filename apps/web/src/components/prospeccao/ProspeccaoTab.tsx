@@ -8,6 +8,8 @@ import { cn } from "../../lib/utils";
 import { ProspectMultiSelect } from "./ProspectMultiSelect";
 import { CollectorProgress } from "./CollectorProgress";
 
+const DISMISSED_CLOUD_RUN_KEY = "pharmaleads-dismissed-cloud-run";
+
 interface Props {
   dataSourceMode?: DataSourceMode;
   supabaseSession?: SupabaseSession | null;
@@ -45,7 +47,9 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           if (cancelled) return;
           if (result.session !== supabaseSession) onSessionUpdate?.(result.session);
           const run = result.run;
-          setCloudRun(previous => run && previous?.id === run.id ? { ...previous, ...run } : run);
+          const dismissedId = window.sessionStorage.getItem(DISMISSED_CLOUD_RUN_KEY);
+          const hiddenTerminalRun = run?.status === "completed" && dismissedId === String(run.id);
+          setCloudRun(hiddenTerminalRun ? null : previous => run && previous?.id === run.id ? { ...previous, ...run } : run);
           setCloudStale(false);
           if (!run) {
             setCloudRun(null);
@@ -176,7 +180,10 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
         {!connected && <p className="mt-5 text-xs text-muted-foreground text-center">Conecte sua conta Supabase em Configurações para iniciar.</p>}
         {error && <p role="alert" className="mt-5 text-sm text-foreground text-center">{error}</p>}
         {feedback && <p role="status" className="mt-5 text-sm text-muted-foreground text-center">{feedback}</p>}
-        {dataSourceMode === "supabase" && cloudRun && <CollectorProgress run={cloudRun} stale={cloudStale} />}
+        {dataSourceMode === "supabase" && cloudRun && <CollectorProgress run={cloudRun} stale={cloudStale} onDismiss={() => {
+          window.sessionStorage.setItem(DISMISSED_CLOUD_RUN_KEY, String(cloudRun.id));
+          setCloudRun(null);
+        }} />}
         {dataSourceMode === "supabase" && cloudStale && !cloudRun && (
           <p role="status" className="mt-5 text-center text-sm text-muted-foreground">Status do coletor indisponível. Tentando reconectar ao Render.</p>
         )}
