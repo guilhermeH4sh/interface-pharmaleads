@@ -21,7 +21,7 @@ from .config import ErroPharmaLeads
 from .render_jobs import ErroRender, RenderJobs
 
 ATIVOS = {'queued', 'in_progress', 'cancelling'}
-ETAPAS_RODADA = {'searching', 'retrying', 'importing', 'enriching', 'syncing'}
+ETAPAS_RODADA = {'searching', 'retrying', 'importing', 'enriching', 'syncing', 'skipping'}
 META_LEADS = 1000
 MAX_BODY = 16_384
 
@@ -153,7 +153,7 @@ class ColetorRender:
 
     def _executar(self, entrada: dict) -> None:
         atual = entrada
-        concluidas = enviados = novos_supabase = 0
+        concluidas = puladas = enviados = novos_supabase = 0
         inicio = time.monotonic()
         resultado = 'success'
         try:
@@ -169,6 +169,8 @@ class ColetorRender:
                     # cada fase para evitar que os navegadores excedam a RAM.
                     'GOSOM_CONCURRENCY': '1',
                     'SITE_CONCURRENCY': '1',
+                    'GOSOM_MAX_ATTEMPTS': '1' if atual['modo'] == 'nacional' else '2',
+                    'GOSOM_TIMEOUT': '300' if atual['modo'] == 'nacional' else ambiente.get('GOSOM_TIMEOUT', '1500'),
                     'GOSOM_BIN': ambiente.get('GOSOM_BIN', '/usr/bin/google-maps-scraper'),
                     'PHARMALEADS_HOME': ambiente.get('PHARMALEADS_HOME', '/tmp/pharmaleads'),
                     'PHARMALEADS_PROGRESS': '1',
@@ -212,6 +214,18 @@ class ColetorRender:
                 if self._parar.is_set():
                     break
                 if codigo != 0:
+                    if codigo == 124 and atual['modo'] == 'nacional':
+                        puladas += 1
+                        concluidas += 1
+                        print(f"Tempo limite de 5 minutos: pulando rodada {rodada} ({atual['resumo']}).", flush=True)
+                        self._atualizar(stage='skipping', completed_rounds=concluidas,
+                                       skipped_rounds=puladas, title=self._titulo(atual))
+                        atual = entradas_seguintes(
+                            int(atual['rodada']), atual['segmentos'].split(','), atual['profundidade'],
+                            'true', atual['enriquecer_sites'], atual['request_id'])
+                        if atual:
+                            atual['modo'] = 'nacional'
+                        continue
                     resultado = 'failure'
                     break
                 concluidas += 1

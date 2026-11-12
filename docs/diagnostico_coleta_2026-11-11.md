@@ -6,7 +6,7 @@ Consulta somente leitura à única tabela `public.pharmaleads`: 12.611 registros
 
 | Causa | Evidência | Impacto | Mudança |
 | --- | --- | --- | --- |
-| Baixa concorrência | `render.yaml` fixava `GOSOM_CONCURRENCY=1` | Alto | 2 no One-Off Job de 2 GB; observar memória e bloqueios |
+| Baixa concorrência | `render.yaml` fixa `GOSOM_CONCURRENCY=1` | Alto | Mantida em 1 no One-Off Job de 2 GB para reduzir risco de OOM |
 | Visitas a sites em série | `enriquecedor.py` visitava até 100 sites com timeout de 15 s cada | Alto | Paralelismo limitado a 2 e timeout de 8 s, configuráveis |
 | Consultas extras na sincronização | `supabase.py` consultava e-mails individualmente depois de cada upsert | Alto | Consulta prévia em lote; comparação antes do PATCH |
 | Métrica enganosa | `synced_leads` somava registros enviados, inclusive existentes; SQLite temporário tratava cada rodada como nova | Alto | Contagem de inserções retornadas pelo Supabase e exibição separada |
@@ -34,7 +34,7 @@ Não há alteração de colunas no Supabase. `dados_brutos` já é JSONB e guard
 CREATE INDEX IF NOT EXISTS lugares_nome_endereco ON lugares(nome, endereco);
 ```
 
-Após uma falha do One-Off Job por uso acima de 2 GB, `GOSOM_CONCURRENCY` e `SITE_CONCURRENCY` foram reduzidas para `1`. `SITE_TIMEOUT_MS` continua em `8000`. A busca por e-mail e o enriquecimento público de sites (incluindo tentativa de extrair CNPJ) continuam habilitados. CNPJ de site vinculado recebe confiança média; um dígito válido não comprova sozinho a titularidade do estabelecimento. Dados cadastrais da Receita, QSA e CNPJ de leads antigos ainda exigem uma fonte de correspondência verificável e um processo de revisão. Não são preenchidos por aproximação.
+Após uma falha do One-Off Job por uso acima de 2 GB, `GOSOM_CONCURRENCY` e `SITE_CONCURRENCY` foram reduzidas para `1`. A cobertura nacional encerra uma rodada após 5 minutos e pula para a seguinte se houver timeout, sem repetir a rodada lenta. As buscas continuam usando `-email` no Gosom; a visita adicional a sites via Playwright fica desligada no painel e na cobertura nacional para reduzir tempo e memória. CNPJ de site vinculado recebe confiança média; um dígito válido não comprova sozinho a titularidade do estabelecimento. Dados cadastrais da Receita, QSA e CNPJ de leads antigos ainda exigem uma fonte de correspondência verificável e um processo de revisão. Não são preenchidos por aproximação.
 
 ## Validação operacional
 

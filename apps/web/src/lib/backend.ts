@@ -42,6 +42,7 @@ export interface CollectorRun {
   round?: number;
   total_rounds?: number;
   completed_rounds?: number;
+  skipped_rounds?: number;
   synced_leads?: number;
   new_supabase_leads?: number;
   goal_leads?: number;

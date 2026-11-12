@@ -121,7 +121,12 @@ def main() -> int:
                 comando = _comando_gosom(base, saida, profundidade, emails)
                 ultimo_erro: Exception | None = None
                 print(f"Rodada com {len(consultas)} buscas; concorrência {comando[comando.index('-c') + 1]}.", flush=True)
-                for tentativa in range(1, 3):
+                try:
+                    max_tentativas = int(os.environ.get('GOSOM_MAX_ATTEMPTS', '2'))
+                except ValueError:
+                    max_tentativas = 1
+                max_tentativas = min(max(max_tentativas, 1), 2)
+                for tentativa in range(1, max_tentativas + 1):
                     saida.unlink(missing_ok=True)
                     try:
                         _progresso('searching' if tentativa == 1 else 'retrying')
@@ -134,10 +139,12 @@ def main() -> int:
                     except (ErroPharmaLeads, OSError, subprocess.CalledProcessError,
                             subprocess.TimeoutExpired) as exc:
                         ultimo_erro = exc
-                        if tentativa < 2:
+                        if tentativa < max_tentativas:
                             print('Resultado inválido; repetindo a rodada uma vez.', flush=True)
                             time.sleep(5)
                 else:
+                    if isinstance(ultimo_erro, subprocess.TimeoutExpired):
+                        raise ultimo_erro
                     raise ErroPharmaLeads(f'Rodada falhou após duas tentativas: {ultimo_erro}')
                 enriquecidos = 0
                 if enriquecer:
@@ -173,8 +180,10 @@ def main() -> int:
             finally:
                 banco.fechar()
         return 0
-    except (ErroPharmaLeads, OSError, subprocess.CalledProcessError,
-            subprocess.TimeoutExpired) as exc:
+    except subprocess.TimeoutExpired as exc:
+        print(f'Rodada excedeu o limite de tempo: {exc}', file=sys.stderr)
+        return 124
+    except (ErroPharmaLeads, OSError, subprocess.CalledProcessError) as exc:
         print(f'Coleta falhou: {exc}', file=sys.stderr)
         return 1
 

@@ -13,7 +13,7 @@ from .render_service import ColetorRender
 def registrar_progresso(estado: dict) -> None:
     campos = ('title', 'stage', 'round', 'completed_rounds', 'synced_leads',
               'new_supabase_leads', 'goal_leads', 'new_leads_per_hour', 'queries_completed',
-              'queries_with_results', 'local_duplicates',
+              'queries_with_results', 'local_duplicates', 'skipped_rounds',
               'found_leads', 'new_leads', 'with_email', 'without_email')
     print(MARCADOR_JOB + json.dumps({campo: estado[campo] for campo in campos if campo in estado}), flush=True)
 

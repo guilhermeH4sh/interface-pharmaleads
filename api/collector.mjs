@@ -18,9 +18,11 @@ export function validateInput(body) {
   if (!Number.isInteger(profundidade) || profundidade < 1 || profundidade > 10) throw new Error('A profundidade deve estar entre 1 e 10.');
   if (locais.length * segmentos.reduce((sum, x) => sum + TERMS[x], 0) > 20) throw new Error('Esta coleta excede 20 buscas. Reduza os locais ou segmentos.');
   const unicos = [...new Set(locais)];
+  const opcaoEnriquecimento = body.enriquecerSites ?? body.enriquecer_sites;
+  const enriquecerSites = opcaoEnriquecimento == null || opcaoEnriquecimento === true || opcaoEnriquecimento === 'true';
   return {
     locais: unicos.join('\n'), segmentos: segmentos.join(','), profundidade: String(profundidade),
-    emails: 'true', enriquecer_sites: 'true', modo: 'avulsa', resumo: unicos.join(' · ').slice(0, 180),
+    emails: 'true', enriquecer_sites: String(enriquecerSites), modo: 'avulsa', resumo: unicos.join(' · ').slice(0, 180),
   };
 }
 

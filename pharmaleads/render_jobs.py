@@ -15,7 +15,7 @@ MARCADOR_JOB = 'PHARMALEADS_JOB_STATE '
 ATIVOS = ('pending', 'running')
 ESTADOS = {'pending': 'queued', 'running': 'in_progress'}
 CONCLUSOES = {'succeeded': 'success', 'failed': 'failure', 'canceled': 'cancelled'}
-ETAPAS = {'queued', 'preparing', 'searching', 'retrying', 'importing', 'enriching', 'syncing'}
+ETAPAS = {'queued', 'preparing', 'searching', 'retrying', 'importing', 'enriching', 'syncing', 'skipping'}
 
 
 class ErroRender(Exception):
@@ -165,7 +165,7 @@ class RenderJobs:
             for campo in ('round', 'completed_rounds', 'synced_leads', 'new_supabase_leads',
                           'goal_leads', 'new_leads_per_hour', 'queries_completed',
                           'queries_with_results', 'local_duplicates', 'found_leads',
-                          'new_leads', 'with_email', 'without_email'):
+                          'new_leads', 'with_email', 'without_email', 'skipped_rounds'):
                 valor = dados.get(campo)
                 if type(valor) is int and valor >= 0:
                     if campo == 'completed_rounds':
