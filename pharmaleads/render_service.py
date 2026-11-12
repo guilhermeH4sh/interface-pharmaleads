@@ -273,7 +273,10 @@ class Handler(BaseHTTPRequestHandler):
             if caminho == '/v1/jobs/status':
                 run = jobs.status()
                 anterior = self.coletor.status()
-                if anterior and anterior['status'] in ATIVOS and (not run or run['status'] == 'completed'):
+                # Se a API do Render encontrou o job, o status dela é a fonte
+                # autoritativa. O estado em memória serve apenas para coletas
+                # antigas do Web Service que não aparecem na lista de jobs.
+                if anterior and anterior['status'] in ATIVOS and not run:
                     run = anterior
                 self._json(HTTPStatus.OK, {'run': run})
                 return

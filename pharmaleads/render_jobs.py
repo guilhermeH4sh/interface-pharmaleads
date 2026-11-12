@@ -129,8 +129,11 @@ class RenderJobs:
             'round': rodada, 'total_rounds': total_execucao,
             'can_stop': acompanhavel,
         }
-        if concluiu or estado == 'pending':
-            run['completed_rounds'] = total_execucao if concluiu else 0
+        # O estado terminal do Render confirma que o job terminou, mas não que
+        # todas as rodadas planejadas foram executadas. A contagem real vem dos
+        # eventos de progresso; não preencher 100% por inferência.
+        if estado == 'pending':
+            run['completed_rounds'] = 0
         if consultar_progresso and acompanhavel and estado != 'pending':
             run.update(self._progresso(job, total_execucao, status))
         return run

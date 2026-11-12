@@ -47,6 +47,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           setCloudRun(previous => run && previous?.id === run.id ? { ...previous, ...run } : run);
           setCloudStale(false);
           if (!run) {
+            setCloudRun(null);
             if (hadActive.current) {
               hadActive.current = false;
               setFeedback("Nenhuma coleta ativa encontrada no Render. Confira os jobs recentes no serviço.");

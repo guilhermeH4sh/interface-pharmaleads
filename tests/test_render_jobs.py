@@ -55,7 +55,10 @@ class TestRenderJobs(unittest.TestCase):
             [], [{'job': self.job}], ErroRender('Logs indisponíveis'),
         ]):
             run = self.cliente.status()
-        self.assertEqual((run['conclusion'], run['completed_rounds']), ('success', 3))
+        self.assertEqual(run['conclusion'], 'success')
+        # Job concluído não significa que todas as rodadas planejadas rodaram;
+        # sem evento de progresso, a API não deve inventar uma contagem final.
+        self.assertNotIn('completed_rounds', run)
 
     def test_cancelamento_e_corrida_com_termino_do_job(self):
         with patch.object(self.cliente, '_api', return_value=None) as api:

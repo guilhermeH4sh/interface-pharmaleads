@@ -49,6 +49,9 @@ export function CollectorProgress({ run, stale }: { run: CollectorRun; stale: bo
       {run.new_supabase_leads != null && <p className="text-muted-foreground">{run.new_supabase_leads.toLocaleString("pt-BR")} leads únicos novos nesta sessão · meta {run.goal_leads?.toLocaleString("pt-BR") ?? "1.000"} · {run.new_leads_per_hour?.toLocaleString("pt-BR") ?? "?"} novos/h · {run.queries_completed?.toLocaleString("pt-BR") ?? "?"} consultas concluídas</p>}
       {run.queries_with_results != null && <p className="text-muted-foreground">{run.queries_with_results.toLocaleString("pt-BR")} consultas com resultados · {run.local_duplicates?.toLocaleString("pt-BR") ?? "?"} duplicatas no lote local</p>}
       {run.found_leads != null && <p className="text-muted-foreground">Nesta rodada: {run.found_leads.toLocaleString("pt-BR")} resultados processados, {run.new_leads?.toLocaleString("pt-BR") ?? "?"} inéditos no lote local e {run.with_email?.toLocaleString("pt-BR") ?? "?"} com e-mail validado.</p>}
+      {run.status === "completed" && national && completed != null && completed < total && (
+        <p className="text-muted-foreground">O Render encerrou a coleta após {completed} de {total} rodadas. A execução está parada.</p>
+      )}
       {run.status === "completed" && run.conclusion === "success" && run.new_supabase_leads != null && run.new_supabase_leads < (run.goal_leads ?? 1000) && <p className="text-muted-foreground">A fila terminou antes da meta de novos leads. Amplie as localidades ou revise o rendimento das consultas.</p>}
       {run.status === "completed" && run.conclusion === "success" && run.found_leads != null && run.with_email === 0 && <p className="text-muted-foreground">A busca encontrou estabelecimentos, mas nenhum tinha e-mail público validado para entrar na base.</p>}
     </section>
