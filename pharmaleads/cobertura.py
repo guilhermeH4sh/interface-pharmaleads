@@ -9,10 +9,10 @@ from . import config
 from .config import ErroPharmaLeads
 from .gerador import validar_segmentos
 
-# Coletas com e-mail visitam também os sites dos estabelecimentos. O limite
-# público continua sendo 20, mas as rodadas nacionais precisam ser menores
-# para controlar memória, duração e bloqueios no serviço de coleta.
+# Coletas com e-mail visitam também os sites dos estabelecimentos. Mantemos
+# cada rodada pequena para controlar memória, duração e bloqueios no serviço.
 LIMITE_BUSCAS = 8
+MAX_RODADAS_NACIONAL = 20
 
 
 def _plano() -> tuple[list[str], list[str]]:
@@ -32,8 +32,10 @@ def montar_fila(segmentos: list[str]) -> list[list[str]]:
     por_local = sum(len(config.SEGMENTOS[nome]['termos']) for nome in segmentos)
     tamanho = LIMITE_BUSCAS // por_local
     if por_local < 1 or tamanho < 1:
-        raise ErroPharmaLeads('Os segmentos escolhidos não cabem em 20 buscas.')
-    locais = locais_nacionais()
+        raise ErroPharmaLeads('Os segmentos escolhidos não cabem em 8 buscas por rodada.')
+    # Limita o trabalho de uma execução. Capitais vêm primeiro no plano;
+    # com varejo + manipulação, 20 rodadas cobrem 40 localidades.
+    locais = locais_nacionais()[:tamanho * MAX_RODADAS_NACIONAL]
     return [locais[i:i + tamanho] for i in range(0, len(locais), tamanho)]
 
 

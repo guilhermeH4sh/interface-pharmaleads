@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 const plano = JSON.parse(readFileSync(fileURLToPath(new URL('./cobertura_nacional.json', import.meta.url)), 'utf8'));
 const LIMITE_BUSCAS_NACIONAL = 8;
+const MAX_RODADAS_NACIONAL = 20;
 
 export const CAPITAIS = plano.capitais;
 export const INTERIOR = plano.interior;
@@ -13,7 +14,8 @@ export function montarFila(segmentos, termos) {
   const tamanho = Math.floor(LIMITE_BUSCAS_NACIONAL / porLocal);
   if (!porLocal || tamanho < 1) throw new Error('Os segmentos escolhidos não cabem no limite da rodada.');
   const fila = [];
-  for (let i = 0; i < LOCAIS_NACIONAIS.length; i += tamanho) fila.push(LOCAIS_NACIONAIS.slice(i, i + tamanho));
+  const locaisDaExecucao = LOCAIS_NACIONAIS.slice(0, tamanho * MAX_RODADAS_NACIONAL);
+  for (let i = 0; i < locaisDaExecucao.length; i += tamanho) fila.push(locaisDaExecucao.slice(i, i + tamanho));
   return fila;
 }
 
