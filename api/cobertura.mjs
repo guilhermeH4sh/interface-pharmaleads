@@ -34,7 +34,9 @@ export function entradaNacional(body, termos) {
     segmentos: segmentos.join(','),
     profundidade: String(profundidade),
     emails: 'true',
-    enriquecer_sites: 'true',
+    // A coleta nacional prioriza o Gosom. A visita extra a cada site via
+    // Playwright é mais lenta e pode aumentar bastante o consumo de memória.
+    enriquecer_sites: 'false',
     modo: 'nacional',
     rodada: String(rodada),
     total_rodadas: String(fila.length),
