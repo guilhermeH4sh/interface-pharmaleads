@@ -149,3 +149,17 @@ test('recusa usuário sem permissão antes de chamar Render', async () => {
   assert.equal(res.statusCode, 401);
   assert.equal(calls, 1);
 });
+
+test('transforma uma página de inicialização e timeout em 503', async () => {
+  const headers = { authorization: 'Bearer jwt-de-teste' };
+  for (const upstream of [
+    async () => new Response('<html>Starting</html>', { status: 200 }),
+    async () => { throw new DOMException('Timeout', 'TimeoutError'); },
+  ]) {
+    setupRender(upstream);
+    const res = response();
+    await handler({ method: 'GET', headers }, res);
+    assert.equal(res.statusCode, 503);
+    assert.match(res.body.error, /indisponível ou iniciando/);
+  }
+});

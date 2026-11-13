@@ -147,6 +147,14 @@ Abra a URL local informada pelo Vite (`http://127.0.0.1:5173`). O Vite encaminha
 as requisições `/api` para a API local na porta 8765. Em Linux/macOS os nomes de
 comandos Python podem variar; não há necessidade de iniciar o Vite no uso normal.
 
+Para comparar a interface local com a publicação e usar a coleta em nuvem,
+vincule a raiz deste repositório ao projeto existente da Vercel com
+`vercel link` e execute `vercel dev` na raiz. Configure
+`RENDER_COLLECTOR_URL` e `RENDER_COLLECTOR_TOKEN` em **Development** na Vercel,
+e `RENDER_API_KEY` somente se esse ambiente usar One-Off Jobs. Esse fluxo
+executa a função `/api/collector` localmente com credenciais de servidor.
+Use o ambiente e a conta do Supabase correspondentes ao deploy comparado.
+
 ## Como usar
 
 1. Na barra acima das métricas, pesquise uma cidade ou bairro, por exemplo

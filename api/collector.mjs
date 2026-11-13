@@ -38,7 +38,7 @@ async function authorized(req) {
 }
 
 function configRender() {
-  const base = (process.env.RENDER_COLLECTOR_URL || '').replace(/\/+$/, '');
+  const base = (process.env.RENDER_COLLECTOR_URL || '').trim().replace(/\/+$/, '');
   const token = process.env.RENDER_COLLECTOR_TOKEN || '';
   let parsed;
   try { parsed = new URL(base); } catch { parsed = null; }
@@ -52,25 +52,37 @@ function configRender() {
 async function renderRequest(path, method = 'GET', body) {
   const { base, token, apiKey } = configRender();
   const endpoint = apiKey ? `/v1/jobs/${path}` : `/v1/${path}`;
-  const response = await fetch(`${base}${endpoint}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(apiKey ? { 'X-Render-Api-Key': apiKey } : {}),
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    cache: 'no-store',
-    redirect: 'error',
-    signal: AbortSignal.timeout(30000),
-  });
-  const payload = await response.json().catch(() => ({ error: `Render respondeu HTTP ${response.status}.` }));
+  const unavailable = {
+    status: 503,
+    payload: { error: 'O coletor no Render está indisponível ou iniciando.' },
+  };
+  let response;
+  let payload;
+  try {
+    response = await fetch(`${base}${endpoint}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(apiKey ? { 'X-Render-Api-Key': apiKey } : {}),
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(30000),
+    });
+    payload = await response.json().catch(() => null);
+  } catch {
+    return unavailable;
+  }
   if (apiKey && response.status === 404) {
     return { status: 503, payload: { error: 'Aguarde o deploy da versão com One-Off Jobs no Render.' } };
   }
   if (response.status === 401) {
     return { status: 502, payload: { error: 'O Render recusou a autenticação do coletor. Confira RENDER_COLLECTOR_TOKEN.' } };
   }
+  if (!payload || typeof payload !== 'object') return unavailable;
+  if (response.status >= 200 && response.status < 300 && !Object.hasOwn(payload, 'run')) return unavailable;
   return { status: response.status, payload };
 }
 
@@ -78,7 +90,11 @@ export default async function handler(req, res) {
   res.setHeader?.('Cache-Control', 'no-store');
   try {
     const origin = header(req, 'origin');
-    if (origin && origin !== 'https://pharmaleads.vercel.app') return respond(res, 403, { error: 'Origem não permitida.' });
+    const localDevelopment = process.env.VERCEL_ENV === 'development'
+      && /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(origin);
+    if (origin && origin !== 'https://pharmaleads.vercel.app' && !localDevelopment) {
+      return respond(res, 403, { error: 'Origem não permitida.' });
+    }
     if (req.method !== 'GET' && req.method !== 'POST') return respond(res, 405, { error: 'Método não permitido.' });
     if (!await authorized(req)) return respond(res, 401, { error: 'Entre com o usuário autorizado no Supabase.' });
     if (req.method === 'GET') {

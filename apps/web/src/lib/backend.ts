@@ -249,6 +249,7 @@ export async function fetchSupabaseAllLeads(
     });
     if (lastKey) query.set("chave", `gt.${lastKey}`);
     const response = await fetch(`${SUPABASE_URL}/rest/v1/pharmaleads?${query}`, {
+      cache: "no-store",
       headers: {
         apikey: PUBLISHABLE_KEY,
         Authorization: `Bearer ${active.access_token}`,
@@ -374,14 +375,15 @@ export async function stopLocalCollection(): Promise<boolean> {
 // ---------- Coletor Nuvem (/api/collector -> Render) ----------
 
 export async function fetchCloudCollectorRun(
-  session: SupabaseSession
+  session: SupabaseSession, signal?: AbortSignal
 ): Promise<{ session: SupabaseSession; run: CollectorRun | null }> {
   const active = await validSupabaseSession(session);
   const response = await fetch("/api/collector", {
     headers: { Authorization: `Bearer ${active.access_token}` },
     cache: "no-store",
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(45_000)]) : AbortSignal.timeout(45_000),
   });
-  const body = (await response.json().catch(() => ({}))) as {
+  const body = ((await response.json().catch(() => null)) ?? {}) as {
     run?: CollectorRun | null;
     error?: string;
   };
@@ -389,7 +391,10 @@ export async function fetchCloudCollectorRun(
   if (!response.ok) {
     throw new Error(body.error || `Coletor em nuvem indisponível (HTTP ${response.status}).`);
   }
-  return { session: active, run: body.run || null };
+  if (body.run !== null && (!body.run || typeof body.run.status !== "string")) {
+    throw new Error("Resposta inválida do coletor no Render.");
+  }
+  return { session: active, run: body.run };
 }
 
 export async function controlCloudCollector(
@@ -412,8 +417,9 @@ export async function controlCloudCollector(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(45_000),
   });
-  const body = (await response.json().catch(() => ({}))) as {
+  const body = ((await response.json().catch(() => null)) ?? {}) as {
     run?: CollectorRun | null;
     error?: string;
   };
@@ -421,7 +427,10 @@ export async function controlCloudCollector(
   if (!response.ok) {
     throw new Error(body.error || `Falha ao controlar coleta em nuvem (HTTP ${response.status}).`);
   }
-  return { session: active, run: body.run || null };
+  if (body.run !== null && (!body.run || typeof body.run.status !== "string")) {
+    throw new Error("Resposta inválida do coletor no Render.");
+  }
+  return { session: active, run: body.run };
 }
 
 // ---------- Conversão e Mapeamento de Lead (SQLite / Supabase -> UI LeadItem) ----------

@@ -78,16 +78,16 @@ test("o painel usa a etapa e as rodadas concluídas informadas pelo Render", asy
   };
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run }))));
   render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
-  expect(await screen.findByRole("status")).toHaveTextContent("Buscando contatos nos sites");
+  expect(await screen.findByText("Buscando contatos nos sites")).toBeInTheDocument();
   expect(screen.getByRole("progressbar", { name: "Rodadas concluídas" })).toHaveAttribute("aria-valuenow", "2");
-  expect(screen.getByText("13 leads enviados ao Supabase nesta coleta")).toBeInTheDocument();
+  expect(screen.getByText("13 registros enviados ao Supabase, incluindo atualizações")).toBeInTheDocument();
 });
 
 test("progresso explica quando a busca encontra locais mas nenhum e-mail", async () => {
   const run = { id: "job-um", status: "completed", conclusion: "success", title: "Coleta", found_leads: 12, new_leads: 10, with_email: 0, synced_leads: 0 };
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run }))));
   render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
-  expect(await screen.findByText(/Nesta rodada: 12 estabelecimentos encontrados/)).toBeInTheDocument();
+  expect(await screen.findByText(/Nesta rodada: 12 resultados processados/)).toBeInTheDocument();
   expect(screen.getByText(/nenhum tinha e-mail público validado/)).toBeInTheDocument();
 });
 
@@ -107,7 +107,7 @@ test("configurações mostram apenas Supabase e preservam a conexão existente",
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run: null }))));
   render(<TestDashboard />);
   await userEvent.click(screen.getByRole("button", { name: "Configurações" }));
-  expect(screen.getByRole("status")).toHaveTextContent("Conectado");
+  expect(screen.getByRole("status")).toHaveTextContent("Supabase conectado");
   expect(screen.queryByRole("textbox", { name: /E-mail/ })).not.toBeInTheDocument();
   expect(screen.queryByText("SQLite Local + Gosom")).not.toBeInTheDocument();
   expect(screen.queryByText("Modo Demonstração (Mock)")).not.toBeInTheDocument();
@@ -322,5 +322,19 @@ test("Todas as UFs com pesquisa vazia despacha cobertura nacional ao clicar Pesq
   await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
   await waitFor(() => expect(fetcher.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
   expect(await screen.findByRole("status")).toHaveTextContent("Nacional 1/10");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+test("permite consultar novamente quando o Render está iniciando", async () => {
+  let available = false;
+  vi.stubGlobal("fetch", vi.fn(async () => available
+    ? new Response(JSON.stringify({ run: { id: "job-live", status: "in_progress" } }))
+    : new Response(JSON.stringify({ error: "O coletor no Render está indisponível ou iniciando." }), { status: 503 })));
+  render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("indisponível ou iniciando");
+  expect(screen.getByRole("button", { name: "Pesquisar" })).toBeDisabled();
+  available = true;
+  await userEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+  expect(await screen.findByRole("button", { name: "Parar coleta" })).toBeEnabled();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });

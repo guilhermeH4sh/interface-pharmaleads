@@ -24,18 +24,27 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
   const [uf, setUf] = useState("");
   const [source, setSource] = useState("Google Maps");
   const [segments, setSegments] = useState<string[]>(["varejo"]);
-  const [active, setActive] = useState(false);
+  const [localActive, setActive] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [stopping, setStopping] = useState(false);
+  const [localStopping, setStopping] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
   const [cloudRun, setCloudRun] = useState<CollectorRun | null>(null);
-  const [cloudStale, setCloudStale] = useState(false);
+  const [cloudError, setCloudError] = useState("");
+  const [cloudReady, setCloudReady] = useState(false);
+  const [retry, setRetry] = useState(0);
   const hadActive = useRef(false);
+  const cloud = dataSourceMode === "supabase";
+  const cloudStale = Boolean(cloudError);
+  const active = cloud
+    ? Boolean(cloudRun && (COLETA_ATIVA_STATES.includes(cloudRun.status) || cloudRun.status === "cancelling"))
+    : localActive;
+  const stopping = cloud ? cloudRun?.status === "cancelling" : localStopping;
   const connected = dataSourceMode === "local" || (dataSourceMode === "supabase" && Boolean(supabaseSession));
 
   useEffect(() => {
     if (busy) return;
+    const controller = new AbortController();
     let cancelled = false;
     let polling = false;
     async function poll() {
@@ -43,35 +52,18 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
       polling = true;
       try {
         if (dataSourceMode === "supabase" && supabaseSession) {
-          const result = await fetchCloudCollectorRun(supabaseSession);
+          const result = await fetchCloudCollectorRun(supabaseSession, controller.signal);
           if (cancelled) return;
           if (result.session !== supabaseSession) onSessionUpdate?.(result.session);
           const run = result.run;
           const dismissedId = window.sessionStorage.getItem(DISMISSED_CLOUD_RUN_KEY);
           const hiddenTerminalRun = run?.status === "completed" && dismissedId === String(run.id);
-          setCloudRun(hiddenTerminalRun ? null : previous => run && previous?.id === run.id ? { ...previous, ...run } : run);
-          setCloudStale(false);
-          if (!run) {
-            setCloudRun(null);
-            setStopping(false);
-            if (hadActive.current) {
-              hadActive.current = false;
-              setFeedback("Nenhuma coleta ativa encontrada no Render. Confira os jobs recentes no serviço.");
-            }
-            setActive(false);
-            return;
-          }
-          setFeedback("");
-          setError("");
-          const running = COLETA_ATIVA_STATES.includes(run.status) || run.status === "cancelling";
-          setActive(running);
-          setStopping(previous => run.status === "cancelling" || (previous && running));
-          if (running) {
-            hadActive.current = true;
-          } else if (hadActive.current && run.status === "completed") {
-            hadActive.current = false;
-            onRefreshLeads?.();
-          }
+          setCloudRun(hiddenTerminalRun ? null : run);
+          setCloudError("");
+          setCloudReady(true);
+          const running = Boolean(run && (COLETA_ATIVA_STATES.includes(run.status) || run.status === "cancelling"));
+          if (hadActive.current && !running) onRefreshLeads?.();
+          hadActive.current = running;
         } else if (dataSourceMode === "local") {
           const status = await fetchLocalApiStatus();
           if (cancelled || !status?.execucao) return;
@@ -90,20 +82,27 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
         }
       } catch (err) {
         if (!cancelled && err instanceof AccessError) onSessionInvalid?.();
-        if (!cancelled && dataSourceMode === "supabase") setCloudStale(true);
-        else if (!cancelled) setError(err instanceof Error ? err.message : "Não foi possível acompanhar a coleta.");
+        if (!cancelled && dataSourceMode === "supabase") {
+          const detail = err instanceof Error && !["TimeoutError", "TypeError"].includes(err.name)
+            ? err.message
+            : "O coletor no Render está indisponível ou iniciando.";
+          setCloudError(detail);
+        } else if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Não foi possível acompanhar a coleta.");
+        }
       } finally {
         polling = false;
       }
     }
     queueMicrotask(() => { if (!cancelled) void poll(); });
     const timer = window.setInterval(() => void poll(), dataSourceMode === "local" ? 3000 : 5000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [busy, dataSourceMode, supabaseSession, onSessionUpdate, onRefreshLeads, onSessionInvalid]);
+    return () => { cancelled = true; controller.abort(); window.clearInterval(timer); };
+  }, [busy, dataSourceMode, supabaseSession, onSessionUpdate, onRefreshLeads, onSessionInvalid, retry]);
 
   const start = useCallback(async (override?: string) => {
     setError("");
     if (!connected) { setError("Conecte o Supabase em Configurações para iniciar a coleta."); return; }
+    if (cloud && (!cloudReady || cloudStale)) return;
     setBusy(true);
     try {
       const input = buildCollectorSearch(override ?? text, override ? "" : uf, segments, source);
@@ -111,7 +110,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
         const result = await controlCloudCollector(supabaseSession, { action: "start", ...input, locais: input.locais.join("\n"), enriquecerSites: false });
         if (result.session !== supabaseSession) onSessionUpdate?.(result.session);
         setCloudRun(result.run);
-        setCloudStale(false);
+        setCloudError("");
         setFeedback("");
       } else {
         if (input.cobertura === "nacional") throw new Error("Conecte o Supabase para iniciar uma busca em todas as UFs.");
@@ -120,13 +119,15 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
       }
       setText(input.locais[0] ?? "");
       hadActive.current = true;
-      setStopping(false);
-      setActive(true);
+      if (!cloud) {
+        setStopping(false);
+        setActive(true);
+      }
     } catch (err) {
       if (err instanceof AccessError) onSessionInvalid?.();
       setError(err instanceof Error ? err.message : "Não foi possível iniciar a coleta.");
     } finally { setBusy(false); }
-  }, [connected, text, uf, segments, source, dataSourceMode, supabaseSession, onSessionUpdate, onSessionInvalid]);
+  }, [connected, cloud, cloudReady, cloudStale, text, uf, segments, source, dataSourceMode, supabaseSession, onSessionUpdate, onSessionInvalid]);
 
 
   async function stop() {
@@ -137,14 +138,17 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
         const result = await controlCloudCollector(supabaseSession, { action: "stop" });
         if (result.session !== supabaseSession) onSessionUpdate?.(result.session);
         setCloudRun(result.run);
-        setStopping(result.run?.status === "cancelling");
-        setCloudStale(false);
+        setCloudError("");
       } else {
         await stopLocalCollection();
         setStopping(true);
         setFeedback("Parada solicitada. Aguardando o encerramento da coleta...");
       }
-    } catch (err) { setStopping(false); if (err instanceof AccessError) onSessionInvalid?.(); setError(err instanceof Error ? err.message : "Falha ao solicitar parada."); }
+    } catch (err) {
+      if (!cloud) setStopping(false);
+      if (err instanceof AccessError) onSessionInvalid?.();
+      setError(err instanceof Error ? err.message : "Falha ao solicitar parada.");
+    }
     finally { setBusy(false); }
   }
 
@@ -158,7 +162,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
             <Search size={20} className="text-muted-foreground shrink-0" aria-hidden="true" />
             <input type="search" aria-label="Cidade ou bairro" placeholder="Cidade ou bairro" value={text} onChange={event => setText(event.target.value)} disabled={busy || active}
               className="w-full min-w-0 bg-transparent text-foreground h-10 text-sm outline-none focus-visible:outline-none" />
-            <button type="submit" disabled={busy || active || !connected} aria-label="Pesquisar" className={cn(ui.btnBrand, "rounded-full h-10 px-4 sm:px-6 text-sm shrink-0")}>Pesquisar</button>
+            <button type="submit" disabled={busy || active || !connected || (cloud && (!cloudReady || cloudStale))} aria-label="Pesquisar" className={cn(ui.btnBrand, "rounded-full h-10 px-4 sm:px-6 text-sm shrink-0")}>Pesquisar</button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
@@ -184,11 +188,18 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           window.sessionStorage.setItem(DISMISSED_CLOUD_RUN_KEY, String(cloudRun.id));
           setCloudRun(null);
         }} />}
-        {dataSourceMode === "supabase" && cloudStale && !cloudRun && (
-          <p role="status" className="mt-5 text-center text-sm text-muted-foreground">Status do coletor indisponível. Tentando reconectar ao Render.</p>
+        {cloud && connected && !cloudReady && !cloudStale && (
+          <p role="status" className="mt-5 text-center text-sm text-muted-foreground">Consultando o coletor no Render…</p>
         )}
+        {cloud && cloudStale && (
+          <div className="mt-5 text-center text-sm">
+            <p role="alert">{cloudError} Tentando reconectar automaticamente.</p>
+            <button type="button" className={cn(ui.btnSecondary, "mt-2")} onClick={() => setRetry(value => value + 1)}>Tentar novamente</button>
+          </div>
+        )}
+        {busy && <p aria-live="polite" className="mt-5 text-center text-sm">Enviando solicitação ao coletor…</p>}
         <div className="mt-6 flex flex-wrap justify-center items-center gap-4 text-sm">
-          {active && <button type="button" onClick={() => void stop()} disabled={busy || stopping} aria-live="polite" className={cn(ui.btnSecondary, "h-10 px-4")}><Square size={14} /> {stopping ? "Parando…" : "Parar coleta"}</button>}
+          {active && <button type="button" onClick={() => void stop()} disabled={busy || stopping || (cloud && cloudStale)} aria-live="polite" className={cn(ui.btnSecondary, "h-10 px-4")}><Square size={14} /> {stopping ? "Parando…" : "Parar coleta"}</button>}
           <button type="button" onClick={onOpenLeads} className="inline-flex items-center gap-1.5 text-brand hover:underline">Ver leads <ArrowRight size={15} /></button>
         </div>
       </div>

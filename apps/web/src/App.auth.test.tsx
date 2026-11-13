@@ -29,7 +29,7 @@ test("login libera a plataforma e sair encerra apenas o acesso do usuário", asy
   await userEvent.click(screen.getByRole("button", { name: "Entrar" }));
   expect(await screen.findByRole("heading", { name: "Encontre novas farmácias" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Configurações" }));
-  expect(screen.getByRole("status")).toHaveTextContent("Conectado");
+  expect(screen.getByRole("status")).toHaveTextContent("Supabase conectado");
   expect(screen.queryByLabelText("Senha")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("E-mail")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Desconectar/ })).not.toBeInTheDocument();
