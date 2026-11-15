@@ -144,10 +144,11 @@ npm run dev
 ```
 
 Abra a URL local informada pelo Vite (`http://127.0.0.1:5173`). O Vite encaminha
-as requisições `/api` para a API local na porta 8765. Em Linux/macOS os nomes de
-comandos Python podem variar; não há necessidade de iniciar o Vite no uso normal.
+`/api/collector` à função publicada na Vercel, que valida a sessão Supabase e
+usa o coletor de produção. As demais rotas `/api` seguem para a API local na
+porta 8765. Em Linux/macOS os nomes de comandos Python podem variar.
 
-Para comparar a interface local com a publicação e usar a coleta em nuvem,
+Para testar alterações na própria função Vercel antes de publicar,
 vincule a raiz deste repositório ao projeto existente da Vercel com
 `vercel link` e execute `vercel dev` na raiz. Configure
 `RENDER_COLLECTOR_URL` e `RENDER_COLLECTOR_TOKEN` em **Development** na Vercel,
