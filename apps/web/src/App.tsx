@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MotionConfig } from "motion/react";
 import { Sidebar, type NavTab } from "./components/layout/Sidebar";
+import type { ToastMessage } from "./components/ui/toast";
 import { Topbar } from "./components/layout/Topbar";
 import { LeadsView } from "./components/leads/LeadsView";
 import { LeadDetailsModal } from "./components/leads/LeadDetailsModal";
@@ -93,10 +95,24 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
   const [isLoadingReal, setIsLoadingReal] = useState(false);
   const [realError, setRealError] = useState("");
   const [overrideVersion, setOverrideVersion] = useState(0);
+  const [optimisticUpdatedAt, setOptimisticUpdatedAt] = useState<Record<string, number>>({});
+  const [crmToast, setCrmToast] = useState<ToastMessage | null>(null);
 
   const [selectedCrmLead, setSelectedCrmLead] = useState<LeadItem | null>(null);
   const lastSupabaseLoad = useRef(0);
   const supabaseLoadInProgress = useRef(false);
+  const rawSupabaseRowsRef = useRef<Lead[]>([]);
+  const selectedCrmLeadRef = useRef<LeadItem | null>(null);
+  const statusMutationSeqRef = useRef<Map<string, number>>(new Map());
+  const confirmedRowSnapshotRef = useRef<Map<string, Lead | undefined>>(new Map());
+
+  useEffect(() => {
+    rawSupabaseRowsRef.current = rawSupabaseRows;
+  }, [rawSupabaseRows]);
+
+  useEffect(() => {
+    selectedCrmLeadRef.current = selectedCrmLead;
+  }, [selectedCrmLead]);
 
   // Carrega todos os leads do SQLite Local
   const loadLocalLeads = useCallback(async () => {
@@ -172,47 +188,146 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
     }
   }, [dataSourceMode, supabaseSession, loadLocalLeads, loadSupabaseLeads]);
 
-  // Mapeia os leads brutos da fonte ativa aplicando overrides locais quando necessários
+  // Mapeia os leads brutos da fonte ativa aplicando overrides locais e timestamps otimistas
   const realLeads = useMemo(() => {
     void overrideVersion; // Recomputa quando há mudança de status ou exclusão local
-    if (dataSourceMode === "local") return mapRawLeadsToItems(rawLocalRows);
-    if (dataSourceMode === "supabase") return mapRawLeadsToItems(rawSupabaseRows);
-    return [];
-  }, [dataSourceMode, rawLocalRows, rawSupabaseRows, overrideVersion]);
+    const base =
+      dataSourceMode === "local"
+        ? mapRawLeadsToItems(rawLocalRows)
+        : dataSourceMode === "supabase"
+          ? mapRawLeadsToItems(rawSupabaseRows)
+          : [];
+    if (!Object.keys(optimisticUpdatedAt).length) return base;
+    return base.map((item) =>
+      optimisticUpdatedAt[item.id]
+        ? { ...item, updatedAt: optimisticUpdatedAt[item.id] }
+        : item
+    );
+  }, [dataSourceMode, rawLocalRows, rawSupabaseRows, overrideVersion, optimisticUpdatedAt]);
 
   const leadsOutsideCrm = useMemo(() => realLeads.filter(lead => !lead.crmIncluded && lead.status === "Não contatado"), [realLeads]);
-  const activeLeadsForCrm = realLeads.filter((lead) => lead.crmIncluded || lead.status !== "Não contatado");
+  const activeLeadsForCrm = useMemo(
+    () => realLeads.filter((lead) => lead.crmIncluded || lead.status !== "Não contatado"),
+    [realLeads]
+  );
   const activeSummaryForReports = useMemo(
     () => computeSummaryFromItems(realLeads),
     [realLeads]
   );
 
-  const handleCrmStatusChange = async (id: string, newStatus: LeadStatus): Promise<boolean> => {
-    const included = newStatus !== "Não contatado";
-    if (dataSourceMode === "supabase") {
-      if (!supabaseSession) {
-        setRealError("Entre no Supabase para salvar o status do CRM.");
-        return false;
-      }
-      try {
-        const result = await updateSupabaseCrmLead(supabaseSession, id, { crm_status: newStatus, crm_included: included });
-        if (result.row.crm_status !== newStatus || result.row.crm_included !== included) throw new Error("O Supabase não confirmou a atualização do status.");
-        setSupabaseSession(result.session);
-        setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? result.row : row));
+  const handleCrmStatusChange = useCallback(
+    async (id: string, newStatus: LeadStatus): Promise<boolean> => {
+      const included = newStatus !== "Não contatado";
+      if (dataSourceMode === "supabase") {
+        if (!supabaseSession) {
+          const msg = "Entre no Supabase para salvar o status do CRM.";
+          setRealError(msg);
+          setCrmToast({ id: Date.now(), message: msg });
+          return false;
+        }
+
+        const nextSeq = (statusMutationSeqRef.current.get(id) ?? 0) + 1;
+        statusMutationSeqRef.current.set(id, nextSeq);
+
+        // Guarda snapshot confirmado antes da primeira mutação em voo deste card
+        if (!confirmedRowSnapshotRef.current.has(id)) {
+          confirmedRowSnapshotRef.current.set(
+            id,
+            rawSupabaseRowsRef.current.find((row) => row.chave === id)
+          );
+        }
+
+        const prevSelected =
+          selectedCrmLeadRef.current?.id === id ? selectedCrmLeadRef.current : null;
+        const moveTimestamp = Date.now();
+
+        // 1. Atualização Otimista IMEDIATA (antes de qualquer chamada de rede)
+        setRawSupabaseRows((rows) =>
+          rows.map((row) =>
+            row.chave === id
+              ? { ...row, crm_status: newStatus, crm_included: included }
+              : row
+          )
+        );
+        setOptimisticUpdatedAt((prev) => ({ ...prev, [id]: moveTimestamp }));
+        if (prevSelected) {
+          setSelectedCrmLead(
+            included ? { ...prevSelected, status: newStatus, crmIncluded: true } : null
+          );
+        }
         setRealError("");
-      } catch (err) {
-        if (err instanceof AccessError) onSignOut();
-        setRealError(err instanceof Error ? err.message : "Não foi possível salvar o status no Supabase.");
-        return false;
+
+        // 2. Persistência no Supabase em segundo plano (sem refetch da lista completa)
+        try {
+          const result = await updateSupabaseCrmLead(supabaseSession, id, {
+            crm_status: newStatus,
+            crm_included: included,
+          });
+          if (result.row.crm_status !== newStatus || result.row.crm_included !== included) {
+            throw new Error("O Supabase não confirmou a atualização do status.");
+          }
+          // Evita race condition se o usuário moveu este card novamente antes desta resposta
+          if (statusMutationSeqRef.current.get(id) === nextSeq) {
+            confirmedRowSnapshotRef.current.delete(id);
+            setSupabaseSession(result.session);
+            setRawSupabaseRows((rows) =>
+              rows.map((row) => (row.chave === id ? result.row : row))
+            );
+          }
+          return true;
+        } catch (err) {
+          if (err instanceof AccessError) onSignOut();
+          const errMessage =
+            err instanceof Error
+              ? err.message
+              : "Não foi possível salvar o status no Supabase.";
+
+          // Reverte para a coluna original apenas se esta ainda for a mutação vigente deste lead
+          if (statusMutationSeqRef.current.get(id) === nextSeq) {
+            const snapshot = confirmedRowSnapshotRef.current.get(id);
+            confirmedRowSnapshotRef.current.delete(id);
+            if (snapshot) {
+              setRawSupabaseRows((rows) =>
+                rows.map((row) => (row.chave === id ? snapshot : row))
+              );
+            }
+            setOptimisticUpdatedAt((prev) => {
+              const next = { ...prev };
+              delete next[id];
+              return next;
+            });
+            if (selectedCrmLeadRef.current?.id === id && snapshot) {
+              const restoredStatus =
+                (snapshot.crm_status as LeadStatus) || "Em contato";
+              setSelectedCrmLead({
+                ...selectedCrmLeadRef.current,
+                status: restoredStatus,
+                crmIncluded: Boolean(snapshot.crm_included),
+              });
+            }
+            setCrmToast({
+              id: Date.now(),
+              message: `${errMessage} O lead voltou para a etapa anterior.`,
+            });
+          }
+          return false;
+        }
+      } else {
+        setLeadStatusOverride(id, newStatus);
+        setLeadCrmMembershipOverride(id, included);
+        setOverrideVersion((v) => v + 1);
+        if (selectedCrmLeadRef.current?.id === id) {
+          setSelectedCrmLead(
+            included
+              ? { ...selectedCrmLeadRef.current, status: newStatus, crmIncluded: true }
+              : null
+          );
+        }
+        return true;
       }
-    } else {
-      setLeadStatusOverride(id, newStatus);
-      setLeadCrmMembershipOverride(id, included);
-    }
-    setOverrideVersion((v) => v + 1);
-    if (selectedCrmLead?.id === id) setSelectedCrmLead(included ? { ...selectedCrmLead, status: newStatus, crmIncluded: true } : null);
-    return true;
-  };
+    },
+    [dataSourceMode, supabaseSession, onSignOut]
+  );
 
   const handleBatchAddToCrm = async (ids: string[]): Promise<string[]> => {
     const moved: string[] = [];
@@ -254,6 +369,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
   };
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="min-h-screen bg-background text-foreground flex flex-col lg:flex-row font-sans transition-colors duration-200">
       {/* 1. Sidebar Fixa à Esquerda (260px) + Drawer Mobile */}
       <Sidebar
@@ -318,6 +434,8 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
               onStatusChange={handleCrmStatusChange}
               onRemoveFromCrm={(id) => handleCrmMembershipChange(id, false)}
               errorMessage={realError}
+              toastMessage={crmToast}
+              onDismissToast={() => setCrmToast(null)}
               onSelectLead={(lead) => setSelectedCrmLead(lead)}
             />
           )}
@@ -352,6 +470,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
       {/* Modal de Ajuda */}
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </div>
+    </MotionConfig>
   );
 }
 
