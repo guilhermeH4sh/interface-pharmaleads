@@ -3,64 +3,109 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Search } from "lucide-react";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import { motionTransitions, usePrefersReducedMotion } from "../../lib/motion";
 
+/**
+ * Padrão unificado de Dropdown (seleção única e múltipla):
+ * - Gatilho: `ui.input` (`h-11`, `rounded-lg`, `border-input`, `bg-card`, `px-3.5`, `text-sm`), seta gira 180°.
+ * - Painel (portal): `bg-popover`, `border-border`, `rounded-xl`, `shadow-[var(--shadow-pop)]`, `p-1.5` (6 px),
+ *   largura igual à do gatilho, `gap` de 6 px, margem de viewport de 16 px e teto absoluto de 320 px.
+ *   Só abre para cima se espaço abaixo < 200 px e espaço acima > espaço abaixo.
+ * - Item: `h-10` (40 px), `px-2` (8 px -> 1 px borda + 6 px padding + 8 px item = 15 px, alinhado ao texto do gatilho),
+ *   `rounded-lg`, `text-sm`, texto em linha única com `truncate` + `title`.
+ * - Busca interna: ativa por padrão quando `options.length > 8` (ou via prop `searchable`), fixa fora da lista rolável.
+ * - Rolagem: `.pl-scrollbar` restrita ao `<ul role="listbox">`.
+ */
 export interface SelectOption {
   value: string;
   label: string;
   disabled?: boolean;
 }
 
-interface SelectProps {
+interface BaseSelectProps {
   id?: string;
   label?: string;
-  value: string;
-  onChange: (value: string) => void;
   options: SelectOption[];
   ariaLabel?: string;
   placeholder?: string;
   disabled?: boolean;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  clearable?: boolean;
+  clearLabel?: string;
   align?: "left" | "right";
   className?: string;
   triggerClassName?: string;
   menuClassName?: string;
 }
 
-const normalizeText = (text: string) =>
-  text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+export interface SingleSelectProps extends BaseSelectProps {
+  multiple?: false;
+  value: string;
+  onChange: (value: string) => void;
+  values?: never;
+}
+
+export interface MultipleSelectProps extends BaseSelectProps {
+  multiple: true;
+  values: string[];
+  onChange: (values: string[]) => void;
+  value?: never;
+}
+
+export type SelectProps = SingleSelectProps | MultipleSelectProps;
 
 interface MenuPosition {
   top?: number;
   bottom?: number;
   left?: number;
   right?: number;
-  minWidth: number;
+  width: number;
+  maxHeight: number;
   placement: "bottom" | "top";
 }
 
-export function Select({
-  id,
-  label,
-  value,
-  onChange,
-  options,
-  ariaLabel,
-  placeholder = "Selecione...",
-  disabled = false,
-  align = "right",
-  className,
-  triggerClassName,
-  menuClassName,
-}: SelectProps) {
+const normalizeText = (text: string) =>
+  text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+const PANEL_GAP = 6;
+const VIEWPORT_MARGIN = 16;
+const MAX_PANEL_HEIGHT = 320;
+const MIN_USEFUL_SPACE_BELOW = 200;
+
+export function Select(props: SelectProps) {
+  const {
+    id,
+    label,
+    options,
+    ariaLabel,
+    placeholder,
+    disabled = false,
+    searchable,
+    searchPlaceholder = "Buscar...",
+    clearable,
+    clearLabel = "Limpar seleção",
+    align = "left",
+    className,
+    triggerClassName,
+    menuClassName,
+  } = props;
+
+  const isMultiple = props.multiple === true;
+  const effectiveSearchable = searchable ?? options.length > 8;
+  const effectiveClearable = clearable ?? isMultiple;
+  const resolvedPlaceholder = placeholder ?? (isMultiple ? "Todos" : "Selecione...");
+
   const generatedId = useId();
   const triggerId = id || `${generatedId}-trigger`;
   const labelId = `${generatedId}-label`;
@@ -68,35 +113,58 @@ export function Select({
 
   const reducedMotion = usePrefersReducedMotion();
   const [open, setOpen] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState<number>(() =>
-    Math.max(
-      0,
-      options.findIndex((opt) => opt.value === value && !opt.disabled)
-    )
-  );
+  const [query, setQuery] = useState("");
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
   const [position, setPosition] = useState<MenuPosition | null>(null);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLUListElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const optionRefs = useRef<(HTMLLIElement | null)[]>([]);
   const typeaheadRef = useRef<{ query: string; timer: number | null }>({
     query: "",
     timer: null,
   });
 
-  const selectedOption = options.find((opt) => opt.value === value);
+  const selectedValues = useMemo(
+    () =>
+      isMultiple
+        ? props.values
+        : props.value !== undefined && props.value !== null
+          ? [props.value]
+          : [],
+    [isMultiple, props.values, props.value]
+  );
+
+  const selectedSet = useMemo(() => new Set(selectedValues), [selectedValues]);
+
+  const visibleOptions = useMemo(() => {
+    if (!effectiveSearchable || !query.trim()) return options;
+    const normalizedQuery = normalizeText(query.trim());
+    return options.filter((opt) => normalizeText(opt.label).includes(normalizedQuery));
+  }, [effectiveSearchable, options, query]);
+
+  const triggerDisplayLabel = useMemo(() => {
+    if (isMultiple) {
+      const selected = options.filter((opt) => selectedSet.has(opt.value));
+      if (selected.length === 0) return resolvedPlaceholder;
+      if (selected.length === 1) return selected[0].label;
+      return `${selected.length} selecionados`;
+    }
+    const current = options.find((opt) => opt.value === props.value);
+    return current ? current.label : resolvedPlaceholder;
+  }, [isMultiple, options, props.value, resolvedPlaceholder, selectedSet]);
 
   const findEnabledIndex = useCallback(
-    (startIndex: number, step: 1 | -1) => {
-      if (options.length === 0) return -1;
-      for (let offset = 0; offset < options.length; offset++) {
-        const idx =
-          (startIndex + offset * step + options.length) % options.length;
-        if (!options[idx]?.disabled) return idx;
+    (list: SelectOption[], startIndex: number, step: 1 | -1) => {
+      if (list.length === 0) return -1;
+      for (let offset = 0; offset < list.length; offset++) {
+        const idx = (startIndex + offset * step + list.length) % list.length;
+        if (!list[idx]?.disabled) return idx;
       }
       return -1;
     },
-    [options]
+    []
   );
 
   const updatePosition = useCallback(() => {
@@ -106,33 +174,41 @@ export function Select({
     const rect = trigger.getBoundingClientRect();
     const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
     const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
-    const estimatedHeight = Math.min(options.length * 40 + 16, 280);
-    const gap = 6;
-    const margin = 12;
 
-    const spaceBelow = viewportHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    const openUpward = spaceBelow < estimatedHeight + gap && spaceAbove > spaceBelow;
+    const spaceBelow = viewportHeight - rect.bottom - PANEL_GAP - VIEWPORT_MARGIN;
+    const spaceAbove = rect.top - PANEL_GAP - VIEWPORT_MARGIN;
+    const openUpward = spaceBelow < MIN_USEFUL_SPACE_BELOW && spaceAbove > spaceBelow;
+    const availableHeight = openUpward ? spaceAbove : spaceBelow;
+    const maxHeight = Math.max(120, Math.min(MAX_PANEL_HEIGHT, availableHeight));
+    const width = Math.min(rect.width, Math.max(160, viewportWidth - VIEWPORT_MARGIN * 2));
 
     const nextPos: MenuPosition = {
-      minWidth: rect.width,
+      width,
+      maxHeight,
       placement: openUpward ? "top" : "bottom",
     };
 
     if (openUpward) {
-      nextPos.bottom = Math.max(margin, viewportHeight - rect.top + gap);
+      nextPos.bottom = Math.max(VIEWPORT_MARGIN, viewportHeight - rect.top + PANEL_GAP);
     } else {
-      nextPos.top = Math.min(viewportHeight - margin, rect.bottom + gap);
+      nextPos.top = Math.min(viewportHeight - VIEWPORT_MARGIN, rect.bottom + PANEL_GAP);
     }
 
     if (align === "right") {
-      nextPos.right = Math.max(margin, viewportWidth - rect.right);
+      const rightOffset = viewportWidth - rect.right;
+      nextPos.right = Math.max(
+        VIEWPORT_MARGIN,
+        Math.min(rightOffset, viewportWidth - width - VIEWPORT_MARGIN)
+      );
     } else {
-      nextPos.left = Math.max(margin, Math.min(rect.left, viewportWidth - rect.width - margin));
+      nextPos.left = Math.max(
+        VIEWPORT_MARGIN,
+        Math.min(rect.left, viewportWidth - width - VIEWPORT_MARGIN)
+      );
     }
 
     setPosition(nextPos);
-  }, [align, options.length]);
+  }, [align]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -141,12 +217,12 @@ export function Select({
 
   const closeMenu = useCallback((returnFocus = false) => {
     setOpen(false);
+    setQuery("");
     if (returnFocus) {
       window.requestAnimationFrame(() => triggerRef.current?.focus());
     }
   }, []);
 
-  // Fecha ao clicar fora, pressionar Esc, redimensionar ou rolar a página
   useEffect(() => {
     if (!open) return;
 
@@ -205,40 +281,57 @@ export function Select({
     };
   }, []);
 
-  const selectOption = useCallback(
+  const handleSelectOption = useCallback(
     (option: SelectOption) => {
       if (option.disabled) return;
-      onChange(option.value);
-      closeMenu(true);
+      if (props.multiple) {
+        const nextValues = selectedSet.has(option.value)
+          ? props.values.filter((v) => v !== option.value)
+          : [...props.values, option.value];
+        props.onChange(nextValues);
+      } else {
+        props.onChange(option.value);
+        closeMenu(true);
+      }
     },
-    [onChange, closeMenu]
+    [props, selectedSet, closeMenu]
   );
 
-  const openWithIndex = useCallback(
-    (index: number) => {
-      const clamped = Math.max(0, Math.min(options.length - 1, index));
-      const nextIndex = findEnabledIndex(clamped, 1);
-      setHighlightedIndex(nextIndex >= 0 ? nextIndex : 0);
-      setOpen(true);
-    },
-    [options.length, findEnabledIndex]
-  );
+  const handleClear = useCallback(() => {
+    if (props.multiple) {
+      props.onChange([]);
+    } else {
+      props.onChange("");
+    }
+    setQuery("");
+  }, [props]);
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (disabled || options.length === 0) return;
-
-    const currentIdx = Math.max(
-      0,
-      options.findIndex((opt) => opt.value === value && !opt.disabled)
+  const openMenu = useCallback(() => {
+    setQuery("");
+    const firstSelectedIdx = options.findIndex(
+      (opt) => selectedSet.has(opt.value) && !opt.disabled
     );
+    const startIdx = firstSelectedIdx >= 0 ? firstSelectedIdx : findEnabledIndex(options, 0, 1);
+    setHighlightedIndex(startIdx >= 0 ? startIdx : 0);
+    setOpen(true);
+  }, [options, selectedSet, findEnabledIndex]);
+
+  const handleNavigationKey = (
+    event: KeyboardEvent<HTMLElement>,
+    allowTypeahead: boolean
+  ) => {
+    if (disabled || visibleOptions.length === 0) {
+      if (event.key === "Tab" && open) closeMenu(false);
+      return;
+    }
 
     switch (event.key) {
       case "ArrowDown": {
         event.preventDefault();
         if (!open) {
-          openWithIndex(currentIdx);
+          openMenu();
         } else {
-          const next = findEnabledIndex(highlightedIndex + 1, 1);
+          const next = findEnabledIndex(visibleOptions, highlightedIndex + 1, 1);
           if (next >= 0) setHighlightedIndex(next);
         }
         break;
@@ -246,48 +339,56 @@ export function Select({
       case "ArrowUp": {
         event.preventDefault();
         if (!open) {
-          openWithIndex(currentIdx);
+          openMenu();
         } else {
-          const prev = findEnabledIndex(highlightedIndex - 1, -1);
+          const prev = findEnabledIndex(visibleOptions, highlightedIndex - 1, -1);
           if (prev >= 0) setHighlightedIndex(prev);
         }
         break;
       }
       case "Home": {
         event.preventDefault();
-        const first = findEnabledIndex(0, 1);
-        if (first >= 0) {
-          if (!open) openWithIndex(first);
-          else setHighlightedIndex(first);
-        }
+        const first = findEnabledIndex(visibleOptions, 0, 1);
+        if (!open) openMenu();
+        if (first >= 0) setHighlightedIndex(first);
         break;
       }
       case "End": {
         event.preventDefault();
-        const last = findEnabledIndex(options.length - 1, -1);
-        if (last >= 0) {
-          if (!open) openWithIndex(last);
-          else setHighlightedIndex(last);
+        const last = findEnabledIndex(visibleOptions, visibleOptions.length - 1, -1);
+        if (!open) openMenu();
+        if (last >= 0) setHighlightedIndex(last);
+        break;
+      }
+      case "Enter": {
+        event.preventDefault();
+        if (!open) {
+          openMenu();
+        } else {
+          const target = visibleOptions[highlightedIndex];
+          if (target && !target.disabled) handleSelectOption(target);
         }
         break;
       }
-      case "Enter":
       case " ": {
+        if (!allowTypeahead) return;
         event.preventDefault();
         if (!open) {
-          openWithIndex(currentIdx);
+          openMenu();
         } else {
-          const target = options[highlightedIndex];
-          if (target && !target.disabled) selectOption(target);
+          const target = visibleOptions[highlightedIndex];
+          if (target && !target.disabled) handleSelectOption(target);
         }
         break;
       }
       case "Tab": {
-        if (open) setOpen(false);
+        if (open) closeMenu(false);
         break;
       }
       default: {
         if (
+          allowTypeahead &&
+          !effectiveSearchable &&
           event.key.length === 1 &&
           !event.ctrlKey &&
           !event.metaKey &&
@@ -308,21 +409,24 @@ export function Select({
 
           const start =
             nextQuery.length === 1
-              ? (highlightedIndex + 1) % options.length
+              ? (highlightedIndex + 1) % visibleOptions.length
               : Math.max(0, highlightedIndex);
 
           const findMatch = (predicate: (opt: SelectOption) => boolean) => {
-            for (let offset = 0; offset < options.length; offset++) {
-              const idx = (start + offset) % options.length;
-              const opt = options[idx];
+            for (let offset = 0; offset < visibleOptions.length; offset++) {
+              const idx = (start + offset) % visibleOptions.length;
+              const opt = visibleOptions[idx];
               if (opt && !opt.disabled && predicate(opt)) return idx;
             }
             return -1;
           };
 
+          const startsIdx = findMatch((opt) =>
+            normalizeText(opt.label).startsWith(nextQuery)
+          );
           const matchIdx =
-            findMatch((opt) => normalizeText(opt.label).startsWith(nextQuery)) >= 0
-              ? findMatch((opt) => normalizeText(opt.label).startsWith(nextQuery))
+            startsIdx >= 0
+              ? startsIdx
               : findMatch((opt) => normalizeText(opt.label).includes(nextQuery));
 
           if (matchIdx >= 0) {
@@ -335,19 +439,24 @@ export function Select({
     }
   };
 
-  const activeDescendantId = open ? `${listboxId}-option-${highlightedIndex}` : undefined;
+  const activeDescendantId =
+    open && visibleOptions[highlightedIndex]
+      ? `${listboxId}-option-${highlightedIndex}`
+      : undefined;
+
+  const accessibleNameProps = label
+    ? { "aria-labelledby": labelId }
+    : ariaLabel
+      ? { "aria-label": ariaLabel }
+      : {};
 
   const menuNode =
     typeof document !== "undefined"
       ? createPortal(
           <AnimatePresence>
             {open && position && (
-              <motion.ul
+              <motion.div
                 ref={menuRef}
-                id={listboxId}
-                role="listbox"
-                aria-labelledby={label ? labelId : undefined}
-                aria-label={label ? undefined : ariaLabel}
                 initial={
                   reducedMotion
                     ? { opacity: 0 }
@@ -378,8 +487,9 @@ export function Select({
                   bottom: position.bottom,
                   left: position.left,
                   right: position.right,
-                  minWidth: position.minWidth,
-                  maxWidth: "calc(100vw - 24px)",
+                  width: position.width,
+                  maxWidth: `calc(100vw - ${VIEWPORT_MARGIN * 2}px)`,
+                  maxHeight: position.maxHeight,
                   transformOrigin:
                     position.placement === "bottom"
                       ? `top ${align}`
@@ -387,52 +497,115 @@ export function Select({
                 }}
                 className={cn(
                   ui.menu,
-                  "z-[60] max-h-72 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] bg-popover shadow-[var(--shadow-pop)] ring-1 ring-border/40 focus:outline-none",
+                  "z-[60] flex flex-col overflow-hidden bg-popover shadow-[var(--shadow-pop)] ring-1 ring-border/40",
                   menuClassName
                 )}
               >
-                {options.map((option, index) => {
-                  const isSelected = option.value === value;
-                  const isHighlighted = index === highlightedIndex;
-                  const isOptionDisabled = Boolean(option.disabled);
-                  return (
-                    <li
-                      key={option.value}
-                      ref={(el) => {
-                        optionRefs.current[index] = el;
+                {effectiveSearchable && (
+                  <div className="relative mb-1.5 shrink-0">
+                    <Search
+                      size={14}
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    />
+                    <input
+                      ref={searchInputRef}
+                      type="search"
+                      value={query}
+                      onChange={(event) => {
+                        setQuery(event.target.value);
+                        setHighlightedIndex(0);
                       }}
-                      id={`${listboxId}-option-${index}`}
-                      role="option"
-                      aria-selected={isSelected}
-                      aria-disabled={isOptionDisabled || undefined}
-                      title={option.label}
-                      onMouseEnter={() => {
-                        if (!isOptionDisabled) setHighlightedIndex(index);
-                      }}
-                      onMouseDown={(event) => {
-                        // Evita perder foco antes do click/seleção
-                        event.preventDefault();
-                      }}
-                      onClick={() => selectOption(option)}
-                      className={cn(
-                        "flex items-center justify-between gap-2.5 px-2 py-2 min-h-9 rounded-lg text-sm select-none transition-colors duration-150",
-                        isOptionDisabled
-                          ? "opacity-50 cursor-not-allowed text-muted-foreground"
-                          : isSelected
-                            ? "bg-primary-soft text-brand font-semibold cursor-pointer"
-                            : isHighlighted
-                              ? "bg-muted text-foreground cursor-pointer"
-                              : "text-foreground/90 hover:bg-muted cursor-pointer"
-                      )}
-                    >
-                      <span className="leading-snug break-words">{option.label}</span>
-                      {isSelected && (
-                        <Check size={15} className="text-brand shrink-0" aria-hidden="true" />
-                      )}
+                      onKeyDown={(event) => handleNavigationKey(event, false)}
+                      placeholder={searchPlaceholder}
+                      aria-label={`Buscar em ${label || ariaLabel || "opções"}`}
+                      className={cn(ui.input, "h-9 pl-8 pr-2.5 text-sm")}
+                    />
+                  </div>
+                )}
+
+                <ul
+                  id={listboxId}
+                  role="listbox"
+                  aria-multiselectable={isMultiple || undefined}
+                  {...accessibleNameProps}
+                  className="flex-1 min-h-0 overflow-y-auto pl-scrollbar space-y-0.5 focus:outline-none"
+                >
+                  {visibleOptions.map((option, index) => {
+                    const isSelected = selectedSet.has(option.value);
+                    const isHighlighted = index === highlightedIndex;
+                    const isOptionDisabled = Boolean(option.disabled);
+                    return (
+                      <li
+                        key={option.value}
+                        ref={(el) => {
+                          optionRefs.current[index] = el;
+                        }}
+                        id={`${listboxId}-option-${index}`}
+                        role="option"
+                        aria-selected={isSelected}
+                        aria-disabled={isOptionDisabled || undefined}
+                        title={option.label}
+                        onMouseEnter={() => {
+                          if (!isOptionDisabled) setHighlightedIndex(index);
+                        }}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                        }}
+                        onClick={() => handleSelectOption(option)}
+                        className={cn(
+                          "flex h-10 min-h-[40px] items-center gap-2.5 px-2 rounded-lg text-sm font-normal select-none transition-colors duration-150",
+                          !isMultiple && "justify-between",
+                          isOptionDisabled
+                            ? "opacity-50 cursor-not-allowed text-muted-foreground"
+                            : isSelected
+                              ? "bg-primary-soft text-brand font-semibold cursor-pointer"
+                              : isHighlighted
+                                ? "bg-primary-soft/60 text-foreground cursor-pointer"
+                                : "text-muted-foreground hover:bg-primary-soft/60 hover:text-foreground cursor-pointer"
+                        )}
+                      >
+                        {isMultiple && (
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              "flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors duration-150",
+                              isSelected
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-input bg-card"
+                            )}
+                          >
+                            {isSelected && <Check size={12} strokeWidth={3} />}
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                        {!isMultiple && isSelected && (
+                          <Check size={15} className="text-brand shrink-0" aria-hidden="true" />
+                        )}
+                      </li>
+                    );
+                  })}
+                  {visibleOptions.length === 0 && (
+                    <li className="px-2 py-3 text-center text-sm text-muted-foreground select-none">
+                      Nenhum resultado encontrado.
                     </li>
-                  );
-                })}
-              </motion.ul>
+                  )}
+                </ul>
+
+                {effectiveClearable && (
+                  <div className="mt-1.5 pt-1.5 border-t border-border shrink-0">
+                    <button
+                      type="button"
+                      disabled={selectedValues.length === 0}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={handleClear}
+                      className="w-full rounded-lg px-2 py-1.5 text-left text-xs font-semibold text-brand transition-colors hover:bg-primary-soft/60 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {clearLabel}
+                    </button>
+                  </div>
+                )}
+              </motion.div>
             )}
           </AnimatePresence>,
           document.body
@@ -446,8 +619,7 @@ export function Select({
         id={triggerId}
         type="button"
         role="combobox"
-        aria-labelledby={label ? labelId : undefined}
-        aria-label={label ? undefined : ariaLabel}
+        {...accessibleNameProps}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
@@ -455,18 +627,10 @@ export function Select({
         disabled={disabled}
         onClick={() => {
           if (disabled) return;
-          if (open) {
-            setOpen(false);
-          } else {
-            openWithIndex(
-              Math.max(
-                0,
-                options.findIndex((opt) => opt.value === value && !opt.disabled)
-              )
-            );
-          }
+          if (open) closeMenu(false);
+          else openMenu();
         }}
-        onKeyDown={handleKeyDown}
+        onKeyDown={(event) => handleNavigationKey(event, true)}
         className={cn(
           ui.input,
           "inline-flex items-center justify-between gap-2 text-left cursor-pointer select-none",
@@ -474,9 +638,7 @@ export function Select({
           triggerClassName
         )}
       >
-        <span className="truncate">
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
+        <span className="truncate">{triggerDisplayLabel}</span>
         <ChevronDown
           size={16}
           aria-hidden="true"
@@ -505,4 +667,3 @@ export function Select({
     </div>
   );
 }
-
