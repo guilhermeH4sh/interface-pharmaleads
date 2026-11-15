@@ -114,7 +114,7 @@ def dados_receita(cadastro, codigo, municipio, criterio):
     }
 
 
-def novo_lead(cadastro, codigo, municipio, emails):
+def novo_lead(cadastro, codigo, municipio):
     telefone = next((valor for valor in cadastro['telefones'] if analisar_telefone(valor)[0]), '')
     normalizado, celular = analisar_telefone(telefone)
     segmento = CNAE_SEGMENTOS.get(cadastro['cnae_principal']) or CNAE_SEGMENTOS[cadastro['cnaes_correspondentes'][0]]
@@ -126,7 +126,8 @@ def novo_lead(cadastro, codigo, municipio, emails):
         'categoria': SEGMENTOS[segmento]['descricao'],
         'endereco': endereco, 'local_busca': local, 'telefone': telefone,
         'telefone_normalizado': normalizado, 'celular': int(celular),
-        'emails': ', '.join(emails), 'situacao': 'ativa_ou_desconhecida', 'crm_included': False,
+        'emails': ', '.join(emails_publicos(cadastro['email'])),
+        'situacao': 'ativa_ou_desconhecida', 'crm_included': False,
         'primeira_coleta': cadastro['importado_em'], 'ultima_coleta': cadastro['importado_em'],
         'dados_brutos': {**dados_receita(cadastro, codigo, municipio, 'cnpj_da_fonte'), 'fonte_dados': FONTE},
     }
@@ -172,10 +173,10 @@ def sincronizar(con, cliente, municipios, uf, competencia, aplicar=False, limite
             contagem['enriquecidos' if aplicar else 'a_enriquecer'] += 1
         elif criterio == 'revisar':
             contagem['revisao'] += 1
-        elif not (emails := emails_publicos(cadastro['email'])) or not cadastro['nome_fantasia'].strip():
-            contagem['sem_nome_ou_email'] += 1
+        elif not cadastro['nome_fantasia'].strip():
+            contagem['sem_nome'] += 1
         elif limite is None or len(novos) < limite:
-            novo = novo_lead(cadastro, codigo, municipio, emails)
+            novo = novo_lead(cadastro, codigo, municipio)
             novos.append(novo)
             indice.adicionar(novo)
         else:
@@ -188,6 +189,7 @@ def sincronizar(con, cliente, municipios, uf, competencia, aplicar=False, limite
             contagem['chaves_ja_existentes'] += len(lote) - inseridos
     else:
         contagem['a_inserir'] = len(novos)
+        contagem['a_inserir_sem_email'] = sum(not registro['emails'] for registro in novos)
     return dict(contagem)
 
 

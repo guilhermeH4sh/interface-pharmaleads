@@ -31,6 +31,8 @@ class TestSincronizarReceita(unittest.TestCase):
             {**base, 'cnpj': '12345678000276', 'nome_fantasia': 'Possível duplicata', 'telefones': ['6133334444']},
             {**base, 'cnpj': '12345678000357', 'nome_fantasia': 'Nova Farmácia'},
             {**base, 'cnpj': '12345678000438', 'codigo_municipio_receita': '1234'},
+            {**base, 'cnpj': '12345678000519', 'nome_fantasia': 'Farmácia sem contato', 'email': 'inválido'},
+            {**base, 'cnpj': '12345678000608', 'nome_fantasia': '', 'email': ''},
         ]
         con.executemany('INSERT INTO receita_estabelecimentos VALUES (?,?,?,?)', [
             ('2026-10', item['cnpj'], 'DF', json.dumps(item)) for item in cadastros
@@ -38,22 +40,25 @@ class TestSincronizarReceita(unittest.TestCase):
         cliente = Mock()
         cliente.listar.return_value = catalogo
         cliente.atualizar_dados_receita.return_value = True
-        cliente.inserir_receita.return_value = 1
+        cliente.inserir_receita.return_value = 2
         municipios = {'9701': 'BRASILIA'}
         self.assertEqual(sincronizar(con, cliente, municipios, 'DF', '2026-10'), {
-            'a_enriquecer': 1, 'revisao': 1, 'municipio_sem_correspondencia': 1, 'a_inserir': 1,
+            'a_enriquecer': 1, 'revisao': 1, 'municipio_sem_correspondencia': 1,
+            'sem_nome': 1, 'a_inserir': 2, 'a_inserir_sem_email': 1,
         })
         cliente.atualizar_dados_receita.assert_not_called()
         cliente.inserir_receita.assert_not_called()
         resumo = sincronizar(con, cliente, municipios, 'DF', '2026-10', aplicar=True)
-        self.assertEqual((resumo['enriquecidos'], resumo['inseridos']), (1, 1))
+        self.assertEqual((resumo['enriquecidos'], resumo['inseridos']), (1, 2))
         chave, antes, depois = cliente.atualizar_dados_receita.call_args.args
         self.assertEqual(chave, 'crm-1')
         self.assertEqual(antes, catalogo[0]['dados_brutos'])
         self.assertEqual(depois['crm_notas'], 'preservar')
         self.assertEqual(depois['fonte_dados'], 'Google Maps')
-        [novo] = cliente.inserir_receita.call_args.args[0]
+        novo, sem_email = cliente.inserir_receita.call_args.args[0]
         self.assertEqual(novo['chave'], 'receita:12345678000357')
         self.assertFalse(novo['crm_included'])
         self.assertEqual(novo['dados_brutos']['fonte_dados'], 'Receita Federal')
         self.assertEqual(novo['dados_brutos']['ibge']['codigo_municipio'], 5300108)
+        self.assertEqual(sem_email['chave'], 'receita:12345678000519')
+        self.assertEqual(sem_email['emails'], '')
