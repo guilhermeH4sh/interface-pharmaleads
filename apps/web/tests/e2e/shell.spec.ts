@@ -19,8 +19,8 @@ test("barra de coleta central, sem tabela, funciona nos dois temas e no mobile",
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Encontre novas farmácias" })).toBeVisible();
   await expect(page.getByRole("table")).toHaveCount(0);
-  await expect(page.getByRole("searchbox", { name: "Cidade ou bairro" })).toHaveCount(1);
-  await expect(page.getByRole("combobox", { name: "UF", exact: true }).locator("option")).toHaveCount(28);
+  await expect(page.getByRole("searchbox", { name: "Digite o estado" })).toHaveCount(1);
+  await expect(page.getByRole("combobox", { name: "UF", exact: true })).toHaveCount(1);
   for (const width of [360, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     for (const theme of ["light", "dark"]) {
@@ -31,12 +31,11 @@ test("barra de coleta central, sem tabela, funciona nos dois temas e no mobile",
     }
   }
   await page.screenshot({ path: test.info().outputPath("prospeccao-central.png"), fullPage: true });
-  await page.getByRole("searchbox", { name: "Cidade ou bairro" }).fill("Curitiba");
-  await page.getByRole("combobox", { name: "UF", exact: true }).selectOption("PR");
+  await page.getByRole("searchbox", { name: "Digite o estado" }).fill("Paraná");
   await expect(page.getByRole("button", { name: "Pesquisar", exact: true })).toBeEnabled();
   const request = page.waitForRequest(req => req.url().endsWith("/api/collector") && req.method() === "POST");
   await page.getByRole("button", { name: "Pesquisar", exact: true }).click();
-  expect((await request).postDataJSON()).toMatchObject({ action: "start", locais: "Curitiba, PR", segmentos: ["varejo"] });
+  expect((await request).postDataJSON()).toMatchObject({ action: "start", locais: "Paraná, PR", segmentos: ["varejo"] });
   await page.getByRole("button", { name: "Ver leads", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Leads – Farmácias" })).toBeVisible();
   await page.getByRole("button", { name: "Nova Prospecção", exact: true }).click();

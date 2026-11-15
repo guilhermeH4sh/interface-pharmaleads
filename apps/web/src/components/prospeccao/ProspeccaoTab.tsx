@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Square, ArrowRight } from "lucide-react";
 import { AccessError, COLETA_ATIVA_STATES, controlCloudCollector, fetchCloudCollectorRun, fetchLocalApiStatus, startLocalCollection, stopLocalCollection, type CollectorRun, type DataSourceMode, type SupabaseSession } from "../../lib/backend";
-import { buildCollectorSearch } from "../../lib/collector-search";
+import { buildCollectorSearch, findCollectorState } from "../../lib/collector-search";
 import { ESTABLISHMENTS, STATES, SOURCES } from "../../lib/prospect-options";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
@@ -105,13 +105,13 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
     return () => { cancelled = true; controller.abort(); window.clearInterval(timer); };
   }, [busy, dataSourceMode, supabaseSession, onSessionUpdate, onRefreshLeads, onSessionInvalid, retry]);
 
-  const start = useCallback(async (override?: string) => {
+  const start = useCallback(async () => {
     setError("");
     if (!connected) { setError("Conecte o Supabase em Configurações para iniciar a coleta."); return; }
     if (cloud && (!cloudReady || cloudStale)) return;
     setBusy(true);
     try {
-      const input = buildCollectorSearch(override ?? text, override ? "" : uf, segments, source);
+      const input = buildCollectorSearch(text, uf, segments, source);
       if (dataSourceMode === "supabase" && supabaseSession) {
         const result = await controlCloudCollector(supabaseSession, { action: "start", ...input, locais: input.locais.join("\n"), enriquecerSites: false });
         if (result.session !== supabaseSession) onSessionUpdate?.(result.session);
@@ -123,7 +123,6 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
         await startLocalCollection(input);
         setFeedback("Coleta solicitada. Os novos contatos serão enviados para a aba Leads.");
       }
-      setText(input.locais[0] ?? "");
       hadActive.current = true;
       if (!cloud) {
         setStopping(false);
@@ -166,7 +165,11 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
         <form onSubmit={event => { event.preventDefault(); void start(); }} className="space-y-5">
           <div className="flex items-center gap-2 rounded-full border border-input bg-card px-4 py-2 shadow-sm hover:shadow-md focus-within:ring-2 focus-within:ring-primary/20 transition-shadow">
             <Search size={20} className="text-muted-foreground shrink-0" aria-hidden="true" />
-            <input type="search" aria-label="Cidade ou bairro" placeholder="Cidade ou bairro" value={text} onChange={event => setText(event.target.value)} disabled={busy || active}
+            <input type="search" aria-label="Digite o estado" placeholder="Digite o estado" value={text} onChange={event => {
+              const value = event.target.value;
+              setText(value);
+              setUf(findCollectorState(value)?.value ?? "");
+            }} disabled={busy || active}
               className="w-full min-w-0 bg-transparent text-foreground h-10 text-sm outline-none focus-visible:outline-none" />
             <button type="submit" disabled={busy || active || !connected || (cloud && (!cloudReady || cloudStale))} aria-label="Pesquisar" className={cn(ui.btnBrand, "rounded-full h-10 px-4 sm:px-6 text-sm shrink-0")}>Pesquisar</button>
           </div>
@@ -175,7 +178,10 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
               id="prospect-uf"
               label="UF"
               value={uf}
-              onChange={setUf}
+              onChange={value => {
+                setUf(value);
+                setText(STATES.find(state => state.value === value)?.label ?? "");
+              }}
               options={UF_OPTIONS}
               disabled={busy || active}
               align="left"

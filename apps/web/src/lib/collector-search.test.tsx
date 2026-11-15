@@ -1,21 +1,23 @@
 import { expect, test } from "vitest";
 import { buildCollectorSearch } from "./collector-search";
+import { STATES } from "./prospect-options";
 
-test("combina local e UF, corrige cidade e não duplica a sigla", () => {
-  expect(buildCollectorSearch("sao pauli", "", ["varejo"], "Google Maps").locais).toEqual(["São Paulo"]);
-  expect(buildCollectorSearch("sao pauli", "SP", ["varejo"], "Google Maps").locais).toEqual(["São Paulo, SP"]);
-  expect(buildCollectorSearch("Curitiba, PR", "PR", ["varejo"], "Google Maps").locais).toEqual(["Curitiba, PR"]);
-  expect(buildCollectorSearch("", "AC", ["varejo"], "Google Maps").locais).toEqual(["Acre, AC"]);
-});
-test("rejeita UFs conflitantes e fontes não disponíveis", () => {
-  expect(() => buildCollectorSearch("Curitiba, PR", "SP", ["varejo"], "Google Maps")).toThrow("diferente");
-  expect(() => buildCollectorSearch("Curitiba", "PR", ["varejo"], "Receita Federal")).toThrow("não está disponível");
-  expect(() => buildCollectorSearch("Curitiba", "PR", [], "Google Maps")).toThrow("pelo menos um tipo");
+test.each(STATES)("gera a mesma busca por nome ou sigla para $label", ({ value, label }) => {
+  const local = `${label.slice(0, -5)}, ${value}`;
+  expect(buildCollectorSearch(label, "", ["varejo"], "Google Maps").locais).toEqual([local]);
+  expect(buildCollectorSearch(value.toLowerCase(), "", ["varejo"], "Google Maps").locais).toEqual([local]);
+  expect(buildCollectorSearch("", value, ["varejo"], "Google Maps").locais).toEqual([local]);
 });
 
+test("normaliza acentos e rejeita municípios, UFs conflitantes e fontes indisponíveis", () => {
+  expect(buildCollectorSearch(" sao paulo ", "", ["varejo"], "Google Maps").locais).toEqual(["São Paulo, SP"]);
+  expect(() => buildCollectorSearch("Curitiba", "", ["varejo"], "Google Maps")).toThrow("nome ou a sigla de um estado");
+  expect(() => buildCollectorSearch("PR", "SP", ["varejo"], "Google Maps")).toThrow("diferente");
+  expect(() => buildCollectorSearch("PR", "", ["varejo"], "Receita Federal")).toThrow("não está disponível");
+  expect(() => buildCollectorSearch("PR", "", [], "Google Maps")).toThrow("pelo menos um tipo");
+});
 
-test("Todas as UFs sem local inicia cobertura nacional; com cidade mantém busca avulsa", () => {
+test("Todas as UFs com a barra vazia inicia a cobertura nacional", () => {
   expect(buildCollectorSearch("  ", "", ["varejo", "manipulacao"], "Google Maps")).toMatchObject({ cobertura: "nacional", segmentos: ["varejo", "manipulacao"], profundidade: 1, emails: true });
-  expect(buildCollectorSearch("Curitiba", "", ["varejo"], "Google Maps").cobertura).toBeUndefined();
   expect(buildCollectorSearch("", "SP", ["varejo"], "Google Maps").cobertura).toBeUndefined();
 });

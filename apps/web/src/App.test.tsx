@@ -17,7 +17,7 @@ test("Prospecção autenticada não consulta ou exibe dados de leads", async () 
   const fetcher = vi.fn(async () => new Response(JSON.stringify({ run: null })));
   vi.stubGlobal("fetch", fetcher);
   render(<TestDashboard />);
-  expect(screen.getByRole("searchbox", { name: "Cidade ou bairro" })).toBeInTheDocument();
+  expect(screen.getByRole("searchbox", { name: "Digite o estado" })).toHaveAttribute("placeholder", "Digite o estado");
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
   await waitFor(() => expect(fetcher).toHaveBeenCalled());
   expect(fetcher.mock.calls.flat().some(value => String(value).includes("/rest/v1/pharmaleads"))).toBe(false);
@@ -36,14 +36,14 @@ test("abre em Prospecção e mantém dados nas abas Leads e CRM", async () => {
   expect(screen.getByRole("heading", { name: "CRM" })).toBeInTheDocument();
 });
 
-test("a barra envia a cidade corrigida e os filtros para o scraper local", async () => {
+test("a barra envia o estado selecionado e os filtros para o scraper local", async () => {
   const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
     if (input === "/api/coletas") expect(JSON.parse(String(init?.body))).toMatchObject({ locais: ["São Paulo, SP"], segmentos: ["varejo"], profundidade: 1, emails: true });
     return new Response(JSON.stringify(input === "/api/coletas" ? { id: 1 } : { total_leads: 0, execucao: null, consulta_atual: null }));
   });
   vi.stubGlobal("fetch", fetcher);
   render(<ProspeccaoTab dataSourceMode="local" />);
-  await userEvent.type(screen.getByRole("searchbox", { name: "Cidade ou bairro" }), "sao pauli");
+  await userEvent.type(screen.getByRole("searchbox", { name: "Digite o estado" }), "sao paulo");
   await userEvent.click(screen.getByRole("combobox", { name: "UF" }));
   await userEvent.click(screen.getByRole("option", { name: "São Paulo (SP)" }));
   await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
@@ -53,10 +53,10 @@ test("a barra envia a cidade corrigida e os filtros para o scraper local", async
 
 test("a barra inicia o coletor em nuvem e desabilita fontes não integradas", async () => {
   let started = false;
-  const run = { id: 1, status: "queued", title: "Coleta · Curitiba, PR" };
+  const run = { id: 1, status: "queued", title: "Coleta · Paraná, PR" };
   const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
     if (input === "/api/collector" && init?.method === "POST") {
-      expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", locais: "Curitiba, PR", segmentos: ["varejo"], profundidade: 1, emails: true });
+      expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", locais: "Paraná, PR", segmentos: ["varejo"], profundidade: 1, emails: true });
       started = true;
     }
     return new Response(JSON.stringify({ run: started ? run : null }));
@@ -66,7 +66,7 @@ test("a barra inicia o coletor em nuvem e desabilita fontes não integradas", as
   await userEvent.click(screen.getByRole("combobox", { name: "Fonte dos dados" }));
   expect(screen.getByRole("option", { name: "Receita Federal (em breve)" })).toHaveAttribute("aria-disabled", "true");
   await userEvent.keyboard("{Escape}");
-  await userEvent.type(screen.getByRole("searchbox"), "Curitiba");
+  await userEvent.type(screen.getByRole("searchbox"), "Paraná");
   await userEvent.click(screen.getByRole("combobox", { name: "UF" }));
   await userEvent.click(screen.getByRole("option", { name: "Paraná (PR)" }));
   await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
