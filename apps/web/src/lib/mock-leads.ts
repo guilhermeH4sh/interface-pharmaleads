@@ -6,7 +6,7 @@ import { parseLeadEmails, type EmailAvailability } from "./email";
  */
 
 export type LeadStatus = "Qualificado" | "Em contato" | "Respondido" | "Não qualificado" | "Não contatado";
-export type LeadOrigin = "Google Maps" | "Google Meu Negócio" | "Outras fontes";
+export type LeadOrigin = "Google Maps" | "Google Meu Negócio" | "Receita Federal" | "Outras fontes";
 
 export interface LeadItem {
   id: string;

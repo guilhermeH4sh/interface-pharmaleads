@@ -227,3 +227,16 @@ class Supabase:
             elif registro['chave'] not in chaves_inseridas:
                 self.adicionar_emails(registro['chave'], registro['emails'])
         return len(registros)
+
+    def inserir_receita(self, registros):
+        """Insere novos cadastros sem atualizar uma chave que já exista."""
+        inseridos = self._requisicao('POST', {'on_conflict': 'chave', 'select': 'chave'}, registros,
+                                    prefer='resolution=ignore-duplicates,return=representation')
+        return len(inseridos)
+
+    def atualizar_dados_receita(self, chave, anterior, atualizado):
+        """Atualiza somente o JSON cadastral se ele não mudou desde a leitura."""
+        alterados = self._requisicao('PATCH', {
+            'chave': f'eq.{chave}', 'dados_brutos': 'eq.' + json.dumps(anterior), 'select': 'chave',
+        }, {'dados_brutos': atualizado}, prefer='return=representation')
+        return bool(alterados)

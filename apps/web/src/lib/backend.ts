@@ -490,7 +490,8 @@ export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
         whatsappLink: row.whatsapp_link || undefined,
         // Dados não contatados iniciam zerados nas métricas de Qualificados / Em contato / Respondido
         status: row.crm_included === false ? "Não contatado" : persistedCrmStatus || override?.status || "Não contatado",
-        origem: row.dados_brutos?.fonte_dados === "Google Meu Negócio" ? "Google Meu Negócio" : "Google Maps",
+        origem: row.dados_brutos?.fonte_dados === "Receita Federal" ? "Receita Federal"
+          : row.dados_brutos?.fonte_dados === "Google Meu Negócio" ? "Google Meu Negócio" : "Google Maps",
         endereco: row.endereco || undefined,
         categoria: row.categoria || row.segmento || "Farmácia",
         segmento: row.segmento || "",
