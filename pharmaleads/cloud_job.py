@@ -41,20 +41,40 @@ def configuracao() -> tuple[list[str], int, bool, bool]:
             True, os.environ.get('ENRIQUECER_SITES') == 'true')
 
 
-def _encerrar(proc: subprocess.Popen) -> None:
-    if proc.poll() is not None:
-        return
-    proc.terminate()
+def _sinalizar_grupo(pid: int, sinal: int) -> None:
     try:
-        proc.wait(timeout=8)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+        os.killpg(pid, sinal)
+    except ProcessLookupError:
+        pass
+
+
+def _encerrar(proc: subprocess.Popen) -> None:
+    if os.name == 'posix':
+        _sinalizar_grupo(proc.pid, signal.SIGTERM)
+        try:
+            proc.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            pass
+        finally:
+            # O líder pode sair antes do Chromium. Finalize o grupo restante.
+            _sinalizar_grupo(proc.pid, signal.SIGKILL)
         proc.wait(timeout=5)
+    elif proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
 
 
 def _rodar_processo(comando: list[str], timeout: int = 1500) -> None:
     """Roda o Gosom e encerra o processo quando o serviço recebe SIGTERM."""
-    proc = subprocess.Popen(comando, stdout=sys.stderr if os.environ.get('PHARMALEADS_PROGRESS') == '1' else None)
+    proc = subprocess.Popen(
+        comando,
+        stdout=sys.stderr if os.environ.get('PHARMALEADS_PROGRESS') == '1' else None,
+        start_new_session=os.name == 'posix',
+    )
     anterior = signal.getsignal(signal.SIGTERM) if hasattr(signal, 'SIGTERM') else None
 
     def _parar(_signum=None, _frame=None):
@@ -66,6 +86,7 @@ def _rodar_processo(comando: list[str], timeout: int = 1500) -> None:
             signal.signal(signal.SIGTERM, _parar)
         codigo = proc.wait(timeout=timeout)
         if codigo:
+            _encerrar(proc)
             raise subprocess.CalledProcessError(codigo, comando)
     except subprocess.TimeoutExpired:
         _encerrar(proc)

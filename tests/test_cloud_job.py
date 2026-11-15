@@ -1,11 +1,12 @@
 import csv
 import io
 import os
+import signal
 import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from pharmaleads import cloud_job
 from pharmaleads.config import ErroPharmaLeads
@@ -69,3 +70,12 @@ class TestCloudJob(unittest.TestCase):
             self.assertEqual(comando[comando.index('-input') + 1], str(base / 'input.txt'))
             self.assertEqual(comando[comando.index('-results') + 1], str(saida))
             self.assertIn('-email', comando)
+
+    def test_linux_encerra_o_grupo_mesmo_se_o_lider_sair_antes(self):
+        processo = MagicMock(pid=123)
+        with patch.object(cloud_job.os, 'name', 'posix'), patch.object(
+            cloud_job.os, 'killpg', create=True
+        ) as killpg, patch.object(signal, 'SIGKILL', 9, create=True):
+            cloud_job._encerrar(processo)
+        self.assertEqual(killpg.call_args_list, [call(123, signal.SIGTERM), call(123, 9)])
+        self.assertEqual(processo.wait.call_args_list, [call(timeout=8), call(timeout=5)])

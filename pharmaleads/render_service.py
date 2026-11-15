@@ -167,8 +167,8 @@ class ColetorRender:
                     'ENRIQUECER_SITES': atual['enriquecer_sites'],
                     # O plano One-Off atual tem 2 GB. Limita a uma sessão em
                     # cada fase para evitar que os navegadores excedam a RAM.
-                    'GOSOM_CONCURRENCY': '1',
-                    'SITE_CONCURRENCY': '1',
+                    'GOSOM_CONCURRENCY': ambiente.get('GOSOM_CONCURRENCY', '1'),
+                    'SITE_CONCURRENCY': ambiente.get('SITE_CONCURRENCY', '1'),
                     'GOSOM_MAX_ATTEMPTS': '1' if atual['modo'] == 'nacional' else '2',
                     'GOSOM_TIMEOUT': '300' if atual['modo'] == 'nacional' else ambiente.get('GOSOM_TIMEOUT', '1500'),
                     'GOSOM_BIN': ambiente.get('GOSOM_BIN', '/usr/bin/google-maps-scraper'),
@@ -189,6 +189,8 @@ class ColetorRender:
                     for linha in saida:
                         if not linha.startswith(MARCADOR_PROGRESSO):
                             print(linha, end='', flush=True)
+                            continue
+                        if self._parar.is_set():
                             continue
                         evento = json.loads(linha[len(MARCADOR_PROGRESSO):])
                         etapa = evento.get('stage')
