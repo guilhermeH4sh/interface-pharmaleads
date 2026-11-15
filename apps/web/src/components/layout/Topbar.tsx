@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   Bell,
   ChevronDown,
@@ -15,6 +16,7 @@ import type { Theme } from "../../lib/theme";
 import type { DataSourceMode } from "../../lib/backend";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
+import { dropdownVariants, motionGestures } from "../../lib/motion";
 
 interface TopbarProps {
   onToggleMobileMenu: () => void;
@@ -152,7 +154,8 @@ export function Topbar({
 
         {/* Notificações */}
         <div className="relative">
-          <button
+          <motion.button
+            whileTap={motionGestures.tap}
             onClick={() => setOpenMenu(openMenu === "notifications" ? null : "notifications")}
             aria-label="Notificações (1 nova)"
             aria-expanded={openMenu === "notifications"}
@@ -164,42 +167,49 @@ export function Topbar({
               className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full ring-2 ring-card"
               aria-hidden="true"
             />
-          </button>
+          </motion.button>
 
-          {openMenu === "notifications" && (
-            <div
-              className={cn(
-                ui.menu,
-                "absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] p-4 z-50"
-              )}
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-border">
-                <span className="font-semibold text-sm text-foreground">Notificações</span>
-                <span className="text-xs font-semibold text-brand">Sistema Ativo</span>
-              </div>
-              <div className="mt-3 p-3 rounded-xl bg-muted text-xs">
-                <p className="font-semibold text-foreground">
-                  {dataSourceMode === "local"
-                    ? "Banco SQLite Local conectado"
-                    : dataSourceMode === "supabase"
-                      ? "Conexão Supabase public.pharmaleads"
-                      : "Ambiente de Demonstração"}
-                </p>
-                <p className="text-muted-foreground mt-1">
-                  {dataSourceMode === "local"
-                    ? "API Python local ativa em 127.0.0.1:8765 com Gosom Scraper."
-                    : dataSourceMode === "supabase"
-                      ? "Sincronizado com public.pharmaleads e coletor no Render."
-                      : "Use Configurações para alternar entre SQLite Local e Supabase."}
-                </p>
-              </div>
-            </div>
-          )}
+          <AnimatePresence>
+            {openMenu === "notifications" && (
+              <motion.div
+                variants={dropdownVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className={cn(
+                  ui.menu,
+                  "absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] p-4 z-50 origin-top-right"
+                )}
+              >
+                <div className="flex items-center justify-between pb-3 border-b border-border">
+                  <span className="font-semibold text-sm text-foreground">Notificações</span>
+                  <span className="text-xs font-semibold text-brand">Sistema Ativo</span>
+                </div>
+                <div className="mt-3 p-3 rounded-xl bg-muted text-xs">
+                  <p className="font-semibold text-foreground">
+                    {dataSourceMode === "local"
+                      ? "Banco SQLite Local conectado"
+                      : dataSourceMode === "supabase"
+                        ? "Conexão Supabase public.pharmaleads"
+                        : "Ambiente de Demonstração"}
+                  </p>
+                  <p className="text-muted-foreground mt-1">
+                    {dataSourceMode === "local"
+                      ? "API Python local ativa em 127.0.0.1:8765 com Gosom Scraper."
+                      : dataSourceMode === "supabase"
+                        ? "Sincronizado com public.pharmaleads e coletor no Render."
+                        : "Use Configurações para alternar entre SQLite Local e Supabase."}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Usuário */}
         <div className="relative">
-          <button
+          <motion.button
+            whileTap={motionGestures.tap}
             onClick={() => setOpenMenu(openMenu === "user" ? null : "user")}
             aria-expanded={openMenu === "user"}
             aria-haspopup="menu"
@@ -219,51 +229,60 @@ export function Topbar({
                 openMenu === "user" && "rotate-180"
               )}
             />
-          </button>
+          </motion.button>
 
-          {openMenu === "user" && (
-            <div role="menu" className={cn(ui.menu, "absolute right-0 mt-2 w-60 z-50")}>
-              <div className="px-3 py-2.5 border-b border-border mb-1">
-                <p className="font-semibold text-sm text-foreground break-all">{userEmail || "Minha conta"}</p>
-                <p className="text-xs text-muted-foreground">Comercial Centrus</p>
-              </div>
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setOpenMenu(null);
-                  onOpenConfig?.();
-                }}
-                className={ui.menuItem}
+          <AnimatePresence>
+            {openMenu === "user" && (
+              <motion.div
+                role="menu"
+                variants={dropdownVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className={cn(ui.menu, "absolute right-0 mt-2 w-60 z-50 origin-top-right")}
               >
-                <User size={16} /> Configurações
-              </button>
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setOpenMenu(null);
-                  onOpenConfig?.();
-                }}
-                className={ui.menuItem}
-              >
-                <ShieldCheck size={16} /> Integração de dados
-              </button>
-              {isSupabaseAuthenticated && onSignOut && (
-                <>
-                  <div className="border-t border-border my-1" />
-                  <button
-                    role="menuitem"
-                    onClick={() => {
-                      setOpenMenu(null);
-                      onSignOut();
-                    }}
-                    className={ui.menuItem}
-                  >
-                    <LogOut size={16} /> Sair da plataforma
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+                <div className="px-3 py-2.5 border-b border-border mb-1">
+                  <p className="font-semibold text-sm text-foreground break-all">{userEmail || "Minha conta"}</p>
+                  <p className="text-xs text-muted-foreground">Comercial Centrus</p>
+                </div>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setOpenMenu(null);
+                    onOpenConfig?.();
+                  }}
+                  className={ui.menuItem}
+                >
+                  <User size={16} /> Configurações
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setOpenMenu(null);
+                    onOpenConfig?.();
+                  }}
+                  className={ui.menuItem}
+                >
+                  <ShieldCheck size={16} /> Integração de dados
+                </button>
+                {isSupabaseAuthenticated && onSignOut && (
+                  <>
+                    <div className="border-t border-border my-1" />
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        setOpenMenu(null);
+                        onSignOut();
+                      }}
+                      className={ui.menuItem}
+                    >
+                      <LogOut size={16} /> Sair da plataforma
+                    </button>
+                  </>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </header>

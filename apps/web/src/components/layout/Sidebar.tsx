@@ -1,7 +1,9 @@
 import { useEffect, type ComponentType } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { Users, Search, Calendar, Settings, BarChart3, HelpCircle, X } from "lucide-react";
 import { Logo } from "../logo";
 import { cn } from "../../lib/utils";
+import { motionGestures, springPhysics, motionTransitions } from "../../lib/motion";
 
 export type NavTab = "leads" | "prospeccao" | "crm" | "config" | "relatorios";
 
@@ -22,7 +24,7 @@ const NAV_ITEMS: { id: NavTab; label: string; icon: ComponentType<{ size?: numbe
 ];
 
 const itemBase =
-  "w-full flex items-center gap-3 px-4 h-11 rounded-xl text-sm font-medium transition-all duration-200";
+  "w-full flex items-center gap-3 px-4 h-11 rounded-xl text-sm font-medium transition-colors duration-200 select-none text-left";
 
 export function Sidebar({ activeTab, onSelectTab, onOpenHelp, isOpenMobile = false, onCloseMobile }: SidebarProps) {
   // Esc fecha o drawer no mobile
@@ -40,13 +42,14 @@ export function Sidebar({ activeTab, onSelectTab, onOpenHelp, isOpenMobile = fal
       <div className="flex items-center justify-between h-12">
         <Logo size={38} />
         {isOpenMobile && onCloseMobile && (
-          <button
+          <motion.button
+            whileTap={motionGestures.tap}
             onClick={onCloseMobile}
             aria-label="Fechar menu"
             className="lg:hidden w-10 h-10 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
           >
             <X size={20} />
-          </button>
+          </motion.button>
         )}
       </div>
 
@@ -55,8 +58,11 @@ export function Sidebar({ activeTab, onSelectTab, onOpenHelp, isOpenMobile = fal
         {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
           const isActive = activeTab === id;
           return (
-            <button
+            <motion.button
               key={id}
+              whileTap={motionGestures.tap}
+              whileHover={{ x: 2 }}
+              transition={{ duration: 0.15 }}
               aria-current={isActive ? "page" : undefined}
               onClick={() => {
                 onSelectTab(id);
@@ -71,16 +77,22 @@ export function Sidebar({ activeTab, onSelectTab, onOpenHelp, isOpenMobile = fal
             >
               <Icon size={19} />
               <span>{label}</span>
-            </button>
+            </motion.button>
           );
         })}
       </nav>
 
       <div className="mt-auto pt-4 border-t border-border space-y-3">
-        <button onClick={onOpenHelp} className={cn(itemBase, "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+        <motion.button
+          whileTap={motionGestures.tap}
+          whileHover={{ x: 2 }}
+          transition={{ duration: 0.15 }}
+          onClick={onOpenHelp}
+          className={cn(itemBase, "text-muted-foreground hover:text-foreground hover:bg-muted")}
+        >
           <HelpCircle size={19} />
           <span>Ajuda</span>
-        </button>
+        </motion.button>
         <p className="px-4 text-[11px] text-muted-foreground">© Centrus AI · Inteligência Farmacêutica</p>
       </div>
     </div>
@@ -93,20 +105,34 @@ export function Sidebar({ activeTab, onSelectTab, onOpenHelp, isOpenMobile = fal
         {content}
       </aside>
 
-      {/* Mobile/tablet: drawer */}
-      {isOpenMobile && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={onCloseMobile} aria-hidden="true" />
-          <aside
-            role="dialog"
-            aria-modal="true"
-            aria-label="Menu de navegação"
-            className="relative w-[248px] max-w-[85vw] h-full bg-card border-r border-border shadow-[var(--shadow-pop)] animate-slide-in"
-          >
-            {content}
-          </aside>
-        </div>
-      )}
+      {/* Mobile/tablet: drawer com AnimatePresence */}
+      <AnimatePresence>
+        {isOpenMobile && (
+          <div className="lg:hidden fixed inset-0 z-50 flex">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={motionTransitions.fade}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={onCloseMobile}
+              aria-hidden="true"
+            />
+            <motion.aside
+              role="dialog"
+              aria-modal="true"
+              aria-label="Menu de navegação"
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={springPhysics.gentle}
+              className="relative w-[248px] max-w-[85vw] h-full bg-card border-r border-border shadow-[var(--shadow-pop)]"
+            >
+              {content}
+            </motion.aside>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

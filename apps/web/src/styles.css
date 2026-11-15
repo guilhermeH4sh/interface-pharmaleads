@@ -28,17 +28,17 @@
 }
 
 @theme {
-  --animate-fade-in: fade-in 0.18s ease-out;
-  --animate-pop-in: pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  --animate-slide-in: slide-in 0.24s cubic-bezier(0.16, 1, 0.3, 1);
-  --animate-rise-in: rise-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-fade-in: fade-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-pop-in: pop-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-slide-in: slide-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-rise-in: rise-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 
   @keyframes fade-in {
     from { opacity: 0; }
     to { opacity: 1; }
   }
   @keyframes pop-in {
-    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
   @keyframes slide-in {
@@ -46,8 +46,8 @@
     to { transform: translateX(0); }
   }
   @keyframes rise-in {
-    from { opacity: 0; transform: translate(-50%, 12px); }
-    to { opacity: 1; transform: translate(-50%, 0); }
+    from { opacity: 0; transform: translate(-50%, 12px) scale(0.98); }
+    to { opacity: 1; transform: translate(-50%, 0) scale(1); }
   }
 }
 
@@ -114,7 +114,7 @@
 
   body {
     min-width: 320px;
-    overflow-x: hidden;
+    overflow-x: clip;
     background-color: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
