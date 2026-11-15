@@ -14,6 +14,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
+from .agenda import entrada_agendada
 from .cobertura import entradas_seguintes
 from .cloud_job import MARCADOR_PROGRESSO
 from .gerador import montar_consultas, validar_segmentos
@@ -34,6 +35,13 @@ def validar_entrada(body: dict) -> dict[str, str]:
     """Aceita somente os campos necessários para uma rodada do PharmaLeads."""
     if not isinstance(body, dict):
         raise ErroPharmaLeads('Configuração inválida.')
+    if body.get('modo') == 'agenda':
+        try:
+            grupo = int(body['grupo'])
+            rodada = int(body.get('rodada', 1))
+        except (TypeError, ValueError, KeyError):
+            raise ErroPharmaLeads('Grupo ou rodada da agenda inválido.') from None
+        return entrada_agendada(grupo, rodada, str(body.get('request_id') or '')[:100])
     locais = [item.strip() for item in str(body.get('locais', '')).splitlines() if item.strip()]
     segmentos = [item.strip() for item in str(body.get('segmentos', '')).split(',') if item.strip()]
     try:
@@ -87,8 +95,8 @@ class ColetorRender:
             if self._run and self._run['status'] in ATIVOS:
                 raise ErroPharmaLeads('Já existe uma coleta online em andamento.')
             self._parar.clear()
-            nacional = entrada['modo'] == 'nacional'
-            rodada = int(entrada['rodada']) if nacional else 1
+            fila = entrada['modo'] != 'avulsa'
+            rodada = int(entrada['rodada']) if fila else 1
             self._run = {
                 'id': int(time.time() * 1000),
                 'status': 'queued',
@@ -98,12 +106,13 @@ class ColetorRender:
                 'title': self._titulo(entrada),
                 'stage': 'queued',
                 'round': rodada,
-                'total_rounds': int(entrada['total_rodadas']) - rodada + 1 if nacional else 1,
+                'total_rounds': int(entrada['total_rodadas']) - rodada + 1 if fila else 1,
                 'completed_rounds': 0,
                 'synced_leads': 0,
                 'new_supabase_leads': 0,
-                'goal_leads': META_LEADS,
             }
+            if entrada['modo'] != 'agenda':
+                self._run['goal_leads'] = META_LEADS
         return entrada
 
     def iniciar(self, entrada: dict) -> dict:
@@ -140,6 +149,8 @@ class ColetorRender:
 
     @staticmethod
     def _titulo(entrada: dict) -> str:
+        if entrada['modo'] == 'agenda':
+            return f"Agenda {entrada['grupo']}h · {entrada['rodada']}/{entrada['total_rodadas']} · {entrada['resumo']}"
         if entrada['modo'] == 'nacional':
             return f"Nacional {entrada['rodada']}/{entrada['total_rodadas']} · {entrada['resumo']}"
         return f"Coleta · {entrada['resumo']}"
@@ -150,6 +161,18 @@ class ColetorRender:
                 self._run.update(campos)
                 if self._ao_atualizar:
                     self._ao_atualizar(dict(self._run))
+
+    @staticmethod
+    def _proxima_rodada(entrada: dict) -> dict | None:
+        if entrada['modo'] == 'avulsa':
+            return None
+        rodada = int(entrada['rodada'])
+        if entrada['modo'] == 'agenda':
+            if rodada >= int(entrada['total_rodadas']):
+                return None
+            return entrada_agendada(int(entrada['grupo']), rodada + 1, entrada['request_id'])
+        return entradas_seguintes(rodada, entrada['segmentos'].split(','), entrada['profundidade'],
+                                  entrada['emails'], entrada['enriquecer_sites'], entrada['request_id'])
 
     def _executar(self, entrada: dict) -> None:
         atual = entrada
@@ -169,8 +192,8 @@ class ColetorRender:
                     # cada fase para evitar que os navegadores excedam a RAM.
                     'GOSOM_CONCURRENCY': ambiente.get('GOSOM_CONCURRENCY', '1'),
                     'SITE_CONCURRENCY': ambiente.get('SITE_CONCURRENCY', '1'),
-                    'GOSOM_MAX_ATTEMPTS': '1' if atual['modo'] == 'nacional' else '2',
-                    'GOSOM_TIMEOUT': '300' if atual['modo'] == 'nacional' else ambiente.get('GOSOM_TIMEOUT', '1500'),
+                    'GOSOM_MAX_ATTEMPTS': '1' if atual['modo'] != 'avulsa' else '2',
+                    'GOSOM_TIMEOUT': '300' if atual['modo'] != 'avulsa' else ambiente.get('GOSOM_TIMEOUT', '1500'),
                     'GOSOM_BIN': ambiente.get('GOSOM_BIN', '/usr/bin/google-maps-scraper'),
                     'PHARMALEADS_HOME': ambiente.get('PHARMALEADS_HOME', '/tmp/pharmaleads'),
                     'PHARMALEADS_PROGRESS': '1',
@@ -178,7 +201,7 @@ class ColetorRender:
                 with self._lock:
                     if self._parar.is_set():
                         break
-                    rodada = int(atual['rodada']) if atual['modo'] == 'nacional' else 1
+                    rodada = int(atual['rodada']) if atual['modo'] != 'avulsa' else 1
                     self._atualizar(status='in_progress', stage='preparing', round=rodada, title=self._titulo(atual))
                     processo = subprocess.Popen(
                         [sys.executable, '-m', 'pharmaleads.cloud_job'], env=ambiente,
@@ -216,34 +239,27 @@ class ColetorRender:
                 if self._parar.is_set():
                     break
                 if codigo != 0:
-                    if codigo == 124 and atual['modo'] == 'nacional':
+                    if (codigo == 124 and atual['modo'] == 'nacional') or atual['modo'] == 'agenda':
                         puladas += 1
                         concluidas += 1
-                        print(f"Tempo limite de 5 minutos: pulando rodada {rodada} ({atual['resumo']}).", flush=True)
+                        motivo = 'Tempo limite de 5 minutos' if codigo == 124 else f'Falha (código {codigo})'
+                        print(f"{motivo}: pulando rodada {rodada} ({atual['resumo']}).", flush=True)
+                        if atual['modo'] == 'agenda':
+                            resultado = 'failure'
                         self._atualizar(stage='skipping', completed_rounds=concluidas,
                                        skipped_rounds=puladas, title=self._titulo(atual))
-                        atual = entradas_seguintes(
-                            int(atual['rodada']), atual['segmentos'].split(','), atual['profundidade'],
-                            'true', atual['enriquecer_sites'], atual['request_id'])
-                        if atual:
-                            atual['modo'] = 'nacional'
+                        atual = self._proxima_rodada(atual)
                         continue
                     resultado = 'failure'
                     break
                 concluidas += 1
                 self._atualizar(completed_rounds=concluidas)
-                if novos_supabase >= META_LEADS:
+                if atual['modo'] != 'agenda' and novos_supabase >= META_LEADS:
                     print(f'Meta atingida: {novos_supabase} leads únicos novos.', flush=True)
                     break
-                if atual['modo'] != 'nacional':
-                    atual = None
-                    continue
-                atual = entradas_seguintes(
-                    int(atual['rodada']), atual['segmentos'].split(','), atual['profundidade'],
-                    'true', atual['enriquecer_sites'], atual['request_id'])
-                if atual:
-                    atual['modo'] = 'nacional'
-            if not self._parar.is_set() and resultado == 'success' and novos_supabase < META_LEADS:
+                atual = self._proxima_rodada(atual)
+            if (entrada['modo'] != 'agenda' and not self._parar.is_set()
+                    and resultado == 'success' and novos_supabase < META_LEADS):
                 print(f'Fila concluída: {novos_supabase}/{META_LEADS} leads únicos novos. '
                       'As consultas restantes acabaram; revise o rendimento e amplie as localidades.', flush=True)
         except Exception as exc:  # mantém o servidor vivo e registra o erro nos logs do Render
@@ -322,7 +338,15 @@ class Handler(BaseHTTPRequestHandler):
                     run = jobs.resumir(outra_coleta) if outra_coleta else anterior
                     self._json(HTTPStatus.CONFLICT, {'error': 'Já existe uma coleta ativa neste serviço do Render.', 'run': run})
                     return
-                run = jobs.iniciar(validar_entrada(self._body()))
+                entrada = validar_entrada(self._body())
+                if entrada['modo'] == 'agenda':
+                    if entrada['rodada'] != '1' or not entrada['request_id']:
+                        raise ErroPharmaLeads('Inicie a agenda na primeira rodada com um identificador.')
+                    existente = jobs.buscar_agenda(entrada['request_id'])
+                    if existente:
+                        self._json(HTTPStatus.ACCEPTED, {'queued': False, 'run': existente})
+                        return
+                run = jobs.iniciar(entrada)
                 self._json(HTTPStatus.ACCEPTED, {'queued': True, 'run': run})
         except ErroRender as exc:
             self._json(HTTPStatus.BAD_GATEWAY, {'error': str(exc)})

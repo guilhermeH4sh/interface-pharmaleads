@@ -76,6 +76,13 @@ class RenderJobs:
         })
         return self.resumir(job)
 
+    def buscar_agenda(self, request_id: str) -> dict | None:
+        for job in self._listar([('limit', 20)]):
+            entrada = self.entrada_do_job(job)
+            if entrada and entrada.get('modo') == 'agenda' and entrada.get('request_id') == request_id:
+                return self.resumir(job)
+        return None
+
     def cancelar(self, job: dict) -> dict:
         try:
             self._api(f"{self.caminho}/{job['id']}/cancel", metodo='POST')
@@ -113,10 +120,16 @@ class RenderJobs:
         entrada = self.entrada_do_job(job)
         acompanhavel = entrada is not None
         entrada = entrada or {}
-        nacional = entrada.get('modo') == 'nacional'
-        rodada = int(entrada['rodada']) if nacional else 1
-        total = int(entrada['total_rodadas']) if nacional else 1
-        titulo = f'Nacional {rodada}/{total}' if nacional else ('Coleta' if acompanhavel else 'Coleta iniciada fora do painel')
+        modo = entrada.get('modo')
+        fila = modo in {'agenda', 'nacional'}
+        rodada = int(entrada['rodada']) if fila else 1
+        total = int(entrada['total_rodadas']) if fila else 1
+        if modo == 'nacional':
+            titulo = f'Nacional {rodada}/{total}'
+        elif modo == 'agenda':
+            titulo = f"Agenda {entrada['grupo']}h · {rodada}/{total}"
+        else:
+            titulo = 'Coleta' if acompanhavel else 'Coleta iniciada fora do painel'
         if entrada.get('resumo'):
             titulo += f" · {entrada['resumo']}"
         estado = job['status']
