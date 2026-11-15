@@ -26,6 +26,7 @@ CNAE_SEGMENTOS = {
     '4771704': 'veterinaria', '4644301': 'distribuidoras', '4644302': 'distribuidoras',
 }
 CEP = re.compile(r'(?<!\d)(\d{5})-?(\d{3})(?!\d)')
+TAMANHO_LOTE = 400
 
 
 def municipios_receita(caminho):
@@ -150,8 +151,8 @@ def sincronizar(con, cliente, municipios, uf, competencia, aplicar=False, limite
         (competencia, uf, uf),
     )
     contagem = Counter()
-    indice = IndiceLeads(cliente.listar('chave,nome,endereco,local_busca,telefone,telefone_normalizado,dados_brutos'))
-    novos = []
+    indice = IndiceLeads(cliente.listar_referencia_receita())
+    novos, enriquecimentos = [], []
     for (registro,) in cadastros:
         cadastro = json.loads(registro)
         cidade = municipios.get(cadastro['codigo_municipio_receita'])
@@ -172,11 +173,8 @@ def sincronizar(con, cliente, municipios, uf, competencia, aplicar=False, limite
             if atualizado == anterior:
                 contagem['ja_integrado'] += 1
                 continue
-            if aplicar and not cliente.atualizar_dados_receita(lead['chave'], anterior, atualizado):
-                contagem['alterado_concorrentemente'] += 1
-                continue
             indice.adicionar({**lead, 'dados_brutos': atualizado})
-            contagem['enriquecidos' if aplicar else 'a_enriquecer'] += 1
+            enriquecimentos.append((lead['chave'], anterior, atualizado))
         elif criterio == 'revisar':
             contagem['revisao'] += 1
         elif not cadastro['nome_fantasia'].strip():
@@ -188,12 +186,18 @@ def sincronizar(con, cliente, municipios, uf, competencia, aplicar=False, limite
         else:
             contagem['fora_do_limite'] += 1
     if aplicar:
-        for i in range(0, len(novos), 100):
-            lote = novos[i:i + 100]
+        for i in range(0, len(novos), TAMANHO_LOTE):
+            lote = novos[i:i + TAMANHO_LOTE]
             inseridos = cliente.inserir_receita(lote)
             contagem['inseridos'] += inseridos
             contagem['chaves_ja_existentes'] += len(lote) - inseridos
+        for chave, anterior, atualizado in enriquecimentos:
+            campo = ('enriquecidos' if cliente.atualizar_dados_receita(chave, anterior, atualizado)
+                     else 'alterado_concorrentemente')
+            contagem[campo] += 1
     else:
+        if enriquecimentos:
+            contagem['a_enriquecer'] = len(enriquecimentos)
         contagem['a_inserir'] = len(novos)
         contagem['a_inserir_sem_email'] = sum(not registro['emails'] for registro in novos)
     return dict(contagem)

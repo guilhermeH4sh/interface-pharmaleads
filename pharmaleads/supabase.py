@@ -149,6 +149,14 @@ class Supabase:
         return {r['chave']: r for r in self.listar(filtros={
             'chave': 'in.(' + ','.join(citado(x) for x in chaves) + ')'})}
 
+    def listar_referencia_receita(self):
+        """Lê a carteira pela chave para o cruzamento, sem OFFSET crescente."""
+        colunas = 'chave,nome,endereco,local_busca,telefone,telefone_normalizado,dados_brutos'
+        parametros = {'select': colunas, 'order': 'chave.asc', 'limit': '500'}
+        while pagina := self._requisicao(parametros=parametros):
+            yield from pagina
+            parametros['chave'] = f"gt.{pagina[-1]['chave']}"
+
     def adicionar_emails(self, chave: str, encontrados: str) -> bool:
         """Acrescenta endereços a um lead existente, sem tocar nos outros campos."""
         from .enriquecedor import EMAIL, emails_publicos

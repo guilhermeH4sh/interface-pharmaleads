@@ -38,7 +38,7 @@ class TestSincronizarReceita(unittest.TestCase):
             ('2026-10', item['cnpj'], 'DF', json.dumps(item)) for item in cadastros
         ])
         cliente = Mock()
-        cliente.listar.return_value = catalogo
+        cliente.listar_referencia_receita.return_value = catalogo
         cliente.atualizar_dados_receita.return_value = True
         cliente.inserir_receita.return_value = 2
         municipios = {'9701': 'BRASILIA'}
