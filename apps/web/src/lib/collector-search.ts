@@ -24,5 +24,5 @@ export function buildCollectorSearch(text: string, uf: string, segments: string[
   const state = typed ?? selected;
   const options = { segmentos: [...new Set(segments)], profundidade: 1, emails: true };
   if (!state) return { ...options, locais: [] as string[], cobertura: "nacional" as const };
-  return { ...options, locais: [`${state.label.slice(0, -5)}, ${state.value}`] };
+  return { ...options, cobertura: undefined, locais: [`${state.label.slice(0, -5)}, ${state.value}`] };
 }
