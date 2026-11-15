@@ -52,7 +52,10 @@ def prioridade(registro: dict) -> dict | None:
         return None
     if not emails_publicos(registro.get('email') or ''):
         return None
-    return registro | {'criterio': 'fantasia+logradouro+numero+cep+uf'}
+    return registro | {
+        'criterio': 'fantasia+logradouro+numero+cep+uf',
+        'confianca': 'candidato_forte_requer_revisao',
+    }
 
 
 def main() -> None:

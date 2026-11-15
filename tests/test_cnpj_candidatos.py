@@ -26,7 +26,8 @@ class CruzamentoCNPJTests(unittest.TestCase):
             'logradouro': 'QUINTINO BOCAIUVA', 'numero': '1890',
             'email': 'comercial@medplusonline.com.br',
         }
-        self.assertIsNotNone(prioridade(candidato))
+        resultado = prioridade(candidato)
+        self.assertEqual(resultado['confianca'], 'candidato_forte_requer_revisao')
 
 
 if __name__ == '__main__':
