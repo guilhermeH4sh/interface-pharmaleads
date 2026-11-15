@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
+import * as csv from "../../lib/csv";
 import { LeadsView } from "./LeadsView";
 import type { LeadItem } from "../../lib/mock-leads";
 
@@ -141,5 +142,33 @@ test("select múltiplo exibe resumo no gatilho, Limpar seleção e abre para bai
     expect(trigger).toHaveTextContent("Todos");
   } finally {
     if (originalClientHeight) Object.defineProperty(document.documentElement, "clientHeight", originalClientHeight);
+  }
+});
+
+test("ignora filtros geográficos antigos e exporta todas as páginas da UF aplicada", async () => {
+  window.history.replaceState({}, "", "/?uf=PR&municipio=Inexistente&bairro=Inexistente");
+  const exportCsv = vi.spyOn(csv, "downloadLeadsCsv").mockImplementation(() => {});
+  const prLeads = Array.from({ length: 24 }, (_, index) => ({
+    ...base, id: String(index), nome: `Farmácia PR ${index}`, ultimaColeta: new Date().toISOString(),
+  }));
+  const spLead = { ...base, id: "sp", nome: "Farmácia SP", cidade: "Santos", uf: "SP", ultimaColeta: new Date().toISOString() };
+  try {
+    render(<LeadsView searchQuery="" dataSourceMode="supabase" realLeads={[...prLeads, spLead]}
+      isSupabaseAuthenticated onBatchAddToCrm={async () => []} />);
+    const filters = screen.getByRole("region", { name: "Filtros dos leads" });
+    expect(within(filters).getAllByRole("combobox")).toHaveLength(4);
+    expect(within(filters).getByRole("combobox", { name: "UF" })).toHaveTextContent("PR");
+    expect(screen.queryByText("Farmácia SP")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Resumo dos leads" })).getByText("24")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getAllByRole("row").length).toBeLessThan(25);
+    await waitFor(() => expect(window.location.search).not.toMatch(/municipio|bairro/));
+    await userEvent.click(screen.getByRole("button", { name: /^Exportar$/ }));
+    expect(exportCsv).toHaveBeenCalledWith(prLeads, "pharmaleads_ultimos_7_dias");
+    await userEvent.click(within(filters).getByRole("combobox", { name: "UF" }));
+    await userEvent.click(screen.getByRole("option", { name: "SP" }));
+    await userEvent.click(within(filters).getByRole("button", { name: "Aplicar filtros" }));
+    expect(within(screen.getByRole("table")).getByText("Farmácia SP")).toBeInTheDocument();
+  } finally {
+    exportCsv.mockRestore();
   }
 });

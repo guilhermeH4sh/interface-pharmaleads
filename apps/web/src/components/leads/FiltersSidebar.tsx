@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from "react";
 import { Filter } from "lucide-react";
-import { getUFs, getMunicipios, getBairros } from "../../lib/mock-leads";
+import { getUFs } from "../../lib/mock-leads";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import type { EmailAvailability } from "../../lib/email";
@@ -10,8 +10,6 @@ import { Select } from "../ui/select";
 
 export interface SideFilters {
   uf: string;
-  municipio: string;
-  bairro: string;
   statusSelect: string;
   origem: string;
   segmentos: string[];
@@ -20,15 +18,13 @@ export interface SideFilters {
 
 interface FiltersSidebarProps {
   selectedUF: string;
-  selectedMunicipio: string;
-  selectedBairro: string;
   selectedStatus: string;
   selectedOrigem: string;
   selectedSegmentos: string[];
   selectedEmailAvailability: EmailAvailability;
   onApplyFilters: (filters: SideFilters) => void;
   onResetFilters: () => void;
-  dynamicLocations?: Record<string, Record<string, string[]>>;
+  availableUFs?: string[];
   availableOrigins?: string[];
   statusOptions?: LeadStatus[];
   showStatusFilter?: boolean;
@@ -44,61 +40,27 @@ const EMAIL_OPTIONS = [
 
 export function FiltersSidebar({
   selectedUF,
-  selectedMunicipio,
-  selectedBairro,
   selectedStatus,
   selectedOrigem,
   selectedSegmentos,
   selectedEmailAvailability,
   onApplyFilters,
   onResetFilters,
-  dynamicLocations,
+  availableUFs,
   availableOrigins,
   statusOptions = ["Qualificado", "Não qualificado", "Em contato", "Respondido", "Não contatado"],
   showStatusFilter = true,
 }: FiltersSidebarProps) {
   const id = useId();
   const [uf, setUf] = useState(selectedUF);
-  const [municipio, setMunicipio] = useState(selectedMunicipio);
-  const [bairro, setBairro] = useState(selectedBairro);
   const [status, setStatus] = useState(selectedStatus || STATUS_ALL);
   const [origem, setOrigem] = useState(selectedOrigem || ORIGEM_ALL);
   const [segmentos, setSegmentos] = useState(selectedSegmentos);
   const [emailAvailability, setEmailAvailability] = useState<EmailAvailability>(selectedEmailAvailability);
 
-  const ufsList = useMemo(
-    () => (dynamicLocations !== undefined ? Object.keys(dynamicLocations).sort() : getUFs()),
-    [dynamicLocations]
-  );
-  const municipios = useMemo(
-    () =>
-      uf
-        ? dynamicLocations !== undefined
-          ? Object.keys(dynamicLocations[uf] || {}).sort()
-          : getMunicipios(uf)
-        : [],
-    [uf, dynamicLocations]
-  );
-  const bairros = useMemo(
-    () =>
-      uf && municipio
-        ? dynamicLocations !== undefined
-          ? dynamicLocations[uf]?.[municipio] || []
-          : getBairros(uf, municipio)
-        : [],
-    [uf, municipio, dynamicLocations]
-  );
   const ufOptions = useMemo(
-    () => [{ value: "", label: "Todas as UFs" }, ...ufsList.map((item) => ({ value: item, label: item }))],
-    [ufsList]
-  );
-  const municipioOptions = useMemo(
-    () => [{ value: "", label: uf ? "Todos os municípios" : "Escolha uma UF" }, ...municipios.map((item) => ({ value: item, label: item }))],
-    [uf, municipios]
-  );
-  const bairroOptions = useMemo(
-    () => [{ value: "", label: municipio ? "Todos os bairros" : "Escolha um município" }, ...bairros.map((item) => ({ value: item, label: item }))],
-    [municipio, bairros]
+    () => [{ value: "", label: "Todas as UFs" }, ...(availableUFs ?? getUFs()).map((item) => ({ value: item, label: item }))],
+    [availableUFs]
   );
   const statusSelectOptions = useMemo(
     () => [{ value: STATUS_ALL, label: STATUS_ALL }, ...statusOptions.map((item) => ({ value: item, label: item }))],
@@ -109,12 +71,10 @@ export function FiltersSidebar({
     [availableOrigins]
   );
 
-  const hasFilters = Boolean(uf || municipio || bairro || segmentos.length) || (showStatusFilter && status !== STATUS_ALL) || origem !== ORIGEM_ALL || emailAvailability !== "todos";
+  const hasFilters = Boolean(uf || segmentos.length) || (showStatusFilter && status !== STATUS_ALL) || origem !== ORIGEM_ALL || emailAvailability !== "todos";
 
   const reset = () => {
     setUf("");
-    setMunicipio("");
-    setBairro("");
     setStatus(STATUS_ALL);
     setOrigem(ORIGEM_ALL);
     setSegmentos([]);
@@ -136,13 +96,10 @@ export function FiltersSidebar({
       </div>
 
       <form
-        className={cn(
-          "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end",
-          "2xl:grid-cols-4"
-        )}
+        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end"
         onSubmit={(event) => {
           event.preventDefault();
-          onApplyFilters({ uf, municipio, bairro, statusSelect: showStatusFilter ? status : STATUS_ALL, origem, segmentos, emailAvailability });
+          onApplyFilters({ uf, statusSelect: showStatusFilter ? status : STATUS_ALL, origem, segmentos, emailAvailability });
         }}
       >
         <Select
@@ -150,27 +107,7 @@ export function FiltersSidebar({
           label="UF"
           value={uf}
           options={ufOptions}
-          onChange={(value) => { setUf(value); setMunicipio(""); setBairro(""); }}
-          triggerClassName="h-10"
-        />
-
-        <Select
-          id={`${id}-mun`}
-          label="Município"
-          value={municipio}
-          disabled={!uf}
-          options={municipioOptions}
-          onChange={(value) => { setMunicipio(value); setBairro(""); }}
-          triggerClassName="h-10"
-        />
-
-        <Select
-          id={`${id}-bairro`}
-          label="Bairro"
-          value={bairro}
-          disabled={!municipio}
-          options={bairroOptions}
-          onChange={setBairro}
+          onChange={setUf}
           triggerClassName="h-10"
         />
 
@@ -213,7 +150,7 @@ export function FiltersSidebar({
           triggerClassName="h-10"
         />
 
-        <button type="submit" className={cn(ui.btnBrand, "h-10 text-xs")}>
+        <button type="submit" className={cn(ui.btnBrand, "h-10 text-xs sm:col-span-2 xl:col-span-4 justify-self-start px-6")}>
           <Filter size={15} aria-hidden="true" /> Aplicar filtros
         </button>
       </form>

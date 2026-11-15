@@ -13,9 +13,9 @@ import type { EmailAvailability } from "../../lib/email";
 import { ESTABLISHMENTS } from "../../lib/prospect-options";
 import { getPreferences } from "../../lib/preferences";
 import {
-  buildDynamicLocations,
   computeSummaryFromItems,
-  filterAndPaginateItems,
+  filterLeadItems,
+  paginateLeadItems,
   markLeadDeletedLocal,
   type DataSourceMode,
 } from "../../lib/backend";
@@ -83,8 +83,6 @@ export function LeadsView({
     return () => window.removeEventListener("pharmaleads-preferences-change", update);
   }, []);
   const [selectedUF, setSelectedUF] = useState(getUrlParam("uf", ""));
-  const [selectedMunicipio, setSelectedMunicipio] = useState(getUrlParam("municipio", ""));
-  const [selectedBairro, setSelectedBairro] = useState(getUrlParam("bairro", ""));
   const [selectedOrigem, setSelectedOrigem] = useState(getUrlParam("origem", "Todas as origens"));
   const [selectedSegmentos, setSelectedSegmentos] = useState<string[]>(() => {
     const validos = new Set(ESTABLISHMENTS.map(item => item.value));
@@ -113,8 +111,6 @@ export function LeadsView({
     if (searchQuery.trim()) params.set("q", searchQuery.trim());
     if (currentPage > 1) params.set("page", String(currentPage));
     if (selectedUF) params.set("uf", selectedUF);
-    if (selectedMunicipio) params.set("municipio", selectedMunicipio);
-    if (selectedBairro) params.set("bairro", selectedBairro);
     if (selectedOrigem && selectedOrigem !== "Todas as origens") params.set("origem", selectedOrigem);
     if (selectedSegmentos.length) params.set("segmentos", selectedSegmentos.join(","));
     if (selectedEmailAvailability !== "todos") params.set("email", selectedEmailAvailability);
@@ -125,8 +121,6 @@ export function LeadsView({
     searchQuery,
     currentPage,
     selectedUF,
-    selectedMunicipio,
-    selectedBairro,
     selectedOrigem,
     selectedSegmentos,
     selectedEmailAvailability,
@@ -140,8 +134,6 @@ export function LeadsView({
         query: searchQuery,
         statusTab: "Todos",
         uf: selectedUF,
-        municipio: selectedMunicipio,
-        bairro: selectedBairro,
         statusSelect: "Todos os status",
         origem: selectedOrigem,
         segmentos: selectedSegmentos,
@@ -169,8 +161,6 @@ export function LeadsView({
     isRealMode,
     searchQuery,
     selectedUF,
-    selectedMunicipio,
-    selectedBairro,
     selectedOrigem,
     selectedSegmentos,
     selectedEmailAvailability,
@@ -195,46 +185,28 @@ export function LeadsView({
     }
   }, [isRealMode]);
 
-  // Dados calculados quando em modo real (SQLite Local ou Supabase Online)
+  const hasLeadFilters = Boolean(searchQuery.trim() || selectedUF || selectedSegmentos.length)
+    || selectedOrigem !== "Todas as origens" || selectedEmailAvailability !== "todos";
+  const filteredRealLeads = useMemo(
+    () => isRealMode && hasLeadFilters ? filterLeadItems(realLeads, {
+      query: searchQuery,
+      uf: selectedUF,
+      origem: selectedOrigem,
+      segmentos: selectedSegmentos,
+      emailAvailability: selectedEmailAvailability,
+    }) : realLeads,
+    [isRealMode, hasLeadFilters, realLeads, searchQuery, selectedUF, selectedOrigem, selectedSegmentos, selectedEmailAvailability]
+  );
   const realSummary = useMemo(
-    () => (isRealMode ? allLeadsSummary ?? computeSummaryFromItems(realLeads) : mockSummary),
-    [isRealMode, allLeadsSummary, realLeads, mockSummary]
+    () => hasLeadFilters ? computeSummaryFromItems(filteredRealLeads) : allLeadsSummary ?? computeSummaryFromItems(realLeads),
+    [hasLeadFilters, filteredRealLeads, allLeadsSummary, realLeads]
   );
-
   const realPagination = useMemo(
-    () =>
-      isRealMode
-        ? filterAndPaginateItems(realLeads, {
-            query: searchQuery,
-            statusTab: "Todos",
-            uf: selectedUF,
-            municipio: selectedMunicipio,
-            bairro: selectedBairro,
-            statusSelect: "Todos os status",
-            origem: selectedOrigem,
-            segmentos: selectedSegmentos,
-            emailAvailability: selectedEmailAvailability,
-            page: currentPage,
-            pageSize,
-          })
-        : null,
-    [
-      isRealMode,
-      realLeads,
-      searchQuery,
-      selectedUF,
-      selectedMunicipio,
-      selectedBairro,
-      selectedOrigem,
-      selectedSegmentos,
-      selectedEmailAvailability,
-      currentPage,
-      pageSize,
-    ]
+    () => isRealMode ? paginateLeadItems(filteredRealLeads, { page: currentPage, pageSize }) : null,
+    [isRealMode, filteredRealLeads, currentPage, pageSize]
   );
-
-  const dynamicLocations = useMemo(
-    () => (isRealMode ? buildDynamicLocations(realLeads) : undefined),
+  const availableUFs = useMemo(
+    () => isRealMode ? [...new Set(realLeads.map(lead => lead.uf).filter(Boolean))].sort() : undefined,
     [isRealMode, realLeads]
   );
   const availableOrigins = useMemo(
@@ -250,8 +222,6 @@ export function LeadsView({
 
   const handleApplySideFilters = (filters: SideFilters) => {
     setSelectedUF(filters.uf);
-    setSelectedMunicipio(filters.municipio);
-    setSelectedBairro(filters.bairro);
     setSelectedOrigem(filters.origem);
     setSelectedSegmentos(filters.segmentos);
     setSelectedEmailAvailability(filters.emailAvailability);
@@ -261,8 +231,6 @@ export function LeadsView({
 
   const handleResetFilters = () => {
     setSelectedUF("");
-    setSelectedMunicipio("");
-    setSelectedBairro("");
     setSelectedOrigem("Todas as origens");
     setSelectedSegmentos([]);
     setSelectedEmailAvailability("todos");
@@ -299,12 +267,12 @@ export function LeadsView({
   };
 
   const getLeadsForExportPeriod = () => {
-    if (exportPeriod === "all") return realLeads;
+    if (exportPeriod === "all") return filteredRealLeads;
     const now = new Date();
     const cutoff = exportPeriod === "month"
       ? new Date(now.getFullYear(), now.getMonth(), 1).getTime()
       : now.getTime() - Number(exportPeriod) * 24 * 60 * 60 * 1000;
-    return realLeads.filter((lead) => {
+    return filteredRealLeads.filter((lead) => {
       const collected = lead.ultimaColeta ? Date.parse(lead.ultimaColeta) : NaN;
       return Number.isFinite(collected) && collected >= cutoff;
     });
@@ -419,17 +387,15 @@ export function LeadsView({
       <div className={cn(ui.cardInteractive, "w-full flex flex-col")}>
         <div className="p-4 md:p-6 border-b border-border">
           <FiltersSidebar
-            key={`${selectedUF}|${selectedMunicipio}|${selectedBairro}|${selectedOrigem}|${selectedSegmentos.join(",")}|${selectedEmailAvailability}`}
+            key={`${selectedUF}|${selectedOrigem}|${selectedSegmentos.join(",")}|${selectedEmailAvailability}`}
             selectedUF={selectedUF}
-            selectedMunicipio={selectedMunicipio}
-            selectedBairro={selectedBairro}
             selectedStatus="Todos os status"
             selectedOrigem={selectedOrigem}
             selectedSegmentos={selectedSegmentos}
             selectedEmailAvailability={selectedEmailAvailability}
             onApplyFilters={handleApplySideFilters}
             onResetFilters={handleResetFilters}
-            dynamicLocations={dynamicLocations}
+            availableUFs={availableUFs}
             availableOrigins={availableOrigins}
             showStatusFilter={false}
           />

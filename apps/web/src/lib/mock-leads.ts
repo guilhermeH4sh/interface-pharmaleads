@@ -56,8 +56,6 @@ export interface LeadFilterParams {
   query?: string;
   statusTab?: "Todos" | LeadStatus;
   uf?: string;
-  municipio?: string;
-  bairro?: string;
   statusSelect?: string;
   origem?: string;
   segmentos?: string[];
@@ -89,53 +87,6 @@ export const MOCK_SUMMARY: LeadSummary = {
     outrasFontes: { percent: 0, count: 0 },
   },
 };
-// Hierarquia de Localidades para filtros em cascata
-export const LOCATIONS_HIERARCHY: Record<string, Record<string, string[]>> = {
-  SP: {
-    "São Paulo": ["Centro", "Pinheiros", "Moema", "Itaim Bibi", "Vila Mariana", "Santana", "Tatuapé"],
-    "Sorocaba": ["Centro", "Campolim", "Além Ponte", "Trujillo", "Mangal"],
-    "Campinas": ["Cambuí", "Centro", "Barão Geraldo", "Taquaral", "Guanabara"],
-    "Ribeirão Preto": ["Centro", "Jardim Paulista", "Bonfim Paulista", "Ipiranga"],
-    "Santos": ["Gonzaga", "Boqueirão", "Ponta da Praia", "Embaré"],
-  },
-  GO: {
-    "Goiânia": ["Setor Bueno", "Setor Marista", "Setor Oeste", "Centro", "Jardim Goiás"],
-    "Anápolis": ["Jundiaí", "Centro", "Maracanã", "Cidade Jardim"],
-    "Aparecida de Goiânia": ["Centro", "Vila Brasília", "Garavelo"],
-  },
-  DF: {
-    "Brasília": ["Asa Sul", "Asa Norte", "Sudoeste", "Águas Claras", "Taguatinga", "Guará"],
-  },
-  RJ: {
-    "Rio de Janeiro": ["Copacabana", "Ipanema", "Barra da Tijuca", "Botafogo", "Tijuca", "Centro"],
-    "Niterói": ["Icaraí", "Ingá", "Centro", "Santa Rosa"],
-  },
-  MG: {
-    "Belo Horizonte": ["Savassi", "Lourdes", "Funcionários", "Centro", "Pampulha"],
-    "Uberlândia": ["Centro", "Santa Mônica", "Fundinho"],
-  },
-  PR: {
-    "Curitiba": ["Batel", "Centro", "Bigorrilho", "Água Verde", "Cabral"],
-    "Londrina": ["Centro", "Gleba Palhano"],
-  },
-  RS: {
-    "Porto Alegre": ["Moinhos de Vento", "Bela Vista", "Centro Histórico", "Menino Deus"],
-    "Caxias do Sul": ["Centro", "Pellegrino", "São Pelegrino"],
-  },
-  BA: {
-    "Salvador": ["Pituba", "Barra", "Graça", "Itaigara", "Brotas"],
-  },
-  SC: {
-    "Florianópolis": ["Centro", "Trindade", "Agronômica", "Itacorubi"],
-  },
-  PE: {
-    "Recife": ["Boa Viagem", "Graças", "Espinheiro", "Casa Forte"],
-  },
-  CE: {
-    "Fortaleza": ["Aldeota", "Meireles", "Cocó", "Centro"],
-  },
-};
-
 let MOCK_DATABASE: LeadItem[] = [];
 
 /**
@@ -149,8 +100,6 @@ export async function fetchMockLeads(params: LeadFilterParams): Promise<LeadPagi
     query = "",
     statusTab = "Todos",
     uf = "",
-    municipio = "",
-    bairro = "",
     statusSelect = "",
     origem = "",
     segmentos = [],
@@ -189,27 +138,15 @@ export async function fetchMockLeads(params: LeadFilterParams): Promise<LeadPagi
     filtered = filtered.filter((item) => item.uf === uf);
   }
 
-  // 5. Filtro de Município
-  if (municipio && municipio !== "Selecionar município" && municipio !== "Todos os municípios") {
-    filtered = filtered.filter((item) => item.cidade.toLowerCase() === municipio.toLowerCase());
-  }
-
-  // 6. Filtro de Bairro
-  if (bairro && bairro !== "Selecionar bairro" && bairro !== "Todos os bairros") {
-    filtered = filtered.filter((item) => item.bairro.toLowerCase() === bairro.toLowerCase());
-  }
-
-  // 7. Busca textual (nome, cnpj, cidade, telefone, categoria)
+  // 5. Busca textual (nome, CNPJ, telefone, e-mail e categoria)
   if (query.trim()) {
     const q = query.trim().toLowerCase();
     filtered = filtered.filter(
       (item) =>
         item.nome.toLowerCase().includes(q) ||
         item.cnpj.replace(/\D/g, "").includes(q.replace(/\D/g, "")) ||
-        item.cidade.toLowerCase().includes(q) ||
         item.uf.toLowerCase().includes(q) ||
         item.telefone.replace(/\D/g, "").includes(q.replace(/\D/g, "")) ||
-        (item.bairro && item.bairro.toLowerCase().includes(q)) ||
         (item.categoria && item.categoria.toLowerCase().includes(q))
     );
   }
@@ -271,22 +208,6 @@ export async function deleteLead(id: string): Promise<boolean> {
   return MOCK_DATABASE.length < initialLength;
 }
 
-/**
- * Helpers para selects cascateados
- */
 export function getUFs(): string[] {
-  return Object.keys(LOCATIONS_HIERARCHY).sort();
+  return ["BA", "CE", "DF", "GO", "MG", "PE", "PR", "RJ", "RS", "SC", "SP"];
 }
-
-export function getMunicipios(uf: string): string[] {
-  if (!uf || !LOCATIONS_HIERARCHY[uf]) return [];
-  return Object.keys(LOCATIONS_HIERARCHY[uf]).sort();
-}
-
-export function getBairros(uf: string, municipio: string): string[] {
-  if (!uf || !municipio || !LOCATIONS_HIERARCHY[uf] || !LOCATIONS_HIERARCHY[uf][municipio]) {
-    return [];
-  }
-  return LOCATIONS_HIERARCHY[uf][municipio].sort();
-}
-

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { AUTHORIZED_USER_ID, buildDynamicLocations, fetchSupabaseAllLeads, filterLeadItems, mapRawLeadsToItems } from "./backend";
+import { AUTHORIZED_USER_ID, fetchSupabaseAllLeads, filterLeadItems, mapRawLeadsToItems } from "./backend";
 import type { Lead } from "./crm";
 
 beforeEach(() => localStorage.clear());
@@ -13,8 +13,7 @@ test("localidade usa o endereço real e não inventa bairro ou UF ausente", () =
   const items = mapRawLeadsToItems(rows);
   expect(items[0]).toMatchObject({ cidade: "Sorocaba", uf: "SP", bairro: "Centro" });
   expect(items[1]).toMatchObject({ uf: "", bairro: "" });
-  expect(buildDynamicLocations(items)).toEqual({ SP: { Sorocaba: ["Centro"] } });
-  expect(filterLeadItems(items, { uf: "SP", municipio: "Sorocaba", bairro: "Centro", origem: "Google Maps", emailAvailability: "com" })).toHaveLength(1);
+  expect(filterLeadItems(items, { uf: "SP", origem: "Google Maps", emailAvailability: "com" })).toHaveLength(1);
   expect(filterLeadItems(items, { uf: "SP", emailAvailability: "sem" })).toHaveLength(0);
 });
 

@@ -592,8 +592,6 @@ export function filterLeadItems(
     query = "",
     statusTab = "Todos",
     uf = "",
-    municipio = "",
-    bairro = "",
     statusSelect = "",
     origem = "",
     segmentos = [],
@@ -604,7 +602,7 @@ export function filterLeadItems(
 
   return allItems.filter((item) => {
     if (q) {
-      const searchable = `${item.nome} ${item.cnpj} ${item.cidade} ${item.uf} ${item.telefone} ${item.email || ""} ${item.bairro} ${item.endereco || ""} ${item.categoria || ""}`.toLowerCase();
+      const searchable = `${item.nome} ${item.cnpj} ${item.telefone} ${item.email || ""} ${item.categoria || ""}`.toLowerCase();
       if (!searchable.includes(q)) return false;
     }
     if (statusTab && statusTab !== "Todos" && item.status !== statusTab) {
@@ -614,12 +612,6 @@ export function filterLeadItems(
       return false;
     }
     if (uf && item.uf !== uf) {
-      return false;
-    }
-    if (municipio && item.cidade !== municipio) {
-      return false;
-    }
-    if (bairro && item.bairro !== bairro) {
       return false;
     }
     if (origem && origem !== "Todas as origens" && item.origem !== origem) {
@@ -635,12 +627,10 @@ export function filterLeadItems(
   });
 }
 
-export function filterAndPaginateItems(
-  allItems: LeadItem[],
-  params: LeadFilterParams
+export function paginateLeadItems(
+  filtered: LeadItem[],
+  { page = 1, pageSize = 5 }: Pick<LeadFilterParams, "page" | "pageSize">
 ): LeadPaginationResult {
-  const { page = 1, pageSize = 5 } = params;
-  const filtered = filterLeadItems(allItems, params);
 
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -656,23 +646,3 @@ export function filterAndPaginateItems(
     totalPages,
   };
 }
-
-export function buildDynamicLocations(items: LeadItem[]): Record<string, Record<string, string[]>> {
-  const hierarchy: Record<string, Record<string, Set<string>>> = {};
-  for (const item of items) {
-    if (!item.uf || !item.cidade) continue;
-    if (!hierarchy[item.uf]) hierarchy[item.uf] = {};
-    if (!hierarchy[item.uf][item.cidade]) hierarchy[item.uf][item.cidade] = new Set();
-    if (item.bairro) hierarchy[item.uf][item.cidade].add(item.bairro);
-  }
-
-  const out: Record<string, Record<string, string[]>> = {};
-  for (const uf of Object.keys(hierarchy).sort()) {
-    out[uf] = {};
-    for (const city of Object.keys(hierarchy[uf]).sort()) {
-      out[uf][city] = [...hierarchy[uf][city]].sort();
-    }
-  }
-  return out;
-}
-

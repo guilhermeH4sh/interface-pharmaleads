@@ -10,7 +10,7 @@ Os cartões de métricas em Leads mostram a base completa, inclusive os contatos
 
 | Filtro | Origem e comportamento |
 | --- | --- |
-| UF, município, bairro | Construídos a partir dos registros carregados. Cidade e UF vêm primeiro do endereço do estabelecimento; `local_busca` é usado apenas quando o endereço não identifica a cidade. Bairro desconhecido fica vazio. Opções fictícias de demonstração não aparecem no modo Supabase. |
+| UF | Opções construídas a partir dos registros carregados. Cidade e UF são extraídas do endereço do estabelecimento, com `local_busca` como fallback. |
 | Status | Usa `crm_status` persistido. Leads aplica Não contatado aos registros fora do CRM; os demais status abrem o CRM, que permite filtrar Em contato, Respondido, Qualificado e Não qualificado. |
 | Origem | As opções exibidas vêm das origens presentes nos dados. Hoje o mapeamento da coleta existente identifica Google Maps; fontes futuras exigem campo de origem no banco e integração de coleta. |
 | E-mail | Usa endereços válidos presentes em `emails`; texto sem endereço válido é tratado como Sem e-mail. O CRM oferece o mesmo filtro. |
