@@ -44,7 +44,8 @@ test("a barra envia a cidade corrigida e os filtros para o scraper local", async
   vi.stubGlobal("fetch", fetcher);
   render(<ProspeccaoTab dataSourceMode="local" />);
   await userEvent.type(screen.getByRole("searchbox", { name: "Cidade ou bairro" }), "sao pauli");
-  await userEvent.selectOptions(screen.getByRole("combobox", { name: "UF" }), "SP");
+  await userEvent.click(screen.getByRole("combobox", { name: "UF" }));
+  await userEvent.click(screen.getByRole("option", { name: "São Paulo (SP)" }));
   await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
   await waitFor(() => expect(fetcher.mock.calls.some(call => call[0] === "/api/coletas")).toBe(true));
   expect(screen.getByRole("button", { name: "Parar coleta" })).toBeInTheDocument();
@@ -62,9 +63,12 @@ test("a barra inicia o coletor em nuvem e desabilita fontes não integradas", as
   });
   vi.stubGlobal("fetch", fetcher);
   render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
-  expect(screen.getByRole("option", { name: "Receita Federal (em breve)" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("combobox", { name: "Fonte dos dados" }));
+  expect(screen.getByRole("option", { name: "Receita Federal (em breve)" })).toHaveAttribute("aria-disabled", "true");
+  await userEvent.keyboard("{Escape}");
   await userEvent.type(screen.getByRole("searchbox"), "Curitiba");
-  await userEvent.selectOptions(screen.getByRole("combobox", { name: "UF" }), "PR");
+  await userEvent.click(screen.getByRole("combobox", { name: "UF" }));
+  await userEvent.click(screen.getByRole("option", { name: "Paraná (PR)" }));
   await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
   await waitFor(() => expect(fetcher.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
@@ -317,8 +321,10 @@ test("Todas as UFs com pesquisa vazia despacha cobertura nacional ao clicar Pesq
   });
   vi.stubGlobal("fetch", fetcher);
   render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
-  expect(screen.getByRole("combobox", { name: "UF" })).toHaveValue("");
+  expect(screen.getByRole("combobox", { name: "UF" })).toHaveTextContent("Todas as UFs");
+  await userEvent.click(screen.getByRole("combobox", { name: "UF" }));
   expect(screen.getByRole("option", { name: "Todas as UFs" })).toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
   await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
   await waitFor(() => expect(fetcher.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
   expect(await screen.findByRole("status")).toHaveTextContent("Nacional 1/10");
@@ -337,4 +343,93 @@ test("permite consultar novamente quando o Render está iniciando", async () => 
   await userEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
   expect(await screen.findByRole("button", { name: "Parar coleta" })).toBeEnabled();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+test("CRM aplica atualização otimista imediata, não refaz fetch completo e reverte com toast se falhar", async () => {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
+  const row = { chave: "opt-1", nome: "Farmácia Otimista", local_busca: "Teresina, PI", segmento: "varejo", crm_included: true, crm_status: "Em contato" };
+  let resolvePatch!: (value: Response) => void;
+  let patchCalls = 0;
+  let listReads = 0;
+
+  const fetcher = vi.fn((url: string, init?: RequestInit) => {
+    if (url.includes("/auth/v1/user")) return Promise.resolve(new Response(JSON.stringify({ id: AUTHORIZED_USER_ID })));
+    if (url.includes("/rest/v1/pharmaleads") && init?.method === "PATCH") {
+      patchCalls += 1;
+      return new Promise<Response>((resolve) => {
+        resolvePatch = resolve;
+      });
+    }
+    if (url.includes("/rest/v1/pharmaleads")) {
+      listReads += 1;
+      return Promise.resolve(new Response(JSON.stringify([row]), { headers: { "content-range": "0-0/1" } }));
+    }
+    return Promise.resolve(new Response(JSON.stringify({ run: null })));
+  });
+  vi.stubGlobal("fetch", fetcher);
+
+  render(<TestDashboard />);
+  await userEvent.click(screen.getByRole("button", { name: "CRM" }));
+  expect(await screen.findByText("Farmácia Otimista")).toBeInTheDocument();
+  expect(listReads).toBe(1);
+
+  // Clica em "Avançar etapa" — a UI deve mover IMEDIATAMENTE antes da resposta do PATCH
+  await userEvent.click(screen.getByRole("button", { name: /Avançar etapa/ }));
+  expect(within(screen.getByLabelText("Coluna Respondido")).getByText("Farmácia Otimista")).toBeInTheDocument();
+  expect(within(screen.getByLabelText("Coluna Em Contato")).queryByText("Farmácia Otimista")).not.toBeInTheDocument();
+  expect(patchCalls).toBe(1);
+
+  // Simula falha do Supabase -> card volta para "Em Contato" e toast exibe erro
+  resolvePatch(new Response(JSON.stringify({ message: "Falha de permissão no banco" }), { status: 403 }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Falha de permissão no banco");
+  expect(within(screen.getByLabelText("Coluna Em Contato")).getByText("Farmácia Otimista")).toBeInTheDocument();
+
+  // Novo avanço com sucesso -> não dispara refetch completo da lista (listReads continua 1)
+  await userEvent.click(screen.getByRole("button", { name: /Avançar etapa/ }));
+  expect(within(screen.getByLabelText("Coluna Respondido")).getByText("Farmácia Otimista")).toBeInTheDocument();
+  resolvePatch(new Response(JSON.stringify([{ ...row, crm_status: "Respondido" }]), { status: 200 }));
+  await waitFor(() => expect(listReads).toBe(1));
+  expect(within(screen.getByLabelText("Coluna Respondido")).getByText("Farmácia Otimista")).toBeInTheDocument();
+});
+
+test("CRM protege contra race condition em movimentos rápidos consecutivos", async () => {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
+  const row = { chave: "race-1", nome: "Farmácia Veloz", local_busca: "São Paulo, SP", segmento: "varejo", crm_included: true, crm_status: "Em contato" };
+  const patchResolvers: Array<(value: Response) => void> = [];
+
+  const fetcher = vi.fn((url: string, init?: RequestInit) => {
+    if (url.includes("/auth/v1/user")) return Promise.resolve(new Response(JSON.stringify({ id: AUTHORIZED_USER_ID })));
+    if (url.includes("/rest/v1/pharmaleads") && init?.method === "PATCH") {
+      return new Promise<Response>((resolve) => {
+        patchResolvers.push(resolve);
+      });
+    }
+    if (url.includes("/rest/v1/pharmaleads")) {
+      return Promise.resolve(new Response(JSON.stringify([row]), { headers: { "content-range": "0-0/1" } }));
+    }
+    return Promise.resolve(new Response(JSON.stringify({ run: null })));
+  });
+  vi.stubGlobal("fetch", fetcher);
+
+  render(<TestDashboard />);
+  await userEvent.click(screen.getByRole("button", { name: "CRM" }));
+  expect(await screen.findByText("Farmácia Veloz")).toBeInTheDocument();
+
+  // Dois cliques rápidos seguidos: Em contato -> Respondido -> Qualificado
+  await userEvent.click(screen.getByRole("button", { name: /Avançar etapa/ }));
+  await userEvent.click(screen.getByRole("button", { name: /Avançar etapa/ }));
+
+  expect(within(screen.getByLabelText("Coluna Qualificado")).getByText("Farmácia Veloz")).toBeInTheDocument();
+  expect(screen.getByText("100%")).toBeInTheDocument();
+  expect(patchResolvers).toHaveLength(2);
+
+  // Primeira requisição falha/chega atrasada -> NÃO deve sobrescrever ou reverter "Qualificado"
+  patchResolvers[0](new Response(JSON.stringify({ message: "Erro antigo" }), { status: 500 }));
+  await Promise.resolve();
+  expect(within(screen.getByLabelText("Coluna Qualificado")).getByText("Farmácia Veloz")).toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+  // Segunda requisição confirma "Qualificado"
+  patchResolvers[1](new Response(JSON.stringify([{ ...row, crm_status: "Qualificado" }]), { status: 200 }));
+  await waitFor(() => expect(within(screen.getByLabelText("Coluna Qualificado")).getByText("Farmácia Veloz")).toBeInTheDocument());
 });

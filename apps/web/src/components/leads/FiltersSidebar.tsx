@@ -157,7 +157,7 @@ export function FiltersSidebar({
           </Select>
         )}
 
-        <ProspectMultiSelect label="Tipo de estabelecimento" options={ESTABLISHMENTS} values={segmentos} onChange={setSegmentos} />
+        <ProspectMultiSelect label="Tipo de estabelecimento" options={ESTABLISHMENTS} values={segmentos} onChange={setSegmentos} buttonClassName="h-10" />
 
         <Select id={`${id}-origem`} label="Origem" value={origem} onChange={setOrigem}>
           <option value={ORIGEM_ALL}>{ORIGEM_ALL}</option>

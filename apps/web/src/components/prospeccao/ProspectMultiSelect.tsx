@@ -8,9 +8,10 @@ interface Props {
   options: { value: string; label: string }[];
   values: string[];
   onChange: (values: string[]) => void;
+  buttonClassName?: string;
 }
 
-export function ProspectMultiSelect({ label, options, values, onChange }: Props) {
+export function ProspectMultiSelect({ label, options, values, onChange, buttonClassName }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const root = useRef<HTMLDivElement>(null);
@@ -27,10 +28,10 @@ export function ProspectMultiSelect({ label, options, values, onChange }: Props)
   const visible = options.filter(option => normalized(option.label).includes(normalized(query)));
   const selected = options.filter(option => values.includes(option.value));
   return (
-    <div ref={root} className="relative min-w-0">
-      <label id={`${id}-label`} className={cn(ui.label, "block mb-1.5")}>{label}</label>
+    <div ref={root} className="relative flex min-w-0 flex-col gap-1.5">
+      <label id={`${id}-label`} className={ui.label}>{label}</label>
       <button type="button" aria-labelledby={`${id}-label ${id}-value`} aria-expanded={open} aria-controls={`${id}-options`}
-        onClick={() => setOpen(!open)} className={cn(ui.input, "flex items-center justify-between gap-2 text-left")}>
+        onClick={() => setOpen(!open)} className={cn(ui.input, "flex items-center justify-between gap-2 text-left", buttonClassName)}>
         <span id={`${id}-value`} className="truncate">{selected.length === 1 ? selected[0].label : selected.length ? `${selected.length} selecionados` : "Todos"}</span>
         <ChevronDown size={15} className="shrink-0 text-muted-foreground" />
       </button>

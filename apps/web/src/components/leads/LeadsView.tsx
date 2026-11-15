@@ -5,6 +5,7 @@ import { LeadsTable } from "./LeadsTable";
 import { FiltersSidebar, type SideFilters } from "./FiltersSidebar";
 import { BatchActionsBar } from "./BatchActionsBar";
 import { LeadDetailsModal } from "./LeadDetailsModal";
+import { Select, type SelectOption } from "../ui/select";
 import { downloadLeadsCsv } from "../../lib/csv";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
@@ -42,6 +43,14 @@ interface LeadsViewProps {
   onBatchAddToCrm: (leadIds: string[]) => Promise<string[]>;
   onNewProspect?: () => void;
 }
+
+const EXPORT_PERIOD_OPTIONS: SelectOption[] = [
+  { value: "7", label: "Últimos 7 dias" },
+  { value: "15", label: "Últimos 15 dias" },
+  { value: "30", label: "Últimos 30 dias" },
+  { value: "month", label: "Este mês" },
+  { value: "all", label: "Todo o período" },
+];
 
 export function LeadsView({
   searchQuery,
@@ -294,7 +303,7 @@ export function LeadsView({
     const now = new Date();
     const cutoff = exportPeriod === "month"
       ? new Date(now.getFullYear(), now.getMonth(), 1).getTime()
-      : Date.now() - Number(exportPeriod) * 24 * 60 * 60 * 1000;
+      : now.getTime() - Number(exportPeriod) * 24 * 60 * 60 * 1000;
     return realLeads.filter((lead) => {
       const collected = lead.ultimaColeta ? Date.parse(lead.ultimaColeta) : NaN;
       return Number.isFinite(collected) && collected >= cutoff;
@@ -336,19 +345,18 @@ export function LeadsView({
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <select aria-label="Período para exportação" value={exportPeriod} onChange={(event) => setExportPeriod(event.target.value)} className={cn(ui.input, "h-12 w-40 text-sm")}>
-              <option value="7">Últimos 7 dias</option>
-              <option value="15">Últimos 15 dias</option>
-              <option value="30">Últimos 30 dias</option>
-              <option value="month">Este mês</option>
-              <option value="all">Todo o período</option>
-            </select>
-            <button type="button" onClick={handleExportByPeriod} disabled={!getLeadsForExportPeriod().length} className={cn(ui.btnSecondary, "h-12 px-4 text-sm shrink-0")}>
-              <Download size={17} /><span>Exportar</span>
-            </button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Select
+            ariaLabel="Período para exportação"
+            value={exportPeriod}
+            onChange={setExportPeriod}
+            options={EXPORT_PERIOD_OPTIONS}
+            align="right"
+            triggerClassName="h-12 w-44 rounded-xl text-sm"
+          />
+          <button type="button" onClick={handleExportByPeriod} disabled={!getLeadsForExportPeriod().length} className={cn(ui.btnSecondary, "h-12 px-4 text-sm shrink-0")}>
+            <Download size={17} /><span>Exportar</span>
+          </button>
           <button onClick={onNewProspect} className={cn(ui.btnBrand, "h-12 px-6 sm:px-8 text-sm sm:text-base shrink-0")}>
             <Plus size={18} strokeWidth={2.5} /><span>Nova Prospecção</span>
           </button>

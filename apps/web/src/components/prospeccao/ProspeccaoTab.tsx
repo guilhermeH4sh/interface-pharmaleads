@@ -7,8 +7,15 @@ import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import { ProspectMultiSelect } from "./ProspectMultiSelect";
 import { CollectorProgress } from "./CollectorProgress";
+import { Select } from "../ui/select";
 
 const DISMISSED_CLOUD_RUN_KEY = "pharmaleads-dismissed-cloud-run";
+const UF_OPTIONS = [{ value: "", label: "Todas as UFs" }, ...STATES];
+const SOURCE_OPTIONS = SOURCES.map(option => ({
+  value: option.value,
+  label: `${option.label}${option.value !== "Google Maps" ? " (em breve)" : ""}`,
+  disabled: option.value !== "Google Maps",
+}));
 
 interface Props {
   dataSourceMode?: DataSourceMode;
@@ -165,19 +172,24 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
             <button type="submit" disabled={busy || active || !connected || (cloud && (!cloudReady || cloudStale))} aria-label="Pesquisar" className={cn(ui.btnBrand, "rounded-full h-10 px-4 sm:px-6 text-sm shrink-0")}>Pesquisar</button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label htmlFor="prospect-uf" className={cn(ui.label, "block mb-1.5")}>UF</label>
-              <select id="prospect-uf" value={uf} onChange={event => setUf(event.target.value)} disabled={busy || active} className={ui.input}>
-                <option value="">Todas as UFs</option>
-                {STATES.map(state => <option key={state.value} value={state.value}>{state.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="prospect-source" className={cn(ui.label, "block mb-1.5")}>Fonte dos dados</label>
-              <select id="prospect-source" value={source} onChange={event => setSource(event.target.value)} disabled={busy || active} className={ui.input}>
-                {SOURCES.map(option => <option key={option.value} value={option.value} disabled={option.value !== "Google Maps"}>{option.label}{option.value !== "Google Maps" ? " (em breve)" : ""}</option>)}
-              </select>
-            </div>
+            <Select
+              id="prospect-uf"
+              label="UF"
+              value={uf}
+              onChange={setUf}
+              options={UF_OPTIONS}
+              disabled={busy || active}
+              align="left"
+            />
+            <Select
+              id="prospect-source"
+              label="Fonte dos dados"
+              value={source}
+              onChange={setSource}
+              options={SOURCE_OPTIONS}
+              disabled={busy || active}
+              align="left"
+            />
             <ProspectMultiSelect label="Tipo de estabelecimento" options={ESTABLISHMENTS} values={segments} onChange={setSegments} />
           </div>
         </form>
