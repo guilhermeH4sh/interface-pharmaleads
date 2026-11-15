@@ -5,7 +5,6 @@ import { buildCollectorSearch } from "../../lib/collector-search";
 import { ESTABLISHMENTS, STATES, SOURCES } from "../../lib/prospect-options";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
-import { ProspectMultiSelect } from "./ProspectMultiSelect";
 import { CollectorProgress } from "./CollectorProgress";
 import { Select } from "../ui/select";
 
@@ -190,7 +189,16 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
               disabled={busy || active}
               align="left"
             />
-            <ProspectMultiSelect label="Tipo de estabelecimento" options={ESTABLISHMENTS} values={segments} onChange={setSegments} />
+            <Select
+              id="prospect-segments"
+              label="Tipo de estabelecimento"
+              multiple
+              values={segments}
+              onChange={setSegments}
+              options={ESTABLISHMENTS}
+              disabled={busy || active}
+              align="left"
+            />
           </div>
         </form>
         {!connected && <p className="mt-5 text-xs text-muted-foreground text-center">Conecte sua conta Supabase em Configurações para iniciar.</p>}

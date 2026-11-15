@@ -22,16 +22,18 @@ test("filtra tipos de leads em conjunto com e-mail e guarda a seleção na URL",
 
   const table = screen.getByRole("table");
   expect(within(table).getByText("Farmácia Varejo")).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: /Tipo de estabelecimento/ }));
-  await userEvent.click(screen.getByRole("checkbox", { name: "Farmácia de Manipulação" }));
+  await userEvent.click(screen.getByRole("combobox", { name: "Tipo de estabelecimento" }));
+  await userEvent.click(screen.getByRole("option", { name: "Farmácia de Manipulação" }));
+  await userEvent.keyboard("{Escape}");
   await userEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
 
   expect(within(table).getByText("Farmácia Manipulação")).toBeInTheDocument();
   expect(within(table).queryByText("Farmácia Varejo")).not.toBeInTheDocument();
   await waitFor(() => expect(new URLSearchParams(window.location.search).get("segmentos")).toBe("manipulacao"));
 
-  await userEvent.click(screen.getByRole("button", { name: /Tipo de estabelecimento/ }));
-  await userEvent.click(screen.getByRole("checkbox", { name: "Farmácia de Varejo / Drogaria" }));
+  await userEvent.click(screen.getByRole("combobox", { name: "Tipo de estabelecimento" }));
+  await userEvent.click(screen.getByRole("option", { name: "Farmácia de Varejo / Drogaria" }));
+  await userEvent.keyboard("{Escape}");
   await userEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
   expect(within(table).getByText("Farmácia Varejo")).toBeInTheDocument();
   expect(within(table).getByText("Farmácia Manipulação")).toBeInTheDocument();
@@ -97,11 +99,47 @@ test("alinha o painel do seletor à largura e borda direita do gatilho ignorando
 
     await userEvent.click(trigger);
     const listbox = screen.getByRole("listbox", { name: "Período para exportação" });
-    expect(listbox.style.minWidth).toBe("176px");
-    expect(listbox.style.right).toBe("309px");
-    expect(listbox.style.top).toBe("134px");
+    const panel = listbox.parentElement as HTMLElement;
+    expect(panel.style.width).toBe("176px");
+    expect(panel.style.right).toBe("309px");
+    expect(panel.style.top).toBe("134px");
   } finally {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth });
     if (originalClientWidth) Object.defineProperty(document.documentElement, "clientWidth", originalClientWidth);
+  }
+});
+
+test("select múltiplo exibe resumo no gatilho, Limpar seleção e abre para baixo quando há >= 200 px abaixo", async () => {
+  const originalClientHeight = Object.getOwnPropertyDescriptor(document.documentElement, "clientHeight");
+  Object.defineProperty(document.documentElement, "clientHeight", { configurable: true, value: 700 });
+
+  try {
+    render(<LeadsView searchQuery="" dataSourceMode="supabase" realLeads={leads}
+      isSupabaseAuthenticated onBatchAddToCrm={async () => []} />);
+    const trigger = screen.getByRole("combobox", { name: "Tipo de estabelecimento" });
+    vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({
+      x: 40, y: 400, left: 40, right: 260, top: 400, bottom: 440, width: 220, height: 40,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    expect(trigger).toHaveTextContent("Todos");
+    await userEvent.click(trigger);
+
+    const listbox = screen.getByRole("listbox", { name: "Tipo de estabelecimento" });
+    const panel = listbox.parentElement as HTMLElement;
+    expect(listbox).toHaveAttribute("aria-multiselectable", "true");
+    // 700 - 440 - 6 - 16 = 238 px >= 200 px -> abre para baixo com maxHeight 238 px
+    expect(panel.style.top).toBe("446px");
+    expect(panel.style.maxHeight).toBe("238px");
+
+    await userEvent.click(within(listbox).getByRole("option", { name: "Farmácia de Manipulação" }));
+    expect(trigger).toHaveTextContent("Farmácia de Manipulação");
+    await userEvent.click(within(listbox).getByRole("option", { name: "Farmácia Veterinária" }));
+    expect(trigger).toHaveTextContent("2 selecionados");
+
+    await userEvent.click(within(panel).getByRole("button", { name: "Limpar seleção" }));
+    expect(trigger).toHaveTextContent("Todos");
+  } finally {
+    if (originalClientHeight) Object.defineProperty(document.documentElement, "clientHeight", originalClientHeight);
   }
 });

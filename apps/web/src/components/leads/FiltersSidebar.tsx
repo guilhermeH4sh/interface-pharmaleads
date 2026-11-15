@@ -1,12 +1,12 @@
-import { useId, useState, type ReactNode } from "react";
-import { Filter, ChevronDown } from "lucide-react";
+import { useId, useMemo, useState } from "react";
+import { Filter } from "lucide-react";
 import { getUFs, getMunicipios, getBairros } from "../../lib/mock-leads";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import type { EmailAvailability } from "../../lib/email";
 import type { LeadStatus } from "../../lib/mock-leads";
 import { ESTABLISHMENTS } from "../../lib/prospect-options";
-import { ProspectMultiSelect } from "../prospeccao/ProspectMultiSelect";
+import { Select } from "../ui/select";
 
 export interface SideFilters {
   uf: string;
@@ -36,33 +36,11 @@ interface FiltersSidebarProps {
 
 const STATUS_ALL = "Todos os status";
 const ORIGEM_ALL = "Todas as origens";
-
-function Select({ id, label, value, onChange, disabled, children }: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <label htmlFor={id} className={ui.label}>{label}</label>
-      <div className="relative">
-        <select
-          id={id}
-          value={value}
-          disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
-          className={cn(ui.input, "h-10 appearance-none pr-10 cursor-pointer")}
-        >
-          {children}
-        </select>
-        <ChevronDown size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
-      </div>
-    </div>
-  );
-}
+const EMAIL_OPTIONS = [
+  { value: "todos", label: "Todos" },
+  { value: "com", label: "Com e-mail" },
+  { value: "sem", label: "Sem e-mail" },
+];
 
 export function FiltersSidebar({
   selectedUF,
@@ -88,17 +66,49 @@ export function FiltersSidebar({
   const [segmentos, setSegmentos] = useState(selectedSegmentos);
   const [emailAvailability, setEmailAvailability] = useState<EmailAvailability>(selectedEmailAvailability);
 
-  const ufsList = dynamicLocations !== undefined ? Object.keys(dynamicLocations).sort() : getUFs();
-  const municipios = uf
-    ? dynamicLocations !== undefined
-      ? Object.keys(dynamicLocations[uf] || {}).sort()
-      : getMunicipios(uf)
-    : [];
-  const bairros = uf && municipio
-    ? dynamicLocations !== undefined
-      ? dynamicLocations[uf]?.[municipio] || []
-      : getBairros(uf, municipio)
-    : [];
+  const ufsList = useMemo(
+    () => (dynamicLocations !== undefined ? Object.keys(dynamicLocations).sort() : getUFs()),
+    [dynamicLocations]
+  );
+  const municipios = useMemo(
+    () =>
+      uf
+        ? dynamicLocations !== undefined
+          ? Object.keys(dynamicLocations[uf] || {}).sort()
+          : getMunicipios(uf)
+        : [],
+    [uf, dynamicLocations]
+  );
+  const bairros = useMemo(
+    () =>
+      uf && municipio
+        ? dynamicLocations !== undefined
+          ? dynamicLocations[uf]?.[municipio] || []
+          : getBairros(uf, municipio)
+        : [],
+    [uf, municipio, dynamicLocations]
+  );
+  const ufOptions = useMemo(
+    () => [{ value: "", label: "Todas as UFs" }, ...ufsList.map((item) => ({ value: item, label: item }))],
+    [ufsList]
+  );
+  const municipioOptions = useMemo(
+    () => [{ value: "", label: uf ? "Todos os municípios" : "Escolha uma UF" }, ...municipios.map((item) => ({ value: item, label: item }))],
+    [uf, municipios]
+  );
+  const bairroOptions = useMemo(
+    () => [{ value: "", label: municipio ? "Todos os bairros" : "Escolha um município" }, ...bairros.map((item) => ({ value: item, label: item }))],
+    [municipio, bairros]
+  );
+  const statusSelectOptions = useMemo(
+    () => [{ value: STATUS_ALL, label: STATUS_ALL }, ...statusOptions.map((item) => ({ value: item, label: item }))],
+    [statusOptions]
+  );
+  const origemOptions = useMemo(
+    () => [{ value: ORIGEM_ALL, label: ORIGEM_ALL }, ...(availableOrigins ?? ["Google Maps", "Google Meu Negócio", "Outras fontes"]).map((item) => ({ value: item, label: item }))],
+    [availableOrigins]
+  );
+
   const hasFilters = Boolean(uf || municipio || bairro || segmentos.length) || (showStatusFilter && status !== STATUS_ALL) || origem !== ORIGEM_ALL || emailAvailability !== "todos";
 
   const reset = () => {
@@ -135,40 +145,73 @@ export function FiltersSidebar({
           onApplyFilters({ uf, municipio, bairro, statusSelect: showStatusFilter ? status : STATUS_ALL, origem, segmentos, emailAvailability });
         }}
       >
-        <Select id={`${id}-uf`} label="UF" value={uf} onChange={(value) => { setUf(value); setMunicipio(""); setBairro(""); }}>
-          <option value="">Todas as UFs</option>
-          {ufsList.map((item) => <option key={item} value={item}>{item}</option>)}
-        </Select>
+        <Select
+          id={`${id}-uf`}
+          label="UF"
+          value={uf}
+          options={ufOptions}
+          onChange={(value) => { setUf(value); setMunicipio(""); setBairro(""); }}
+          triggerClassName="h-10"
+        />
 
-        <Select id={`${id}-mun`} label="Município" value={municipio} disabled={!uf} onChange={(value) => { setMunicipio(value); setBairro(""); }}>
-          <option value="">{uf ? "Todos os municípios" : "Escolha uma UF"}</option>
-          {municipios.map((item) => <option key={item} value={item}>{item}</option>)}
-        </Select>
+        <Select
+          id={`${id}-mun`}
+          label="Município"
+          value={municipio}
+          disabled={!uf}
+          options={municipioOptions}
+          onChange={(value) => { setMunicipio(value); setBairro(""); }}
+          triggerClassName="h-10"
+        />
 
-        <Select id={`${id}-bairro`} label="Bairro" value={bairro} disabled={!municipio} onChange={setBairro}>
-          <option value="">{municipio ? "Todos os bairros" : "Escolha um município"}</option>
-          {bairros.map((item) => <option key={item} value={item}>{item}</option>)}
-        </Select>
+        <Select
+          id={`${id}-bairro`}
+          label="Bairro"
+          value={bairro}
+          disabled={!municipio}
+          options={bairroOptions}
+          onChange={setBairro}
+          triggerClassName="h-10"
+        />
 
         {showStatusFilter && (
-          <Select id={`${id}-status`} label="Status" value={status} onChange={setStatus}>
-            <option value={STATUS_ALL}>{STATUS_ALL}</option>
-            {statusOptions.map(item => <option key={item} value={item}>{item}</option>)}
-          </Select>
+          <Select
+            id={`${id}-status`}
+            label="Status"
+            value={status}
+            options={statusSelectOptions}
+            onChange={setStatus}
+            triggerClassName="h-10"
+          />
         )}
 
-        <ProspectMultiSelect label="Tipo de estabelecimento" options={ESTABLISHMENTS} values={segmentos} onChange={setSegmentos} buttonClassName="h-10" />
+        <Select
+          id={`${id}-seg`}
+          label="Tipo de estabelecimento"
+          multiple
+          values={segmentos}
+          onChange={setSegmentos}
+          options={ESTABLISHMENTS}
+          triggerClassName="h-10"
+        />
 
-        <Select id={`${id}-origem`} label="Origem" value={origem} onChange={setOrigem}>
-          <option value={ORIGEM_ALL}>{ORIGEM_ALL}</option>
-          {(availableOrigins ?? ["Google Maps", "Google Meu Negócio", "Outras fontes"]).map(item => <option key={item} value={item}>{item}</option>)}
-        </Select>
+        <Select
+          id={`${id}-origem`}
+          label="Origem"
+          value={origem}
+          options={origemOptions}
+          onChange={setOrigem}
+          triggerClassName="h-10"
+        />
 
-        <Select id={`${id}-email`} label="E-mail" value={emailAvailability} onChange={(value) => setEmailAvailability(value as EmailAvailability)}>
-          <option value="todos">Todos</option>
-          <option value="com">Com e-mail</option>
-          <option value="sem">Sem e-mail</option>
-        </Select>
+        <Select
+          id={`${id}-email`}
+          label="E-mail"
+          value={emailAvailability}
+          options={EMAIL_OPTIONS}
+          onChange={(value) => setEmailAvailability(value as EmailAvailability)}
+          triggerClassName="h-10"
+        />
 
         <button type="submit" className={cn(ui.btnBrand, "h-10 text-xs")}>
           <Filter size={15} aria-hidden="true" /> Aplicar filtros

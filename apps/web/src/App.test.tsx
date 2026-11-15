@@ -298,12 +298,14 @@ test("Leads mostra o e-mail sem responsável e filtra com ou sem endereço váli
   expect(headers).toContain("E-mail");
   expect(headers).not.toContain("Responsável");
 
-  await userEvent.selectOptions(screen.getByRole("combobox", { name: "E-mail" }), "com");
+  await userEvent.click(screen.getByRole("combobox", { name: "E-mail" }));
+  await userEvent.click(screen.getByRole("option", { name: "Com e-mail" }));
   await userEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
   expect(screen.getByRole("button", { name: "Farmácia com e-mail" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Farmácia sem e-mail" })).not.toBeInTheDocument();
 
-  await userEvent.selectOptions(screen.getByRole("combobox", { name: "E-mail" }), "sem");
+  await userEvent.click(screen.getByRole("combobox", { name: "E-mail" }));
+  await userEvent.click(screen.getByRole("option", { name: "Sem e-mail" }));
   await userEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
   expect(screen.getByRole("button", { name: "Farmácia sem e-mail" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Farmácia com e-mail" })).not.toBeInTheDocument();
@@ -323,7 +325,10 @@ test("Todas as UFs com pesquisa vazia despacha cobertura nacional ao clicar Pesq
   render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
   expect(screen.getByRole("combobox", { name: "UF" })).toHaveTextContent("Todas as UFs");
   await userEvent.click(screen.getByRole("combobox", { name: "UF" }));
-  expect(screen.getByRole("option", { name: "Todas as UFs" })).toBeInTheDocument();
+  const allUfsOption = screen.getByRole("option", { name: "Todas as UFs" });
+  expect(allUfsOption).toHaveAttribute("aria-selected", "true");
+  expect(allUfsOption).toHaveClass("text-brand", "bg-primary-soft", "font-semibold");
+  expect(screen.getByRole("option", { name: "Acre (AC)" })).toHaveClass("text-muted-foreground", "font-normal");
   await userEvent.keyboard("{Escape}");
   await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
   await waitFor(() => expect(fetcher.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
