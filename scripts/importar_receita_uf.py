@@ -16,6 +16,7 @@ from zipfile import ZipFile
 
 CNAES = {'4771701', '4771702', '4771703', '4771704', '4644301', '4644302'}
 UFS = 'AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split()
+TODAS = 'TODAS'
 
 
 def preparar_banco(con):
@@ -54,7 +55,8 @@ def importar_arquivo(con, caminho, uf, competencia):
                     examinados += 1
                     if len(linha) != 30:
                         raise ValueError(f'Layout inesperado em {caminho.name}, linha {examinados}.')
-                    if linha[19] != uf or linha[5] not in {'2', '02'}:
+                    uf_cadastro = linha[19]
+                    if linha[5] not in {'2', '02'} or (uf != TODAS and uf_cadastro != uf) or uf_cadastro not in UFS:
                         continue
                     secundarios = [codigo.strip() for codigo in linha[12].split(',') if codigo.strip()]
                     atividade = CNAES.intersection([linha[11], *secundarios])
@@ -64,7 +66,7 @@ def importar_arquivo(con, caminho, uf, competencia):
                     if not re.fullmatch(r'[A-Z0-9]{12}[0-9]{2}', cnpj):
                         raise ValueError(f'CNPJ fora do formato em {caminho.name}, linha {examinados}.')
                     cadastro = {
-                        'cnpj': cnpj, 'uf': uf, 'nome_fantasia': linha[4], 'situacao_cadastral': '02',
+                        'cnpj': cnpj, 'uf': uf_cadastro, 'nome_fantasia': linha[4], 'situacao_cadastral': '02',
                         'inicio_atividade': linha[10], 'cnae_principal': linha[11],
                         'cnaes_secundarios': secundarios, 'cnaes_correspondentes': sorted(atividade),
                         'tipo_logradouro': linha[13], 'logradouro': linha[14], 'numero': linha[15],
@@ -75,7 +77,7 @@ def importar_arquivo(con, caminho, uf, competencia):
                         'competencia': competencia, 'importado_em': data,
                     }
                     elegiveis += 1
-                    lote.append((competencia, cnpj, uf, json.dumps(cadastro, ensure_ascii=False)))
+                    lote.append((competencia, cnpj, uf_cadastro, json.dumps(cadastro, ensure_ascii=False)))
                     if len(lote) == 1000:
                         inseridos += con.executemany(INSERIR, lote).rowcount
                         lote.clear()
@@ -91,7 +93,7 @@ INSERIR = 'INSERT OR IGNORE INTO receita_estabelecimentos VALUES (?,?,?,?)'
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--uf', required=True, type=str.upper, choices=UFS)
+    parser.add_argument('--uf', required=True, type=str.upper, choices=[*UFS, TODAS])
     parser.add_argument('--competencia', required=True, help='Competência do dump no formato AAAA-MM')
     parser.add_argument('--banco', type=Path, required=True, help='SQLite local dedicado à importação')
     parser.add_argument('arquivos', type=Path, nargs='+', help='ZIPs Estabelecimentos da competência')
@@ -102,8 +104,9 @@ def main():
         preparar_banco(con)
         for caminho in args.arquivos:
             print(json.dumps(importar_arquivo(con, caminho, args.uf, args.competencia), ensure_ascii=False), flush=True)
-        total = con.execute('SELECT count(*) FROM receita_estabelecimentos WHERE competencia=? AND uf=?',
-                            (args.competencia, args.uf)).fetchone()[0]
+        total = con.execute('''SELECT count(*) FROM receita_estabelecimentos
+            WHERE competencia=? AND (? = 'TODAS' OR uf=?)''',
+                            (args.competencia, args.uf, args.uf)).fetchone()[0]
         print(json.dumps({'uf': args.uf, 'total_cnpjs': total}))
 
 

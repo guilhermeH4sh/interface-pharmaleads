@@ -8,7 +8,7 @@ from contextlib import closing
 from pathlib import Path
 from zipfile import ZipFile
 
-from scripts.importar_receita_uf import importar_arquivo, preparar_banco
+from scripts.importar_receita_uf import importar_arquivo, preparar_banco, TODAS
 
 
 def estabelecimento(cnpj, uf, cnae, secundario='', situacao='02'):
@@ -42,7 +42,11 @@ class TestReceitaUF(unittest.TestCase):
             resultado = importar_arquivo(con, arquivo, 'DF', '2026-10')
             self.assertEqual((resultado['examinados'], resultado['novos'], resultado['duplicados']), (6, 2, 1))
             self.assertTrue(importar_arquivo(con, arquivo, 'DF', '2026-10')['retomado'])
-            self.assertEqual(importar_arquivo(con, arquivo, 'SP', '2026-10')['novos'], 1)
+            self.assertEqual(importar_arquivo(con, arquivo, TODAS, '2026-10')['novos'], 1)
+            self.assertTrue(importar_arquivo(con, arquivo, TODAS, '2026-10')['retomado'])
+            self.assertEqual(con.execute(
+                'SELECT uf, count(*) FROM receita_estabelecimentos GROUP BY uf ORDER BY uf'
+            ).fetchall(), [('DF', 2), ('SP', 1)])
             cadastro = json.loads(con.execute(
                 'SELECT cadastro FROM receita_estabelecimentos WHERE cnpj=?', ('12345678000276',)
             ).fetchone()[0])

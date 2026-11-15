@@ -16,7 +16,7 @@ from pharmaleads.banco import analisar_telefone
 from pharmaleads.config import SEGMENTOS, ErroPharmaLeads
 from pharmaleads.enriquecedor import emails_publicos
 from pharmaleads.supabase import Supabase
-from scripts.importar_receita_uf import UFS
+from scripts.importar_receita_uf import TODAS, UFS
 from scripts.revisar_cnpj_candidatos import normalizar, numero_lead
 
 
@@ -94,6 +94,10 @@ class IndiceLeads:
             mesma_rua = len(rua) >= 6 and f' {rua} ' in f' {normalizar(endereco)} '
             mesmo_numero = numero.isdecimal() and str(int(numero)) == numero_lead(lead.get('nome') or '', endereco)
             endereco_exato = mesmo_cep and mesma_rua and mesmo_numero
+            if cnpj_lead(lead):
+                if mesmo_nome and endereco_exato:
+                    possiveis.append(lead)
+                continue
             if mesmo_nome and (endereco_exato or (mesmo_fone and mesmo_cep)):
                 fortes.append(lead)
             if endereco_exato or mesmo_fone or (mesmo_nome and (
@@ -101,7 +105,7 @@ class IndiceLeads:
                 or f' {local} ' in f' {normalizar(endereco)} '
             )):
                 possiveis.append(lead)
-        if len(fortes) == 1 and not cnpj_lead(fortes[0]):
+        if len(fortes) == 1 and not any(cnpj_lead(item) for item in possiveis):
             return fortes[0], 'nome_e_endereco'
         return None, 'revisar' if possiveis else 'novo'
 
@@ -135,13 +139,15 @@ def novo_lead(cadastro, codigo, municipio):
 
 def sincronizar(con, cliente, municipios, uf, competencia, aplicar=False, limite=None):
     ibge = defaultdict(list)
-    for codigo, nome in con.execute("SELECT codigo,nome FROM ibge_localidades WHERE tipo='municipio' AND uf=?", (uf,)):
-        ibge[normalizar(nome)].append((codigo, nome))
+    for codigo, nome, sigla in con.execute(
+        "SELECT codigo,nome,uf FROM ibge_localidades WHERE tipo='municipio' AND (? = 'TODAS' OR uf=?)", (uf, uf)
+    ):
+        ibge[sigla, normalizar(nome)].append((codigo, nome))
     if not ibge:
         raise ErroPharmaLeads('Atualize o cache do IBGE antes de sincronizar.')
     cadastros = con.execute(
-        'SELECT cadastro FROM receita_estabelecimentos WHERE uf=? AND competencia=? ORDER BY cnpj',
-        (uf, competencia),
+        "SELECT cadastro FROM receita_estabelecimentos WHERE competencia=? AND (? = 'TODAS' OR uf=?) ORDER BY cnpj",
+        (competencia, uf, uf),
     )
     contagem = Counter()
     indice = IndiceLeads(cliente.listar('chave,nome,endereco,local_busca,telefone,telefone_normalizado,dados_brutos'))
@@ -149,7 +155,7 @@ def sincronizar(con, cliente, municipios, uf, competencia, aplicar=False, limite
     for (registro,) in cadastros:
         cadastro = json.loads(registro)
         cidade = municipios.get(cadastro['codigo_municipio_receita'])
-        confirmados = ibge.get(normalizar(cidade or ''), [])
+        confirmados = ibge.get((cadastro['uf'], normalizar(cidade or '')), [])
         if len(confirmados) != 1:
             contagem['municipio_sem_correspondencia'] += 1
             continue
@@ -197,7 +203,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--banco', required=True, type=Path)
     parser.add_argument('--municipios', required=True, type=Path)
-    parser.add_argument('--uf', required=True, type=str.upper, choices=UFS)
+    parser.add_argument('--uf', required=True, type=str.upper, choices=[*UFS, TODAS])
     parser.add_argument('--competencia', required=True)
     parser.add_argument('--aplicar', action='store_true', help='Grava em public.pharmaleads')
     parser.add_argument('--limite-novos', type=int, help='Limite de novos registros para um piloto')
