@@ -58,17 +58,27 @@ class IndiceLeads:
         self.nome = defaultdict(dict)
         self.telefone = defaultdict(dict)
         self.cep = defaultdict(dict)
+        self.por_chave = {}
         for lead in leads:
             self.adicionar(lead)
 
     def adicionar(self, lead):
+        chave = lead['chave']
+        if anterior := self.por_chave.get(chave):
+            self.nome[normalizar(anterior.get('nome') or '')].pop(chave, None)
+            for telefone in telefones([anterior.get('telefone'), anterior.get('telefone_normalizado')]):
+                self.telefone[telefone].pop(chave, None)
+        self.por_chave[chave] = lead
         if cnpj := cnpj_lead(lead):
-            self.cnpj[cnpj][lead['chave']] = lead
-        self.nome[normalizar(lead.get('nome') or '')][lead['chave']] = lead
-        for telefone in telefones([lead.get('telefone'), lead.get('telefone_normalizado')]):
-            self.telefone[telefone][lead['chave']] = lead
+            self.cnpj[cnpj][chave] = lead
+        else:
+            # CNPJ diferente só entra em revisão quando o endereço coincide.
+            # O índice de CEP já encontra esses casos, inclusive em redes.
+            self.nome[normalizar(lead.get('nome') or '')][chave] = lead
+            for telefone in telefones([lead.get('telefone'), lead.get('telefone_normalizado')]):
+                self.telefone[telefone][chave] = lead
         if cep := cep_lead(lead):
-            self.cep[cep][lead['chave']] = lead
+            self.cep[cep][chave] = lead
 
     def encontrar(self, cadastro, municipio):
         cnpj = cadastro['cnpj']

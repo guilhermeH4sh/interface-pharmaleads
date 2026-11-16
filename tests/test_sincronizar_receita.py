@@ -4,10 +4,23 @@ import unittest
 from unittest.mock import Mock
 
 from scripts.importar_receita_uf import preparar_banco
-from scripts.sincronizar_receita import sincronizar
+from scripts.sincronizar_receita import IndiceLeads, sincronizar
 
 
 class TestSincronizarReceita(unittest.TestCase):
+    def test_filiais_com_cnpjs_distintos_podem_compartilhar_nome_e_telefone(self):
+        indice = IndiceLeads([{
+            'chave': 'receita:12345678000195', 'nome': 'Drogaria Rede',
+            'endereco': 'Rua do Comércio, 23, Brasília, DF, 70000-000',
+            'telefone': '6133334444', 'dados_brutos': {'cnpj': '12345678000195'},
+        }])
+        filial = {
+            'cnpj': '12345678000276', 'nome_fantasia': 'Drogaria Rede', 'telefones': ['6133334444'],
+            'cep': '70000001', 'logradouro': 'Rua do Comércio', 'numero': '23', 'uf': 'DF',
+        }
+        self.assertEqual(indice.encontrar(filial, 'Brasília'), (None, 'novo'))
+        self.assertEqual(indice.encontrar({**filial, 'cep': '70000000'}, 'Brasília'), (None, 'revisar'))
+
     def test_dry_run_e_aplicacao_preservam_o_crm_e_separam_ambiguos(self):
         con = sqlite3.connect(':memory:')
         self.addCleanup(con.close)
