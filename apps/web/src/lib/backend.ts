@@ -449,16 +449,23 @@ export async function controlCloudCollector(
 
 // ---------- Conversão e Mapeamento de Lead (SQLite / Supabase -> UI LeadItem) ----------
 
+const UFS_BRASIL = new Set([
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+  "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+  "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+]);
+
 function extractCidadeUf(row: Lead): { cidade: string; uf: string } {
   const local = (row.local_busca || "").trim();
   const matches = [...(row.endereco || "").matchAll(/,\s*([^,-]+?)\s*-\s*([A-Z]{2})(?:,|$)/g)];
-  if (matches.length) {
-    const last = matches[matches.length - 1];
-    return { cidade: last[1].trim(), uf: last[2].toUpperCase() };
+  const matchEndereco = matches.reverse().find((match) => UFS_BRASIL.has(match[2].toUpperCase()));
+  if (matchEndereco) {
+    return { cidade: matchEndereco[1].trim(), uf: matchEndereco[2].toUpperCase() };
   }
   const matchLocal = /^(.+?),\s*([A-Z]{2})$/i.exec(local);
   if (matchLocal) {
-    return { cidade: matchLocal[1].trim(), uf: matchLocal[2].toUpperCase() };
+    const uf = matchLocal[2].toUpperCase();
+    return { cidade: matchLocal[1].trim(), uf: UFS_BRASIL.has(uf) ? uf : "" };
   }
   return { cidade: local || "Não informado", uf: "" };
 }
