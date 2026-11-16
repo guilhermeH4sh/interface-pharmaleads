@@ -19,6 +19,14 @@ export const DELETED_STORAGE_KEY = "pharmaleads-deleted-ids";
 const SUPABASE_BASE_COLUMNS =
   "chave,nome,segmento,categoria,endereco,local_busca,telefone,telefone_normalizado,celular,whatsapp_link,site,emails,situacao,avaliacao,qtd_avaliacoes,latitude,longitude,link,ultima_coleta,dados_brutos";
 const SUPABASE_COLUMNS = `${SUPABASE_BASE_COLUMNS},crm_included,crm_status`;
+const SUPABASE_LIST_COLUMNS = [
+  SUPABASE_COLUMNS.replace(",dados_brutos,", ","),
+  "cnpj:dados_brutos->>cnpj",
+  "cnpj_origem:dados_brutos->>cnpj_origem",
+  "cnpj_confianca:dados_brutos->>cnpj_confianca",
+  "fonte_dados:dados_brutos->>fonte_dados",
+  "avaliacoes_recentes:dados_brutos->avaliacoes_recentes",
+].join(",");
 
 export const COLETA_ATIVA_STATES = ["queued", "in_progress", "waiting", "pending", "requested"];
 
@@ -239,11 +247,10 @@ export async function fetchSupabaseAllLeads(
 
   const rows: Lead[] = [];
   let lastKey = "";
-  let expectedTotal: number | undefined;
-  const pageSize = 1000;
+  let pageSize = 500;
   while (true) {
     const query = new URLSearchParams({
-      select: SUPABASE_COLUMNS,
+      select: SUPABASE_LIST_COLUMNS,
       order: "chave.asc",
       limit: String(pageSize),
     });
@@ -253,7 +260,6 @@ export async function fetchSupabaseAllLeads(
       headers: {
         apikey: PUBLISHABLE_KEY,
         Authorization: `Bearer ${active.access_token}`,
-        ...(!lastKey ? { Prefer: "count=exact" } : {}),
       },
     });
     if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
@@ -261,20 +267,28 @@ export async function fetchSupabaseAllLeads(
       throw new Error("A conta não tem acesso à tabela pharmaleads. Verifique as permissões no Supabase.");
     }
     if (!response.ok) {
+      const failure = await response.json().catch(() => null) as { code?: string } | null;
+      if (failure?.code === "57014" && pageSize > 100) {
+        pageSize = Math.max(100, Math.floor(pageSize / 2));
+        continue;
+      }
       throw new Error(`Consulta ao Supabase falhou (HTTP ${response.status}).`);
     }
-    const batch = (await response.json()) as Lead[];
-    rows.push(...batch);
+    const batch = (await response.json()) as Array<Lead & NonNullable<Lead["dados_brutos"]>>;
+    for (const { cnpj, cnpj_origem, cnpj_confianca, fonte_dados, avaliacoes_recentes, ...row } of batch) {
+      rows.push({
+        ...row,
+        dados_brutos: row.dados_brutos ?? { cnpj, cnpj_origem, cnpj_confianca, fonte_dados, avaliacoes_recentes },
+      });
+    }
     if (batch.length) {
       const nextKey = batch[batch.length - 1].chave;
-      if (!nextKey || nextKey <= lastKey) throw new Error("A paginação do Supabase retornou uma chave inválida.");
+      if (!nextKey || nextKey === lastKey) throw new Error("A paginação do Supabase retornou uma chave inválida.");
       lastKey = nextKey;
     }
-    const total = Number(response.headers.get("content-range")?.split("/")[1]);
-    if (expectedTotal === undefined && Number.isFinite(total)) expectedTotal = total;
     if (batch.length < pageSize) break;
   }
-  if (new Set(rows.map(row => row.chave)).size !== rows.length || (expectedTotal !== undefined && rows.length < expectedTotal)) {
+  if (new Set(rows.map(row => row.chave)).size !== rows.length) {
     throw new Error("A consulta ao Supabase retornou uma lista incompleta de leads.");
   }
   return { session: active, rows };

@@ -31,20 +31,37 @@ test("tipo de estabelecimento combina seleções com UF e e-mail antes da pagina
 });
 
 test("pagina por chave sem repetir linhas quando novas coletas alteram a base", async () => {
-  const first = Array.from({ length: 1000 }, (_, index) => ({ chave: String(index).padStart(4, "0"), nome: "Farmácia" }));
+  const first = Array.from({ length: 500 }, (_, index) => ({ chave: String(index).padStart(4, "0"), nome: "Farmácia" }));
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: AUTHORIZED_USER_ID }));
     const query = new URL(url).searchParams;
     if (!query.has("chave")) {
-      expect(new Headers(init?.headers).get("Prefer")).toBe("count=exact");
-      return new Response(JSON.stringify(first), { headers: { "content-range": "0-999/1001" } });
+      expect(new Headers(init?.headers).get("Prefer")).toBeNull();
+      expect(query.get("limit")).toBe("500");
+      return new Response(JSON.stringify(first));
     }
-    expect(query.get("chave")).toBe("gt.0999");
+    expect(query.get("chave")).toBe("gt.0499");
     expect(new Headers(init?.headers).get("Prefer")).toBeNull();
     return new Response(JSON.stringify([{ chave: "1000", nome: "Farmácia nova" }]));
   });
   vi.stubGlobal("fetch", fetcher);
   const result = await fetchSupabaseAllLeads({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 });
-  expect(result.rows).toHaveLength(1001);
-  expect(new Set(result.rows.map(row => row.chave)).size).toBe(1001);
+  expect(result.rows).toHaveLength(501);
+  expect(new Set(result.rows.map(row => row.chave)).size).toBe(501);
+});
+
+test("reduz a página após o timeout do Supabase e preserva a origem da Receita", async () => {
+  const fetcher = vi.fn(async (url: string) => {
+    if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: AUTHORIZED_USER_ID }));
+    const query = new URL(url).searchParams;
+    if (query.get("limit") === "500") return new Response('{"code":"57014"}', { status: 500 });
+    expect(query.get("limit")).toBe("250");
+    expect(query.get("chave")).toBeNull();
+    expect(query.get("select")).toContain("fonte_dados:dados_brutos->>fonte_dados");
+    return new Response(JSON.stringify([{ chave: "receita:1", fonte_dados: "Receita Federal", cnpj: "12345678000195" }]));
+  });
+  vi.stubGlobal("fetch", fetcher);
+  const result = await fetchSupabaseAllLeads({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 });
+  expect(result.rows[0].dados_brutos).toMatchObject({ fonte_dados: "Receita Federal", cnpj: "12345678000195" });
+  expect(fetcher).toHaveBeenCalledTimes(3);
 });
