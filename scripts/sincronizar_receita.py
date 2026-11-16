@@ -57,7 +57,7 @@ class IndiceLeads:
         self.cnpj = defaultdict(dict)
         self.nome = defaultdict(dict)
         self.telefone = defaultdict(dict)
-        self.cep = defaultdict(dict)
+        self.endereco = defaultdict(dict)
         self.por_chave = {}
         for lead in leads:
             self.adicionar(lead)
@@ -73,12 +73,14 @@ class IndiceLeads:
             self.cnpj[cnpj][chave] = lead
         else:
             # CNPJ diferente só entra em revisão quando o endereço coincide.
-            # O índice de CEP já encontra esses casos, inclusive em redes.
+            # O índice de CEP e número já encontra esses casos, inclusive em redes.
             self.nome[normalizar(lead.get('nome') or '')][chave] = lead
             for telefone in telefones([lead.get('telefone'), lead.get('telefone_normalizado')]):
                 self.telefone[telefone][chave] = lead
-        if cep := cep_lead(lead):
-            self.cep[cep][chave] = lead
+        cep = cep_lead(lead)
+        numero = numero_lead(lead.get('nome') or '', lead.get('endereco') or '')
+        if cep and numero:
+            self.endereco[cep, numero][chave] = lead
 
     def encontrar(self, cadastro, municipio):
         cnpj = cadastro['cnpj']
@@ -88,13 +90,13 @@ class IndiceLeads:
         nome = normalizar(cadastro['nome_fantasia'])
         fones = telefones(cadastro['telefones'])
         cep = cadastro['cep']
-        candidatos = dict(self.cep.get(cep, {}))
+        numero = str(int(cadastro['numero'])) if cadastro['numero'].isdecimal() else ''
+        candidatos = dict(self.endereco.get((cep, numero), {}))
         if nome:
             candidatos.update(self.nome.get(nome, {}))
         for telefone in fones:
             candidatos.update(self.telefone.get(telefone, {}))
         rua = normalizar(cadastro['logradouro'])
-        numero = cadastro['numero']
         local = normalizar(f"{municipio}, {cadastro['uf']}")
         fortes, possiveis = [], []
         for lead in candidatos.values():
@@ -103,7 +105,7 @@ class IndiceLeads:
             mesmo_cep = bool(cep) and cep == cep_lead(lead)
             mesmo_fone = bool(fones & telefones([lead.get('telefone'), lead.get('telefone_normalizado')]))
             mesma_rua = len(rua) >= 6 and f' {rua} ' in f' {normalizar(endereco)} '
-            mesmo_numero = numero.isdecimal() and str(int(numero)) == numero_lead(lead.get('nome') or '', endereco)
+            mesmo_numero = bool(numero) and numero == numero_lead(lead.get('nome') or '', endereco)
             endereco_exato = mesmo_cep and mesma_rua and mesmo_numero
             if cnpj_lead(lead):
                 if mesmo_nome and endereco_exato:
