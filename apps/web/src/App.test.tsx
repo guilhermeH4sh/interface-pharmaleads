@@ -51,10 +51,18 @@ test("a barra envia o estado selecionado e os filtros para o scraper local", asy
   expect(screen.getByRole("button", { name: "Parar coleta" })).toBeInTheDocument();
 });
 
-test("a barra inicia o coletor em nuvem e desabilita fontes não integradas", async () => {
+test("a busca lista os leads salvos e dispara o coletor em paralelo", async () => {
   let started = false;
   const run = { id: 1, status: "queued", title: "Coleta · Paraná, PR" };
   const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
+    if (input.includes("/rest/v1/pharmaleads")) {
+      const query = new URL(input).searchParams;
+      expect(query.get("uf_prospeccao")).toBe("eq.PR");
+      expect(query.get("segmento")).toBe("in.(varejo)");
+      expect(query.get("limit")).toBe("26");
+      return new Response(JSON.stringify([{ chave: "pr-1", nome: "Farmácia do Paraná", local_busca: "Curitiba, PR",
+        uf_prospeccao: "PR", fonte_prospeccao: "Google Maps", emails: "" }]));
+    }
     if (input === "/api/collector" && init?.method === "POST") {
       expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", locais: "Paraná, PR", segmentos: ["varejo"], profundidade: 1, emails: true });
       started = true;
@@ -64,15 +72,15 @@ test("a barra inicia o coletor em nuvem e desabilita fontes não integradas", as
   vi.stubGlobal("fetch", fetcher);
   render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
   await userEvent.click(screen.getByRole("combobox", { name: "Fonte dos dados" }));
-  expect(screen.getByRole("option", { name: "Receita Federal (em breve)" })).toHaveAttribute("aria-disabled", "true");
+  expect(screen.getByRole("option", { name: "Receita Federal" })).not.toHaveAttribute("aria-disabled", "true");
   await userEvent.keyboard("{Escape}");
   await userEvent.type(screen.getByRole("searchbox"), "Paraná");
   await userEvent.click(screen.getByRole("combobox", { name: "UF" }));
   await userEvent.click(screen.getByRole("option", { name: "Paraná (PR)" }));
   await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
   await waitFor(() => expect(fetcher.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
-  expect(screen.queryByRole("table")).not.toBeInTheDocument();
-  expect(await screen.findByRole("status")).toHaveTextContent("Na fila");
+  expect(await screen.findByText("Farmácia do Paraná")).toBeInTheDocument();
+  expect(await screen.findByText("Na fila")).toBeInTheDocument();
 });
 
 test("o painel usa a etapa e as rodadas concluídas informadas pelo Render", async () => {
@@ -92,7 +100,7 @@ test("progresso explica quando a busca encontra locais mas nenhum e-mail", async
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run }))));
   render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
   expect(await screen.findByText(/Nesta rodada: 12 resultados processados/)).toBeInTheDocument();
-  expect(screen.getByText(/nenhum tinha e-mail público validado/)).toBeInTheDocument();
+  expect(screen.getByText(/e-mail é opcional/i)).toBeInTheDocument();
 });
 
 test("job manual aparece em andamento e oferece parada pelo painel", async () => {
@@ -315,6 +323,10 @@ test("Leads mostra o e-mail sem responsável e filtra com ou sem endereço váli
 test("Todas as UFs com pesquisa vazia despacha cobertura nacional ao clicar Pesquisar", async () => {
   let started = false;
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes("/rest/v1/pharmaleads")) {
+      expect(new URL(url).searchParams.has("uf_prospeccao")).toBe(false);
+      return new Response("[]");
+    }
     if (url === "/api/collector" && init?.method === "POST") {
       expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", cobertura: "nacional", segmentos: ["varejo"], profundidade: 1, emails: true });
       started = true;
@@ -332,7 +344,7 @@ test("Todas as UFs com pesquisa vazia despacha cobertura nacional ao clicar Pesq
   await userEvent.keyboard("{Escape}");
   await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
   await waitFor(() => expect(fetcher.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
-  expect(await screen.findByRole("status")).toHaveTextContent("Nacional 1/10");
+  expect(await screen.findByText("Nacional 1/10")).toBeInTheDocument();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
 
@@ -343,11 +355,40 @@ test("permite consultar novamente quando o Render está iniciando", async () => 
     : new Response(JSON.stringify({ error: "O coletor no Render está indisponível ou iniciando." }), { status: 503 })));
   render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
   expect(await screen.findByRole("alert")).toHaveTextContent("indisponível ou iniciando");
-  expect(screen.getByRole("button", { name: "Pesquisar" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Pesquisar" })).toBeEnabled();
   available = true;
   await userEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
   expect(await screen.findByRole("button", { name: "Parar coleta" })).toBeEnabled();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+test("paginação de leads funciona com o Render indisponível e mantém os filtros enviados", async () => {
+  const row = (index: number) => ({
+    chave: String(index).padStart(2, "0"), nome: `Farmácia ${index}`, local_busca: "Curitiba, PR",
+    uf_prospeccao: "PR", fonte_prospeccao: "Receita Federal", crm_included: index === 1,
+  });
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === "/api/collector") return new Response(JSON.stringify({ error: "Render indisponível" }), { status: 503 });
+    expect(init?.method).toBeUndefined();
+    const query = new URL(url).searchParams;
+    expect(query.get("fonte_prospeccao")).toBe("eq.Receita Federal");
+    expect(query.get("uf_prospeccao")).toBe("eq.PR");
+    return new Response(JSON.stringify(query.get("chave") === "gt.25"
+      ? [row(26)] : Array.from({ length: 26 }, (_, index) => row(index + 1))));
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
+  await userEvent.click(screen.getByRole("combobox", { name: "Fonte dos dados" }));
+  await userEvent.click(screen.getByRole("option", { name: "Receita Federal" }));
+  await userEvent.type(screen.getByRole("searchbox"), "PR");
+  await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
+  expect(await screen.findByText("Já está no CRM")).toBeInTheDocument();
+  expect(screen.queryByText("Farmácia 26")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Próxima" }));
+  expect(await screen.findByText("Farmácia 26")).toBeInTheDocument();
+  expect(screen.queryByText("Farmácia 1")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
+  expect(fetcher.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
 });
 
 test("CRM aplica atualização otimista imediata, não refaz fetch completo e reverte com toast se falhar", async () => {

@@ -15,6 +15,22 @@ diretamente ao Supabase Auth; não está no repositório nem é enviada à Verce
 mantém a sessão apenas durante a aba, e a política RLS limita a leitura à conta autorizada.
 A interface mostra os leads já presentes no Supabase e permite filtrar e exportar CSV.
 
+### Habilitar a pesquisa paginada na Prospecção
+
+Antes de publicar a interface, execute `supabase/05_prospeccao_filtros.sql` no
+Supabase. Execute `supabase/06_prospeccao_indice_uf.sql` sozinho, fora de uma
+transação explícita. Em seguida, repita `supabase/07_prospeccao_preencher_uf.sql`
+até `atualizados` retornar zero e confirme que não restaram UFs pendentes:
+
+```sql
+SELECT count(*) FROM public.pharmaleads WHERE uf_prospeccao IS NULL;
+```
+
+O botão **Pesquisar** consulta os leads salvos por UF, tipo e origem em páginas
+de 25. Em Google Maps ou Todas as fontes, ele também solicita uma coleta em
+segundo plano se o coletor estiver livre. Filtrar por Receita Federal apenas
+consulta o catálogo. As operações em massa e a exportação ficam em **Leads**.
+
 Com o login Supabase já configurado no `.env` local, cada CSV importado é enviado
 automaticamente à tabela online. Falhas de rede deixam os registros numa fila SQLite
 local; rode `python -m pharmaleads sincronizar-supabase` para reenviá-los. A coleta

@@ -56,7 +56,7 @@ export function CollectorProgress({ run, stale, onDismiss }: { run: CollectorRun
         <p className="text-muted-foreground">O Render encerrou a coleta após {completed} de {total} rodadas. A execução está parada.</p>
       )}
       {run.status === "completed" && run.conclusion === "success" && run.new_supabase_leads != null && run.goal_leads != null && run.new_supabase_leads < run.goal_leads && <p className="text-muted-foreground">A fila terminou antes da meta de novos leads. Amplie as localidades ou revise o rendimento das consultas.</p>}
-      {run.status === "completed" && run.conclusion === "success" && run.found_leads != null && run.with_email === 0 && <p className="text-muted-foreground">A busca encontrou estabelecimentos, mas nenhum tinha e-mail público validado para entrar na base.</p>}
+      {run.status === "completed" && run.conclusion === "success" && (run.found_leads ?? 0) > 0 && run.with_email === 0 && <p className="text-muted-foreground">Nenhum estabelecimento da última rodada tinha e-mail público validado. O e-mail é opcional.</p>}
     </section>
   );
 }

@@ -294,6 +294,60 @@ export async function fetchSupabaseAllLeads(
   return { session: active, rows };
 }
 
+export interface ProspectFilters {
+  uf: string;
+  source: string;
+  segments: string[];
+}
+
+export async function fetchProspectPage(
+  session: SupabaseSession, filters: ProspectFilters, cursor: string | null, signal: AbortSignal,
+) {
+  const active = await validSupabaseSession(session);
+  const size = 25;
+  const query = new URLSearchParams({
+    select: SUPABASE_LIST_COLUMNS + ",uf_prospeccao,fonte_prospeccao,redes:dados_brutos->enriquecimento_site->redes_sociais",
+    order: "chave.asc",
+    limit: String(size + 1),
+    segmento: `in.(${filters.segments.join(",")})`,
+  });
+  if (filters.uf) query.set("uf_prospeccao", `eq.${filters.uf}`);
+  if (filters.source) query.set("fonte_prospeccao", `eq.${filters.source}`);
+  if (cursor) query.set("chave", `gt.${cursor}`);
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/pharmaleads?${query}`, {
+    cache: "no-store",
+    headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}` },
+    signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+  });
+  if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
+  if (!response.ok) {
+    const failure = await response.json().catch(() => null) as { code?: string } | null;
+    if (failure?.code === "PGRST100" || failure?.code === "42703") {
+      throw new Error("A busca por filtros ainda não está disponível no Supabase.");
+    }
+    throw new Error(`Não foi possível consultar os leads (HTTP ${response.status}).`);
+  }
+  const rows = (await response.json()) as Array<Lead & NonNullable<Lead["dados_brutos"]> & {
+    uf_prospeccao: string | null;
+    fonte_prospeccao: LeadItem["origem"];
+    redes: Record<string, string> | null;
+  }>;
+  const page = rows.slice(0, size);
+  const metadata = new Map(page.map(r => [r.chave, r]));
+  const leads = mapRawLeadsToItems(page.map(({ cnpj, cnpj_origem, cnpj_confianca, fonte_dados, avaliacoes_recentes, ...row }) => ({
+    ...row,
+    dados_brutos: { cnpj, cnpj_origem, cnpj_confianca, fonte_dados, avaliacoes_recentes },
+  })));
+  return {
+    session: active,
+    items: leads.map(lead => {
+      const row = metadata.get(lead.id)!;
+      return { ...lead, uf: row.uf_prospeccao ?? "", origem: row.fonte_prospeccao, redes: row.redes };
+    }),
+    nextCursor: rows.length > size ? page[size - 1].chave : null,
+  };
+}
+
 export async function updateSupabaseCrmLead(
   session: SupabaseSession,
   id: string,

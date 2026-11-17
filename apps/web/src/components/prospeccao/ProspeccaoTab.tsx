@@ -1,20 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Square, ArrowRight } from "lucide-react";
-import { AccessError, COLETA_ATIVA_STATES, controlCloudCollector, fetchCloudCollectorRun, fetchLocalApiStatus, startLocalCollection, stopLocalCollection, type CollectorRun, type DataSourceMode, type SupabaseSession } from "../../lib/backend";
+import { AccessError, COLETA_ATIVA_STATES, controlCloudCollector, fetchCloudCollectorRun, fetchLocalApiStatus, startLocalCollection, stopLocalCollection, type CollectorRun, type DataSourceMode, type ProspectFilters, type SupabaseSession } from "../../lib/backend";
 import { buildCollectorSearch, findCollectorState } from "../../lib/collector-search";
 import { ESTABLISHMENTS, STATES, SOURCES } from "../../lib/prospect-options";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import { CollectorProgress } from "./CollectorProgress";
+import { ProspectResults } from "./ProspectResults";
 import { Select } from "../ui/select";
 
 const DISMISSED_CLOUD_RUN_KEY = "pharmaleads-dismissed-cloud-run";
 const UF_OPTIONS = [{ value: "", label: "Todas as UFs" }, ...STATES];
-const SOURCE_OPTIONS = SOURCES.map(option => ({
-  value: option.value,
-  label: `${option.label}${option.value !== "Google Maps" ? " (em breve)" : ""}`,
-  disabled: option.value !== "Google Maps",
-}));
+const CLOUD_SOURCES = [{ value: "", label: "Todas as fontes" }, ...SOURCES];
 
 interface Props {
   dataSourceMode?: DataSourceMode;
@@ -28,7 +25,7 @@ interface Props {
 export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null, onSessionUpdate, onRefreshLeads, onOpenLeads, onSessionInvalid }: Props) {
   const [text, setText] = useState("");
   const [uf, setUf] = useState("");
-  const [source, setSource] = useState("Google Maps");
+  const [source, setSource] = useState("");
   const [segments, setSegments] = useState<string[]>(["varejo"]);
   const [localActive, setActive] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -40,7 +37,12 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
   const [cloudReady, setCloudReady] = useState(false);
   const [retry, setRetry] = useState(0);
   const hadActive = useRef(false);
+  const nextSearch = useRef(0);
+  const prospectRun = useRef<{ id: CollectorRun["id"]; searchId: number } | null>(null);
+  const [search, setSearch] = useState<{ id: number; filters: ProspectFilters }>();
+  const [synced, setSynced] = useState<{ searchId: number; count: number }>();
   const cloud = dataSourceMode === "supabase";
+  const canCollect = !cloud || source === "" || source === "Google Maps";
   const cloudStale = Boolean(cloudError);
   const active = cloud
     ? Boolean(cloudRun && (COLETA_ATIVA_STATES.includes(cloudRun.status) || cloudRun.status === "cancelling"))
@@ -67,9 +69,12 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           setCloudRun(hiddenTerminalRun ? null : run);
           setCloudError("");
           setCloudReady(true);
-          const running = Boolean(run && (COLETA_ATIVA_STATES.includes(run.status) || run.status === "cancelling"));
-          if (hadActive.current && !running) onRefreshLeads?.();
-          hadActive.current = running;
+          const tracked = prospectRun.current;
+          if (tracked && run?.id === tracked.id && run.synced_leads) {
+            const count = run.synced_leads;
+            setSynced(previous => previous?.searchId === tracked.searchId && previous.count >= count
+              ? previous : { searchId: tracked.searchId, count });
+          }
         } else if (dataSourceMode === "local") {
           const status = await fetchLocalApiStatus();
           if (cancelled || !status?.execucao) return;
@@ -108,31 +113,40 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
   const start = useCallback(async () => {
     setError("");
     if (!connected) { setError("Conecte o Supabase em Configurações para iniciar a coleta."); return; }
-    if (cloud && (!cloudReady || cloudStale)) return;
-    setBusy(true);
+    let collectionRequested = false;
     try {
-      const input = buildCollectorSearch(text, uf, segments, source);
+      const input = buildCollectorSearch(text, uf, segments, "Google Maps");
       if (dataSourceMode === "supabase" && supabaseSession) {
+        const id = ++nextSearch.current;
+        setSearch({ id, filters: { uf: findCollectorState(text)?.value ?? uf, source, segments: input.segmentos } });
+        setFeedback("");
+        if (!canCollect) return;
+        if (active || busy) {
+          setFeedback("Já há uma coleta em andamento. Você pode consultar os leads salvos enquanto ela termina.");
+          return;
+        }
+        collectionRequested = true;
+        setBusy(true);
         const result = await controlCloudCollector(supabaseSession, { action: "start", ...input, locais: input.locais.join("\n"), enriquecerSites: false });
         if (result.session !== supabaseSession) onSessionUpdate?.(result.session);
         setCloudRun(result.run);
         setCloudError("");
-        setFeedback("");
+        if (result.run) prospectRun.current = { id: result.run.id, searchId: id };
       } else {
         if (input.cobertura === "nacional") throw new Error("Conecte o Supabase para iniciar uma busca em todas as UFs.");
+        collectionRequested = true;
+        setBusy(true);
         await startLocalCollection(input);
         setFeedback("Coleta solicitada. Os novos contatos serão enviados para a aba Leads.");
-      }
-      hadActive.current = true;
-      if (!cloud) {
+        hadActive.current = true;
         setStopping(false);
         setActive(true);
       }
     } catch (err) {
       if (err instanceof AccessError) onSessionInvalid?.();
       setError(err instanceof Error ? err.message : "Não foi possível iniciar a coleta.");
-    } finally { setBusy(false); }
-  }, [connected, cloud, cloudReady, cloudStale, text, uf, segments, source, dataSourceMode, supabaseSession, onSessionUpdate, onSessionInvalid]);
+    } finally { if (collectionRequested) setBusy(false); }
+  }, [connected, text, uf, segments, source, canCollect, active, busy, dataSourceMode, supabaseSession, onSessionUpdate, onSessionInvalid]);
 
 
   async function stop() {
@@ -158,10 +172,10 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
   }
 
   return (
-    <section className="min-h-[calc(100dvh-180px)] flex flex-col items-center justify-center py-12 sm:py-16" aria-label="Prospecção">
+    <section className={cn("min-h-[calc(100dvh-180px)] flex flex-col items-center gap-6 py-12", !search && "justify-center sm:py-16")} aria-label="Prospecção">
       <div className="w-full max-w-3xl mx-auto">
         <h1 className={cn(ui.pageTitle, "text-center")}>Encontre novas farmácias</h1>
-        <p className="text-center text-sm text-muted-foreground mt-3 mb-8">Escolha onde e o que o scraper deve buscar.</p>
+        <p className="text-center text-sm text-muted-foreground mt-3 mb-8">Escolha o estado e o tipo de estabelecimento para pesquisar.</p>
         <form onSubmit={event => { event.preventDefault(); void start(); }} className="space-y-5">
           <div className="flex items-center gap-2 rounded-full border border-input bg-card px-4 py-2 shadow-sm hover:shadow-md focus-within:ring-2 focus-within:ring-primary/20 transition-shadow">
             <Search size={20} className="text-muted-foreground shrink-0" aria-hidden="true" />
@@ -169,9 +183,9 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
               const value = event.target.value;
               setText(value);
               setUf(findCollectorState(value)?.value ?? "");
-            }} disabled={busy || active}
+            }} disabled={!cloud && (busy || active)}
               className="w-full min-w-0 bg-transparent text-foreground h-10 text-sm outline-none focus-visible:outline-none" />
-            <button type="submit" disabled={busy || active || !connected || (cloud && (!cloudReady || cloudStale))} aria-label="Pesquisar" className={cn(ui.btnBrand, "rounded-full h-10 px-4 sm:px-6 text-sm shrink-0")}>Pesquisar</button>
+            <button type="submit" disabled={!connected || (!cloud && (busy || active))} aria-label="Pesquisar" className={cn(ui.btnBrand, "rounded-full h-10 px-4 sm:px-6 text-sm shrink-0")}>Pesquisar</button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Select
@@ -183,16 +197,16 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
                 setText(STATES.find(state => state.value === value)?.label ?? "");
               }}
               options={UF_OPTIONS}
-              disabled={busy || active}
+              disabled={!cloud && (busy || active)}
               align="left"
             />
             <Select
               id="prospect-source"
               label="Fonte dos dados"
-              value={source}
+              value={cloud ? source : "Google Maps"}
               onChange={setSource}
-              options={SOURCE_OPTIONS}
-              disabled={busy || active}
+              options={cloud ? CLOUD_SOURCES : SOURCES.slice(0, 1)}
+              disabled={!cloud}
               align="left"
             />
             <Select
@@ -202,7 +216,7 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
               values={segments}
               onChange={setSegments}
               options={ESTABLISHMENTS}
-              disabled={busy || active}
+              disabled={!cloud && (busy || active)}
               align="left"
             />
           </div>
@@ -214,10 +228,10 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           window.sessionStorage.setItem(DISMISSED_CLOUD_RUN_KEY, String(cloudRun.id));
           setCloudRun(null);
         }} />}
-        {cloud && connected && !cloudReady && !cloudStale && (
+        {cloud && canCollect && connected && !cloudReady && !cloudStale && (
           <p role="status" className="mt-5 text-center text-sm text-muted-foreground">Consultando o coletor no Render…</p>
         )}
-        {cloud && cloudStale && (
+        {cloud && canCollect && cloudStale && (
           <div className="mt-5 text-center text-sm">
             <p role="alert">{cloudError} Tentando reconectar automaticamente.</p>
             <button type="button" className={cn(ui.btnSecondary, "mt-2")} onClick={() => setRetry(value => value + 1)}>Tentar novamente</button>
@@ -229,6 +243,13 @@ export function ProspeccaoTab({ dataSourceMode = "mock", supabaseSession = null,
           <button type="button" onClick={onOpenLeads} className="inline-flex items-center gap-1.5 text-brand hover:underline">Ver leads <ArrowRight size={15} /></button>
         </div>
       </div>
+      {cloud && search && supabaseSession && (
+        <div className="w-full max-w-7xl">
+          <ProspectResults key={search.id} filters={search.filters} session={supabaseSession}
+            updates={synced && synced.searchId === search.id ? synced.count : 0}
+            onSessionUpdate={onSessionUpdate} onSessionInvalid={onSessionInvalid} />
+        </div>
+      )}
     </section>
   );
 }
