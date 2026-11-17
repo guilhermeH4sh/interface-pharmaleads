@@ -5,12 +5,12 @@ import { cn } from "../../lib/utils";
 import type { LeadSummary } from "../../lib/mock-leads";
 
 interface MetricsCardsProps {
-  summary: LeadSummary;
+  summary: Partial<Pick<LeadSummary, "totalLeads" | "qualificados" | "emContato" | "estados">>;
   isLoading?: boolean;
 }
 
 export function MetricsCards({ summary, isLoading = false }: MetricsCardsProps) {
-  const cards: { label: string; value: number; icon: LucideIcon; highlight?: boolean }[] = [
+  const cards: { label: string; value?: number; icon: LucideIcon; highlight?: boolean }[] = [
     { label: "Leads encontrados", value: summary.totalLeads, icon: Users, highlight: true },
     { label: "Qualificados", value: summary.qualificados, icon: CheckCircle },
     { label: "Em contato", value: summary.emContato, icon: Phone },
@@ -35,7 +35,7 @@ export function MetricsCards({ summary, isLoading = false }: MetricsCardsProps) 
               <div className="h-8 w-24 rounded-md bg-muted animate-pulse" />
             ) : (
               <p className="text-2xl md:text-[28px] leading-tight font-extrabold tracking-tight text-foreground tabular-nums">
-                {formatNumberBR(value)}
+                {value === undefined ? "—" : formatNumberBR(value)}
               </p>
             )}
             <p className="text-sm text-muted-foreground mt-0.5">{label}</p>

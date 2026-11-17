@@ -22,15 +22,29 @@ const COLUMNS: [string, (lead: LeadItem) => unknown][] = [
 ];
 
 /** Gera e baixa um CSV (UTF-8 com BOM, separador ";", compatível com Excel pt-BR). */
-export function downloadLeadsCsv(leads: LeadItem[], filename = "pharmaleads") {
-  const header = COLUMNS.map(([name]) => cell(name)).join(";");
-  const rows = leads.map((lead) => COLUMNS.map(([, get]) => cell(get(lead))).join(";"));
-  const csv = "\uFEFF" + [header, ...rows].join("\r\n");
-  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+const header = "\uFEFF" + COLUMNS.map(([name]) => cell(name)).join(";");
+const csvRows = (leads: LeadItem[]) => leads.map(lead => COLUMNS.map(([, get]) => cell(get(lead))).join(";")).join("\r\n");
+
+function downloadCsvParts(parts: string[], filename: string) {
+  const url = URL.createObjectURL(new Blob(parts, { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
   link.download = `${filename}_${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function downloadLeadsCsv(leads: LeadItem[], filename = "pharmaleads") {
+  downloadCsvParts([header, "\r\n", csvRows(leads)], filename);
+}
+
+export async function downloadLeadPagesCsv(pages: AsyncIterable<LeadItem[]>, filename: string) {
+  const parts = [header];
+  for await (const leads of pages) {
+    if (leads.length) parts.push("\r\n", csvRows(leads));
+  }
+  if (parts.length === 1) return false;
+  downloadCsvParts(parts, filename);
+  return true;
 }
 

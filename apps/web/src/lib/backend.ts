@@ -294,58 +294,115 @@ export async function fetchSupabaseAllLeads(
   return { session: active, rows };
 }
 
-export interface ProspectFilters {
+export interface RemoteLeadFilters {
   uf: string;
-  source: string;
-  segments: string[];
+  origem: string;
+  segmentos: string[];
+  emailAvailability: "todos" | "com" | "sem";
+  query: string;
+  includeCrm?: boolean;
 }
 
-export async function fetchProspectPage(
-  session: SupabaseSession, filters: ProspectFilters, cursor: string | null, signal: AbortSignal,
+export type LeadMetrics = Pick<LeadSummary, "totalLeads" | "qualificados" | "emContato" | "estados">;
+
+export async function fetchRemoteLeadMetrics(session: SupabaseSession, signal: AbortSignal) {
+  const active = await validSupabaseSession(session);
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/leads_resumo`, {
+    cache: "no-store",
+    headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}` },
+    signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
+  });
+  if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
+  if (!response.ok) throw new Error("Não foi possível carregar as métricas da carteira.");
+  const [metrics] = (await response.json()) as LeadMetrics[];
+  if (!metrics) throw new Error("O Supabase não retornou as métricas da carteira.");
+  return metrics;
+}
+
+const EMAIL_TOKEN = "(^|[,;[:space:]])[^@,;[:space:]]+@[^@,;[:space:]]+[.][^@,;[:space:]]+($|[,;[:space:]])";
+const restValue = (value: string) => `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+const OUTSIDE_CRM = "(crm_included.eq.false,and(crm_included.is.null,or(crm_status.is.null,crm_status.eq.Não contatado)))";
+
+export async function readRemoteLeads(
+  session: SupabaseSession, filters: RemoteLeadFilters,
+  options: { limit: number; cursor?: string; since?: string; createdSince?: string; peek?: boolean; idsOnly?: boolean; ids?: string[]; signal?: AbortSignal },
 ) {
   const active = await validSupabaseSession(session);
-  const size = 25;
   const query = new URLSearchParams({
-    select: SUPABASE_LIST_COLUMNS + ",uf_prospeccao,fonte_prospeccao,redes:dados_brutos->enriquecimento_site->redes_sociais",
+    select: options.idsOnly ? "chave" : SUPABASE_LIST_COLUMNS + ",uf_prospeccao,fonte_prospeccao",
     order: "chave.asc",
-    limit: String(size + 1),
-    segmento: `in.(${filters.segments.join(",")})`,
+    limit: String(options.limit + Number(Boolean(options.peek))),
   });
+  if (!filters.includeCrm) query.set("or", OUTSIDE_CRM);
   if (filters.uf) query.set("uf_prospeccao", `eq.${filters.uf}`);
-  if (filters.source) query.set("fonte_prospeccao", `eq.${filters.source}`);
-  if (cursor) query.set("chave", `gt.${cursor}`);
+  if (filters.origem && filters.origem !== "Todas as origens") query.set("fonte_prospeccao", `eq.${filters.origem}`);
+  if (filters.segmentos.length) query.set("segmento", `in.(${filters.segmentos.map(restValue).join(",")})`);
+  if (filters.emailAvailability !== "todos") query.set("emails", `${filters.emailAvailability === "sem" ? "not." : ""}match.${EMAIL_TOKEN}`);
+  const term = filters.query.trim();
+  if (term) {
+    const pattern = term.replace(/[\\%_]/g, "\\$&");
+    query.append("and", `(or(${["nome", "dados_brutos->>cnpj", "telefone", "emails", "categoria"]
+      .map(column => `${column}.ilike.${restValue(`%${pattern}%`)}`).join(",")}))`);
+  }
+  if (options.since) query.set("ultima_coleta", `gte.${options.since}`);
+  if (options.createdSince) query.set("primeira_coleta", `gte.${options.createdSince}`);
+  if (options.cursor) query.set("chave", `gt.${options.cursor}`);
+  if (options.ids) query.set("chave", `in.(${options.ids.map(restValue).join(",")})`);
   const response = await fetch(`${SUPABASE_URL}/rest/v1/pharmaleads?${query}`, {
     cache: "no-store",
     headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}` },
-    signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+    signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000),
   });
   if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
-  if (!response.ok) {
-    const failure = await response.json().catch(() => null) as { code?: string } | null;
-    if (failure?.code === "PGRST100" || failure?.code === "42703") {
-      throw new Error("A busca por filtros ainda não está disponível no Supabase.");
-    }
-    throw new Error(`Não foi possível consultar os leads (HTTP ${response.status}).`);
-  }
-  const rows = (await response.json()) as Array<Lead & NonNullable<Lead["dados_brutos"]> & {
-    uf_prospeccao: string | null;
-    fonte_prospeccao: LeadItem["origem"];
-    redes: Record<string, string> | null;
+  if (!response.ok) throw new Error(`Não foi possível consultar os leads (HTTP ${response.status}).`);
+  const fetched = (await response.json()) as Array<Lead & NonNullable<Lead["dados_brutos"]> & {
+    uf_prospeccao?: string; fonte_prospeccao?: LeadItem["origem"];
   }>;
-  const page = rows.slice(0, size);
-  const metadata = new Map(page.map(r => [r.chave, r]));
-  const leads = mapRawLeadsToItems(page.map(({ cnpj, cnpj_origem, cnpj_confianca, fonte_dados, avaliacoes_recentes, ...row }) => ({
-    ...row,
-    dados_brutos: { cnpj, cnpj_origem, cnpj_confianca, fonte_dados, avaliacoes_recentes },
-  })));
-  return {
-    session: active,
-    items: leads.map(lead => {
-      const row = metadata.get(lead.id)!;
-      return { ...lead, uf: row.uf_prospeccao ?? "", origem: row.fonte_prospeccao, redes: row.redes };
+  const rows = options.peek ? fetched.slice(0, options.limit) : fetched;
+  const deleted = loadDeletedIds();
+  const geografia = new Map(rows.map(row => [row.chave, row]));
+  const items = options.idsOnly ? [] : mapRawLeadsToItems(rows.map(
+    ({ cnpj, cnpj_origem, cnpj_confianca, fonte_dados, avaliacoes_recentes, ...row }) => ({
+      ...row, dados_brutos: row.dados_brutos ?? { cnpj, cnpj_origem, cnpj_confianca, fonte_dados, avaliacoes_recentes },
     }),
-    nextCursor: rows.length > size ? page[size - 1].chave : null,
-  };
+  )).map(item => {
+    const row = geografia.get(item.id);
+    return { ...item, uf: row?.uf_prospeccao ?? item.uf, origem: row?.fonte_prospeccao ?? item.origem };
+  }).filter(item => (filters.includeCrm || (!item.crmIncluded && item.status === "Não contatado"))
+    && (filters.emailAvailability === "todos" || (parseLeadEmails(item.email).length > 0) === (filters.emailAvailability === "com")));
+  return { session: active, items, hasNext: options.peek && fetched.length > options.limit,
+    ids: rows.map(row => row.chave).filter(id => !deleted.has(id)), cursor: rows.at(-1)?.chave };
+}
+
+export async function* walkRemoteLeads(
+  session: SupabaseSession, filters: RemoteLeadFilters,
+  options: { since?: string; idsOnly?: boolean; signal?: AbortSignal },
+) {
+  let cursor: string | undefined;
+  while (true) {
+    const page = await readRemoteLeads(session, filters, { ...options, cursor, limit: options.idsOnly ? 500 : 250 });
+    session = page.session;
+    if (!page.cursor) break;
+    if (page.cursor === cursor) throw new Error("A paginação do Supabase retornou a mesma chave.");
+    yield page;
+    cursor = page.cursor;
+  }
+}
+
+export async function addRemoteLeadsToCrm(session: SupabaseSession, ids: string[]) {
+  const active = await validSupabaseSession(session);
+  const query = new URLSearchParams({ chave: `in.(${ids.map(restValue).join(",")})`, or: OUTSIDE_CRM, select: "chave" });
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/pharmaleads?${query}`, {
+    method: "PATCH",
+    headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}`,
+      "Content-Type": "application/json", Prefer: "return=representation" },
+    body: JSON.stringify({ crm_included: true, crm_status: "Em contato" }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
+  if (!response.ok) throw new Error(`Falha ao adicionar leads ao CRM (HTTP ${response.status}).`);
+  const rows = (await response.json()) as Pick<Lead, "chave">[];
+  return { session: active, moved: rows.map(row => row.chave) };
 }
 
 export async function updateSupabaseCrmLead(

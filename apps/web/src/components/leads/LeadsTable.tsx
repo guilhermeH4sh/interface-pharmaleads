@@ -11,6 +11,7 @@ interface LeadsTableProps {
   total: number;
   currentPage: number;
   totalPages: number;
+  cursorNavigation?: { hasNext: boolean };
   pageSize?: number;
   isLoading: boolean;
   onPageChange: (page: number) => void;
@@ -43,6 +44,7 @@ export function LeadsTable({
   total,
   currentPage,
   totalPages,
+  cursorNavigation,
   pageSize = 5,
   isLoading,
   onPageChange,
@@ -289,10 +291,10 @@ export function LeadsTable({
 
       {/* Rodapé: contagem + paginação */}
       <div className="px-4 py-4 md:px-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
-        <p className="tabular-nums">
+        {cursorNavigation ? <p className="tabular-nums">Página {currentPage} · {items.length} leads exibidos</p> : <p className="tabular-nums">
           Mostrando <span className="font-semibold text-foreground">{start} – {end}</span> de{" "}
           <span className="font-semibold text-foreground">{formatNumberBR(total)}</span> leads
-        </p>
+        </p>}
 
         <nav aria-label="Paginação" className="flex items-center gap-1">
           <button
@@ -303,7 +305,7 @@ export function LeadsTable({
           >
             <ChevronLeft size={16} />
           </button>
-          {pageList(currentPage, totalPages).map((p, idx) =>
+          {!cursorNavigation && pageList(currentPage, totalPages).map((p, idx) =>
             p === "…" ? (
               <span key={`gap-${idx}`} className="px-1" aria-hidden="true">…</span>
             ) : (
@@ -328,7 +330,7 @@ export function LeadsTable({
           )}
           <button
             onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage >= totalPages || isLoading}
+            disabled={isLoading || (cursorNavigation ? !cursorNavigation.hasNext : currentPage >= totalPages)}
             aria-label="Próxima página"
             className="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-border bg-card hover:text-foreground hover:border-primary/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
@@ -343,7 +345,7 @@ export function LeadsTable({
           <button role="menuitem" className={ui.menuItem} onClick={() => { onViewDetails(menu.lead); setMenu(null); }}>
             <Eye size={16} /> Ver detalhes
           </button>
-          <button
+          {!menu.lead.crmIncluded && <button
             role="menuitem"
             className={ui.menuItem}
             onClick={() => {
@@ -352,7 +354,7 @@ export function LeadsTable({
             }}
           >
             <BriefcaseBusiness size={16} /> Marcar em contato e adicionar ao CRM
-          </button>
+          </button>}
           <a
             role="menuitem"
             href={buildWhatsAppLink(menu.lead.telefone)}

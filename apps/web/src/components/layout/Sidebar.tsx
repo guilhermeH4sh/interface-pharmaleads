@@ -1,11 +1,11 @@
 import { useEffect, type ComponentType } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Users, Search, Calendar, Settings, BarChart3, HelpCircle, X } from "lucide-react";
+import { Users, Calendar, Settings, BarChart3, HelpCircle, X } from "lucide-react";
 import { Logo } from "../logo";
 import { cn } from "../../lib/utils";
 import { motionGestures, springPhysics, motionTransitions } from "../../lib/motion";
 
-export type NavTab = "leads" | "prospeccao" | "crm" | "config" | "relatorios";
+export type NavTab = "leads" | "crm" | "config" | "relatorios";
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -16,7 +16,6 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: { id: NavTab; label: string; icon: ComponentType<{ size?: number; className?: string }> }[] = [
-  { id: "prospeccao", label: "Prospecção", icon: Search },
   { id: "leads", label: "Leads", icon: Users },
   { id: "crm", label: "CRM", icon: Calendar },
   { id: "config", label: "Configurações", icon: Settings },

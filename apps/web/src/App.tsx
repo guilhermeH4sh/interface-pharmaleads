@@ -5,7 +5,6 @@ import type { ToastMessage } from "./components/ui/toast";
 import { Topbar } from "./components/layout/Topbar";
 import { LeadsView } from "./components/leads/LeadsView";
 import { LeadDetailsModal } from "./components/leads/LeadDetailsModal";
-import { ProspeccaoTab } from "./components/prospeccao/ProspeccaoTab";
 import { CrmTab } from "./components/crm/CrmTab";
 import { LoginPage } from "./components/auth/LoginPage";
 import { ConfigTab } from "./components/config/ConfigTab";
@@ -21,6 +20,7 @@ import {
   computeSummaryFromItems,
   fetchLocalAllLeads,
   fetchSupabaseAllLeads,
+  addRemoteLeadsToCrm,
   mapRawLeadsToItems,
   savedSupabaseSession,
   verifyPlatformSession,
@@ -78,7 +78,12 @@ export function App() {
 
 export function PlatformDashboard({ initialSession, onSignOut }: { initialSession: SupabaseSession; onSignOut: () => void }) {
   const { theme, toggleTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<NavTab>("prospeccao");
+  const [activeTab, setActiveTab] = useState<NavTab>("leads");
+  useEffect(() => {
+    if (/^\/prospeccao\/?$/.test(window.location.pathname)) {
+      window.history.replaceState(null, "", "/leads" + window.location.search + window.location.hash);
+    }
+  }, []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
@@ -170,7 +175,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
       if (cancelled) return;
       if (dataSourceMode === "local") {
         void loadLocalLeads();
-      } else if (dataSourceMode === "supabase" && supabaseSession && ["leads", "crm", "relatorios"].includes(activeTab) && Date.now() - lastSupabaseLoad.current > 60_000) {
+      } else if (dataSourceMode === "supabase" && supabaseSession && ["crm", "relatorios"].includes(activeTab) && Date.now() - lastSupabaseLoad.current > 60_000) {
         void loadSupabaseLeads(supabaseSession);
       }
     });
@@ -184,9 +189,13 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
     if (dataSourceMode === "local") {
       await loadLocalLeads();
     } else if (dataSourceMode === "supabase" && supabaseSession) {
+      if (activeTab === "leads") {
+        setOverrideVersion(v => v + 1);
+        return;
+      }
       await loadSupabaseLeads(supabaseSession);
     }
-  }, [dataSourceMode, supabaseSession, loadLocalLeads, loadSupabaseLeads]);
+  }, [activeTab, dataSourceMode, supabaseSession, loadLocalLeads, loadSupabaseLeads]);
 
   // Mapeia os leads brutos da fonte ativa aplicando overrides locais e timestamps otimistas
   const realLeads = useMemo(() => {
@@ -331,10 +340,31 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
 
   const handleBatchAddToCrm = async (ids: string[]): Promise<string[]> => {
     const moved: string[] = [];
-    for (const id of ids) {
-      if (await handleCrmMembershipChange(id, true)) moved.push(id);
+    if (dataSourceMode === "supabase" && supabaseSession && ids.length > 1) {
+      let session = supabaseSession;
+      try {
+        for (let index = 0; index < ids.length; index += 100) {
+          const batch = await addRemoteLeadsToCrm(session, ids.slice(index, index + 100));
+          moved.push(...batch.moved);
+          session = batch.session;
+        }
+        setSupabaseSession(session);
+      } catch (error) {
+        if (error instanceof AccessError) onSignOut();
+      }
+      if (moved.length) {
+        const updated = new Set(moved);
+        setRawSupabaseRows(rows => rows.map(row => updated.has(row.chave)
+          ? { ...row, crm_included: true, crm_status: "Em contato" } : row));
+        lastSupabaseLoad.current = 0;
+        setOverrideVersion(version => version + 1);
+      }
+    } else {
+      for (const id of ids) {
+        if (await handleCrmMembershipChange(id, true)) moved.push(id);
+      }
     }
-    if (moved.length < ids.length) setRealError("Alguns leads não foram atualizados. Verifique os selecionados e tente novamente.");
+    setRealError(moved.length < ids.length ? "Alguns leads não foram atualizados. Verifique os selecionados e tente novamente." : "");
     return moved;
   };
 
@@ -364,6 +394,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
       return false;
     }
     if (!included && selectedCrmLead?.id === id) setSelectedCrmLead(null);
+    lastSupabaseLoad.current = 0;
     setOverrideVersion((v) => v + 1);
     return true;
   };
@@ -404,6 +435,10 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
               dataSourceMode={dataSourceMode}
               realLeads={leadsOutsideCrm}
               allLeadsSummary={activeSummaryForReports}
+              supabaseSession={supabaseSession}
+              remoteVersion={overrideVersion}
+              onSessionUpdate={setSupabaseSession}
+              onSessionInvalid={onSignOut}
               isLoadingReal={isLoadingReal}
               realError={realError}
               isSupabaseAuthenticated={Boolean(supabaseSession)}
@@ -411,18 +446,6 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
               onOpenConfig={() => setActiveTab("config")}
               onCrmMembershipChange={handleCrmMembershipChange}
               onBatchAddToCrm={handleBatchAddToCrm}
-              onNewProspect={() => setActiveTab("prospeccao")}
-            />
-          )}
-
-          {activeTab === "prospeccao" && (
-            <ProspeccaoTab
-              dataSourceMode={dataSourceMode}
-              supabaseSession={supabaseSession}
-              onSessionUpdate={setSupabaseSession}
-              onRefreshLeads={handleRefreshActiveData}
-              onSessionInvalid={onSignOut}
-              onOpenLeads={() => setActiveTab("leads")}
             />
           )}
 

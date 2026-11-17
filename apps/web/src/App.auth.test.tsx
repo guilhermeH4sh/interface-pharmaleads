@@ -27,7 +27,7 @@ test("login libera a plataforma e sair encerra apenas o acesso do usuário", asy
   await userEvent.type(screen.getByLabelText("E-mail"), "cliente@example.com");
   await userEvent.type(screen.getByLabelText("Senha"), "senha-de-teste");
   await userEvent.click(screen.getByRole("button", { name: "Entrar" }));
-  expect(await screen.findByRole("heading", { name: "Encontre novas farmácias" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Leads – Farmácias" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Configurações" }));
   expect(screen.getByRole("status")).toHaveTextContent("Supabase conectado");
   expect(screen.queryByLabelText("Senha")).not.toBeInTheDocument();
@@ -43,7 +43,7 @@ test("restaura sessão válida sem pedir login novamente", async () => {
   stored();
   vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(url.includes("/auth/v1/user") ? { id: AUTHORIZED_USER_ID } : { run: null }))));
   render(<App />);
-  expect(await screen.findByRole("heading", { name: "Encontre novas farmácias" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Leads – Farmácias" })).toBeInTheDocument();
   expect(screen.queryByLabelText("Senha")).not.toBeInTheDocument();
 });
 
@@ -80,5 +80,5 @@ test("falha temporária preserva a sessão e permite tentar novamente", async ()
   expect(screen.queryByRole("button", { name: "Leads" })).not.toBeInTheDocument();
   fail = false;
   await userEvent.click(retry);
-  await waitFor(() => expect(screen.getByRole("heading", { name: "Encontre novas farmácias" })).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Leads – Farmácias" })).toBeInTheDocument());
 });

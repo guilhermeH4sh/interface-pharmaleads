@@ -2,117 +2,71 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PlatformDashboard } from "./App";
-import { ProspeccaoTab } from "./components/prospeccao/ProspeccaoTab";
 import { AUTHORIZED_USER_ID, SESSION_KEY, savedSupabaseSession } from "./lib/backend";
 
 function TestDashboard() {
   return <PlatformDashboard initialSession={savedSupabaseSession() || { access_token: "test", refresh_token: "test", expires_at: 4102444800000 }} onSignOut={vi.fn()} />;
 }
 
-beforeEach(() => { window.localStorage.clear(); window.sessionStorage.clear(); });
+beforeEach(() => { window.localStorage.clear(); window.sessionStorage.clear(); window.history.replaceState(null, "", "/"); });
 afterEach(() => vi.unstubAllGlobals());
 
-test("Prospecção autenticada não consulta ou exibe dados de leads", async () => {
-  window.sessionStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
-  const fetcher = vi.fn(async () => new Response(JSON.stringify({ run: null })));
-  vi.stubGlobal("fetch", fetcher);
-  render(<TestDashboard />);
-  expect(screen.getByRole("searchbox", { name: "Digite o estado" })).toHaveAttribute("placeholder", "Digite o estado");
-  expect(screen.queryByRole("table")).not.toBeInTheDocument();
-  await waitFor(() => expect(fetcher).toHaveBeenCalled());
-  expect(fetcher.mock.calls.flat().some(value => String(value).includes("/rest/v1/pharmaleads"))).toBe(false);
-});
-
-test("abre em Prospecção e mantém dados nas abas Leads e CRM", async () => {
-  render(<TestDashboard />);
-  expect(screen.getByRole("heading", { name: "Encontre novas farmácias" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Prospecção" })).toHaveAttribute("aria-current", "page");
-  expect(screen.getAllByRole("searchbox")).toHaveLength(1);
-  expect(screen.queryByRole("table")).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Ver leads" }));
-  expect(screen.getByRole("heading", { name: "Leads – Farmácias" })).toBeInTheDocument();
-  expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "CRM" }));
-  expect(screen.getByRole("heading", { name: "CRM" })).toBeInTheDocument();
-});
-
-test("a barra envia o estado selecionado e os filtros para o scraper local", async () => {
-  const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
-    if (input === "/api/coletas") expect(JSON.parse(String(init?.body))).toMatchObject({ locais: ["São Paulo, SP"], segmentos: ["varejo"], profundidade: 1, emails: true });
-    return new Response(JSON.stringify(input === "/api/coletas" ? { id: 1 } : { total_leads: 0, execucao: null, consulta_atual: null }));
+test("Leads é inicial, pagina a amostra e apresenta métricas agregadas", async () => {
+  const rows = Array.from({ length: 55 }, (_, i) => ({
+    chave: String(i).padStart(2, "0"), nome: "Farmácia " + i, uf_prospeccao: "PR", crm_included: false,
+  }));
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes("/rpc/leads_resumo")) {
+      return new Response(JSON.stringify([{ totalLeads: 105789, qualificados: 10, emContato: 2, estados: 27 }]));
+    }
+    if (url.includes("/rest/v1/pharmaleads")) {
+      const p = new URL(url).searchParams;
+      expect(new Headers(init?.headers).get("Prefer")).toBeNull();
+      const after = p.get("chave")?.slice(3) ?? "";
+      return new Response(JSON.stringify(rows.filter(row => row.chave > after).slice(0, Number(p.get("limit")))));
+    }
+    return new Response(JSON.stringify({ run: null }));
   });
   vi.stubGlobal("fetch", fetcher);
-  render(<ProspeccaoTab dataSourceMode="local" />);
-  await userEvent.type(screen.getByRole("searchbox", { name: "Digite o estado" }), "sao paulo");
-  await userEvent.click(screen.getByRole("combobox", { name: "UF" }));
-  await userEvent.click(screen.getByRole("option", { name: "São Paulo (SP)" }));
-  await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
-  await waitFor(() => expect(fetcher.mock.calls.some(call => call[0] === "/api/coletas")).toBe(true));
-  expect(screen.getByRole("button", { name: "Parar coleta" })).toBeInTheDocument();
+  render(<TestDashboard />);
+  expect(screen.getByRole("button", { name: "Leads" })).toHaveAttribute("aria-current", "page");
+  expect(screen.queryByRole("button", { name: /^Prospecção$/ })).not.toBeInTheDocument();
+  expect(await screen.findByText("105.789")).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "Farmácia 0" })).toBeInTheDocument();
+  for (let page = 2; page <= 5; page++) {
+    await userEvent.click(screen.getByRole("button", { name: "Próxima página" }));
+    expect(await screen.findByRole("button", { name: "Farmácia " + (page - 1) * 10 })).toBeInTheDocument();
+  }
+  expect(screen.getByRole("button", { name: "Próxima página" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Farmácia 50" })).not.toBeInTheDocument();
 });
 
-test("a busca lista os leads salvos e dispara o coletor em paralelo", async () => {
-  let started = false;
-  const run = { id: 1, status: "queued", title: "Coleta · Paraná, PR" };
-  const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
-    if (input.includes("/rest/v1/pharmaleads")) {
-      const query = new URL(input).searchParams;
-      expect(query.get("uf_prospeccao")).toBe("eq.PR");
-      expect(query.get("segmento")).toBe("in.(varejo)");
-      expect(query.get("limit")).toBe("26");
-      return new Response(JSON.stringify([{ chave: "pr-1", nome: "Farmácia do Paraná", local_busca: "Curitiba, PR",
-        uf_prospeccao: "PR", fonte_prospeccao: "Google Maps", emails: "" }]));
+test("pesquisa da aba Leads filtra o catálogo, inicia coleta e permite parar", async () => {
+  let run: { id: string; status: string } | null = null;
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes("/rest/v1/pharmaleads")) {
+      const uf = new URL(url).searchParams.get("uf_prospeccao");
+      return new Response(JSON.stringify(uf === "eq.PR"
+        ? [{ chave: "pr", nome: "Farmácia do Paraná", uf_prospeccao: "PR", crm_included: false }] : []));
     }
-    if (input === "/api/collector" && init?.method === "POST") {
-      expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", locais: "Paraná, PR", segmentos: ["varejo"], profundidade: 1, emails: true });
-      started = true;
+    if (url.includes("/rpc/leads_resumo")) return new Response(JSON.stringify([{ totalLeads: 1 }]));
+    if (init?.method === "POST") {
+      const payload = JSON.parse(String(init.body));
+      if (payload.action === "start") expect(payload).toMatchObject({
+        locais: "Paraná, PR", segmentos: ["varejo", "manipulacao", "homeopatia", "veterinaria", "distribuidoras"],
+      });
+      run = { id: "1", status: payload.action === "start" ? "queued" : "cancelling" };
     }
-    return new Response(JSON.stringify({ run: started ? run : null }));
+    return new Response(JSON.stringify({ run }));
   });
   vi.stubGlobal("fetch", fetcher);
-  render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
-  await userEvent.click(screen.getByRole("combobox", { name: "Fonte dos dados" }));
-  expect(screen.getByRole("option", { name: "Receita Federal" })).not.toHaveAttribute("aria-disabled", "true");
-  await userEvent.keyboard("{Escape}");
-  await userEvent.type(screen.getByRole("searchbox"), "Paraná");
-  await userEvent.click(screen.getByRole("combobox", { name: "UF" }));
-  await userEvent.click(screen.getByRole("option", { name: "Paraná (PR)" }));
-  await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
-  await waitFor(() => expect(fetcher.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
-  expect(await screen.findByText("Farmácia do Paraná")).toBeInTheDocument();
+  render(<TestDashboard />);
+  await userEvent.type(screen.getByRole("searchbox", { name: "Digite o estado" }), "Paraná{Enter}");
+  expect(await screen.findByRole("button", { name: "Farmácia do Paraná" })).toBeInTheDocument();
   expect(await screen.findByText("Na fila")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Parar coleta" }));
+  expect(await screen.findByText("Parando coleta")).toBeInTheDocument();
 });
-
-test("o painel usa a etapa e as rodadas concluídas informadas pelo Render", async () => {
-  const run = {
-    id: 1, status: "in_progress", stage: "enriching", title: "Nacional 3/10 · Curitiba, PR",
-    round: 3, completed_rounds: 2, total_rounds: 10, synced_leads: 13,
-  };
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run }))));
-  render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
-  expect(await screen.findByText("Buscando contatos nos sites")).toBeInTheDocument();
-  expect(screen.getByRole("progressbar", { name: "Rodadas concluídas" })).toHaveAttribute("aria-valuenow", "2");
-  expect(screen.getByText("13 registros enviados ao Supabase, incluindo atualizações")).toBeInTheDocument();
-});
-
-test("progresso explica quando a busca encontra locais mas nenhum e-mail", async () => {
-  const run = { id: "job-um", status: "completed", conclusion: "success", title: "Coleta", found_leads: 12, new_leads: 10, with_email: 0, synced_leads: 0 };
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run }))));
-  render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
-  expect(await screen.findByText(/Nesta rodada: 12 resultados processados/)).toBeInTheDocument();
-  expect(screen.getByText(/e-mail é opcional/i)).toBeInTheDocument();
-});
-
-test("job manual aparece em andamento e oferece parada pelo painel", async () => {
-  const run = { id: "job-manual", status: "in_progress", title: "Coleta iniciada fora do painel", can_stop: false };
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run }))));
-  render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
-  expect(await screen.findByText(/Este job foi iniciado fora do painel/)).toBeInTheDocument();
-  expect(screen.getByRole("progressbar", { name: "Coleta em andamento" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Parar coleta" })).toBeInTheDocument();
-  expect(screen.queryByText(/perdeu o estado/)).not.toBeInTheDocument();
-});
-
 
 test("configurações mostram apenas Supabase e preservam a conexão existente", async () => {
   sessionStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
@@ -128,15 +82,21 @@ test("configurações mostram apenas Supabase e preservam a conexão existente",
 });
 
 
-test("Nova Prospecção redireciona sem abrir modal nem iniciar coleta", async () => {
-  const fetcher = vi.fn(async () => new Response(JSON.stringify({ run: null })));
+test("Nova Prospecção abre modal e confirma a busca na própria aba", async () => {
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes("/rest/v1/")) return new Response("[]");
+    return new Response(JSON.stringify({ run: init?.method === "POST" ? { id: "1", status: "queued" } : null }));
+  });
   vi.stubGlobal("fetch", fetcher);
   render(<TestDashboard />);
-  await userEvent.click(screen.getByRole("button", { name: "Leads" }));
   await userEvent.click(screen.getByRole("button", { name: "Nova Prospecção" }));
-  expect(screen.getByRole("heading", { name: "Encontre novas farmácias" })).toBeInTheDocument();
-  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  expect(fetcher.mock.calls.some(call => String(call).includes("POST"))).toBe(false);
+  const modal = screen.getByRole("dialog", { name: "Nova Prospecção" });
+  await userEvent.click(within(modal).getByRole("combobox", { name: "UF" }));
+  await userEvent.click(screen.getByRole("option", { name: "Paraná (PR)" }));
+  await userEvent.click(within(modal).getByRole("button", { name: "Iniciar pesquisa" }));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Nova Prospecção" })).not.toBeInTheDocument());
+  expect(fetcher.mock.calls.some(([url, init]) => url === "/api/collector" && init?.method === "POST")).toBe(true);
+  expect(screen.getByRole("heading", { name: "Leads – Farmácias" })).toBeInTheDocument();
 });
 
 test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async () => {
@@ -216,7 +176,7 @@ test("Leads não expõe status e a ação Adicionar ao CRM move o contato", asyn
   expect(screen.queryByRole("searchbox", { name: "Pesquisar no CRM" })).not.toBeInTheDocument();
 });
 
-test("CRM mostra apenas o Kanban e a navegação rápida reutiliza a leitura", async () => {
+test("CRM reutiliza a leitura da carteira e a aba Leads consulta só uma página", async () => {
   localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
   const rows = [
     { chave: "crm-pr", nome: "Farmácia Paraná", local_busca: "Curitiba, PR", endereco: "Rua A - Centro, Curitiba - PR", segmento: "varejo", emails: "contato@parana.com.br", crm_included: true, crm_status: "Em contato" },
@@ -235,11 +195,16 @@ test("CRM mostra apenas o Kanban e a navegação rápida reutiliza a leitura", a
   expect(screen.queryByRole("searchbox", { name: "Pesquisar no CRM" })).not.toBeInTheDocument();
   expect(screen.queryByText("Filtros", { exact: true })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Aplicar filtros" })).not.toBeInTheDocument();
-  const reads = fetcher.mock.calls.filter(call => String(call[0]).includes("/rest/v1/pharmaleads")).length;
+  const reads = fetcher.mock.calls.map(([url]) => String(url)).filter(url =>
+    url.includes("/rest/v1/pharmaleads") && !new URL(url).searchParams.has("or")).length;
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(screen.getByText("Farmácia Paulista")).toBeInTheDocument();
-  expect(fetcher.mock.calls.filter(call => String(call[0]).includes("/rest/v1/pharmaleads"))).toHaveLength(reads);
+  const queries = fetcher.mock.calls.map(([url]) => String(url)).filter(url => url.includes("/rest/v1/pharmaleads"));
+  const paginated = queries.filter(url => new URL(url).searchParams.has("or"));
+  expect(paginated).toHaveLength(2);
+  expect(new URL(paginated[0]).searchParams.get("limit")).toBe("11");
+  expect(queries.filter(url => !paginated.includes(url))).toHaveLength(reads);
 });
 
 test("CRM oferece Não qualificado, persiste o status e não mostra Não contatado", async () => {
@@ -320,77 +285,6 @@ test("Leads mostra o e-mail sem responsável e filtra com ou sem endereço váli
 });
 
 
-test("Todas as UFs com pesquisa vazia despacha cobertura nacional ao clicar Pesquisar", async () => {
-  let started = false;
-  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
-    if (url.includes("/rest/v1/pharmaleads")) {
-      expect(new URL(url).searchParams.has("uf_prospeccao")).toBe(false);
-      return new Response("[]");
-    }
-    if (url === "/api/collector" && init?.method === "POST") {
-      expect(JSON.parse(String(init.body))).toMatchObject({ action: "start", cobertura: "nacional", segmentos: ["varejo"], profundidade: 1, emails: true });
-      started = true;
-    }
-    return new Response(JSON.stringify({ run: started ? { id: 1, status: "queued", title: "Nacional 1/10" } : null }));
-  });
-  vi.stubGlobal("fetch", fetcher);
-  render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
-  expect(screen.getByRole("combobox", { name: "UF" })).toHaveTextContent("Todas as UFs");
-  await userEvent.click(screen.getByRole("combobox", { name: "UF" }));
-  const allUfsOption = screen.getByRole("option", { name: "Todas as UFs" });
-  expect(allUfsOption).toHaveAttribute("aria-selected", "true");
-  expect(allUfsOption).toHaveClass("text-brand", "bg-primary-soft", "font-semibold");
-  expect(screen.getByRole("option", { name: "Acre (AC)" })).toHaveClass("text-muted-foreground", "font-normal");
-  await userEvent.keyboard("{Escape}");
-  await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
-  await waitFor(() => expect(fetcher.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
-  expect(await screen.findByText("Nacional 1/10")).toBeInTheDocument();
-  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-});
-
-test("permite consultar novamente quando o Render está iniciando", async () => {
-  let available = false;
-  vi.stubGlobal("fetch", vi.fn(async () => available
-    ? new Response(JSON.stringify({ run: { id: "job-live", status: "in_progress" } }))
-    : new Response(JSON.stringify({ error: "O coletor no Render está indisponível ou iniciando." }), { status: 503 })));
-  render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
-  expect(await screen.findByRole("alert")).toHaveTextContent("indisponível ou iniciando");
-  expect(screen.getByRole("button", { name: "Pesquisar" })).toBeEnabled();
-  available = true;
-  await userEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
-  expect(await screen.findByRole("button", { name: "Parar coleta" })).toBeEnabled();
-  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-});
-
-test("paginação de leads funciona com o Render indisponível e mantém os filtros enviados", async () => {
-  const row = (index: number) => ({
-    chave: String(index).padStart(2, "0"), nome: `Farmácia ${index}`, local_busca: "Curitiba, PR",
-    uf_prospeccao: "PR", fonte_prospeccao: "Receita Federal", crm_included: index === 1,
-  });
-  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
-    if (url === "/api/collector") return new Response(JSON.stringify({ error: "Render indisponível" }), { status: 503 });
-    expect(init?.method).toBeUndefined();
-    const query = new URL(url).searchParams;
-    expect(query.get("fonte_prospeccao")).toBe("eq.Receita Federal");
-    expect(query.get("uf_prospeccao")).toBe("eq.PR");
-    return new Response(JSON.stringify(query.get("chave") === "gt.25"
-      ? [row(26)] : Array.from({ length: 26 }, (_, index) => row(index + 1))));
-  });
-  vi.stubGlobal("fetch", fetcher);
-  render(<ProspeccaoTab dataSourceMode="supabase" supabaseSession={{ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }} />);
-  await userEvent.click(screen.getByRole("combobox", { name: "Fonte dos dados" }));
-  await userEvent.click(screen.getByRole("option", { name: "Receita Federal" }));
-  await userEvent.type(screen.getByRole("searchbox"), "PR");
-  await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
-  expect(await screen.findByText("Já está no CRM")).toBeInTheDocument();
-  expect(screen.queryByText("Farmácia 26")).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Próxima" }));
-  expect(await screen.findByText("Farmácia 26")).toBeInTheDocument();
-  expect(screen.queryByText("Farmácia 1")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
-  expect(fetcher.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
-});
-
 test("CRM aplica atualização otimista imediata, não refaz fetch completo e reverte com toast se falhar", async () => {
   localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
   const row = { chave: "opt-1", nome: "Farmácia Otimista", local_busca: "Teresina, PI", segmento: "varejo", crm_included: true, crm_status: "Em contato" };
@@ -407,7 +301,7 @@ test("CRM aplica atualização otimista imediata, não refaz fetch completo e re
       });
     }
     if (url.includes("/rest/v1/pharmaleads")) {
-      listReads += 1;
+      if (!new URL(url).searchParams.has("or")) listReads += 1;
       return Promise.resolve(new Response(JSON.stringify([row]), { headers: { "content-range": "0-0/1" } }));
     }
     return Promise.resolve(new Response(JSON.stringify({ run: null })));
