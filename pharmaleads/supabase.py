@@ -190,20 +190,35 @@ class Supabase:
 
     def salvar(self, registros):
         from .enriquecedor import emails_publicos
-        registros = [r for r in registros if emails_publicos(r.get('emails'))]
         self.ultimo_novos = 0
         if not registros:
             return 0
         # Uma leitura por lote evita uma consulta por lead já conhecido.
         chaves = [r['chave'] for r in registros]
         citado = lambda x: '"' + x.replace('\\', '\\\\').replace('"', '\\"') + '"'
+        opcionais = ('nome', 'endereco', 'categoria', 'telefone', 'telefone_normalizado',
+                     'celular', 'whatsapp_link', 'site', 'latitude', 'longitude',
+                     'avaliacao', 'qtd_avaliacoes', 'link')
+        colunas = ('chave', 'emails', 'dados_brutos', 'primeira_coleta', *opcionais)
         existentes = {r['chave']: r for r in self._requisicao(parametros={
-            'select': 'chave,emails,dados_brutos,primeira_coleta', 'chave': 'in.(' + ','.join(citado(x) for x in chaves) + ')',
+            'select': ','.join(colunas), 'chave': 'in.(' + ','.join(citado(x) for x in chaves) + ')',
         })}
         for registro in registros:
             anterior = existentes.get(registro['chave']) or {}
             if anterior.get('primeira_coleta'):
                 registro['primeira_coleta'] = anterior['primeira_coleta']
+            if 'celular' in registro and not registro.get('telefone') and anterior.get('telefone'):
+                registro['celular'] = anterior.get('celular') or 0
+            for campo in opcionais:
+                if campo != 'celular' and campo in registro and registro[campo] in (None, ''):
+                    if anterior.get(campo) not in (None, ''):
+                        registro[campo] = anterior[campo]
+            if 'score_contato' in registro:
+                registro['score_contato'] = sum((
+                    bool(registro.get('telefone')),
+                    bool(registro.get('site')),
+                    bool(emails_publicos(registro.get('emails')) or emails_publicos(anterior.get('emails'))),
+                ))
             brutos = registro.get('dados_brutos') or {}
             antigos = anterior.get('dados_brutos') or {}
             if isinstance(brutos, dict) and isinstance(antigos, dict):
@@ -214,11 +229,11 @@ class Supabase:
                     brutos['cnpj_confianca'] = antigos.get('cnpj_confianca')
                 for campo, valor in antigos.items():
                     brutos.setdefault(campo, valor)
-        # Insere novos leads já com e-mail. Duplicatas são ignoradas nesta etapa
-        # para não substituir contatos encontrados em coletas anteriores.
-        com_emails = [{**r, 'emails': ', '.join(emails_publicos(r['emails']))}
-                      for r in registros]
-        inseridos = self._requisicao('POST', {'on_conflict': 'chave', 'select': 'chave'}, com_emails,
+        # Insere novos leads, inclusive sem e-mail. Contatos já cadastrados são
+        # preservados no upsert e complementados separadamente.
+        novos_registros = [{**r, 'emails': ', '.join(emails_publicos(r.get('emails')))}
+                           for r in registros]
+        inseridos = self._requisicao('POST', {'on_conflict': 'chave', 'select': 'chave'}, novos_registros,
                                     prefer='resolution=ignore-duplicates,return=representation')
         self.ultimo_novos = len(inseridos)
         chaves_inseridas = {item['chave'] for item in inseridos}
@@ -226,14 +241,17 @@ class Supabase:
         sem_emails = [{k: v for k, v in registro.items() if k != 'emails'} for registro in registros]
         self._requisicao('POST', {'on_conflict': 'chave'}, sem_emails)
         for registro in registros:
+            email = registro.get('emails')
+            novos = {e.casefold() for e in emails_publicos(email)}
+            if not novos:
+                continue
             anterior = existentes.get(registro['chave'])
             if anterior is not None:
                 atuais = {e.casefold() for e in emails_publicos(anterior.get('emails'))}
-                novos = {e.casefold() for e in emails_publicos(registro['emails'])}
                 if not novos.issubset(atuais):
-                    self.adicionar_emails(registro['chave'], registro['emails'])
+                    self.adicionar_emails(registro['chave'], email)
             elif registro['chave'] not in chaves_inseridas:
-                self.adicionar_emails(registro['chave'], registro['emails'])
+                self.adicionar_emails(registro['chave'], email)
         return len(registros)
 
     def inserir_receita(self, registros):

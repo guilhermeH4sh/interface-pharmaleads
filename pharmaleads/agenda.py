@@ -32,7 +32,7 @@ def entrada_agendada(grupo: int, rodada: int, request_id: str) -> dict[str, str]
     return {
         'modo': 'agenda', 'grupo': str(grupo), 'rodada': str(rodada),
         'total_rodadas': str(len(locais)), 'locais': local, 'resumo': local,
-        'segmentos': 'varejo', 'profundidade': '1', 'emails': 'true',
+        'segmentos': 'varejo', 'profundidade': '1', 'emails': 'false',
         'enriquecer_sites': 'false', 'request_id': request_id,
     }
 

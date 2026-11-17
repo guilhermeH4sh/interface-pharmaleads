@@ -45,6 +45,8 @@ class TestAgenda(unittest.TestCase):
 
         def processo(*_, env, **kwargs):
             locais.append(env['LOCAIS'])
+            self.assertEqual(env['EMAILS'], 'false')
+            self.assertEqual(env['ENRIQUECER_SITES'], 'false')
             saida = MARCADOR_PROGRESSO + '{"stage":"round_complete","new_supabase_leads":1000}\n'
             return Mock(stdout=StringIO(saida), wait=Mock(return_value=1 if len(locais) == 2 else 0))
 

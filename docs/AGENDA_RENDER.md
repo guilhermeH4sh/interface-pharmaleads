@@ -23,7 +23,9 @@ Cada horário inicia um One-Off Job de varejo no coletor existente, com profundi
 
 5. Em **Runs**, confirme a próxima execução. Após o primeiro disparo, o log do Cron Job deve mostrar o ID do One-Off Job. A fila e o progresso ficam em **One-Off Jobs** e no painel de Prospecção. Se o coletor estiver ocupado, o disparador tenta novamente a cada minuto até o fim da primeira hora da janela. A agenda usa um identificador por data e horário para reconhecer um disparo recente repetido.
 
-O Cron Job e os One-Off Jobs usam recursos cobrados pelo Render. O Cron Job só dispara a fila e termina assim que o One-Off Job é aceito. Cada rodada da agenda tem limite de cinco minutos no Gosom. Se uma UF falhar ou atingir o limite, a fila segue para as próximas e o job termina com indicação de falha parcial. A atualização do Supabase mantém as regras de elegibilidade já usadas pelo coletor.
+O Cron Job e os One-Off Jobs usam recursos cobrados pelo Render. O Cron Job só dispara a fila e termina assim que o One-Off Job é aceito. Cada rodada da agenda tem limite de cinco minutos no Gosom. Se uma UF falhar ou atingir o limite, a fila segue para as próximas e o job termina com indicação de falha parcial.
+
+A agenda coleta leads com e sem e-mail e envia ambos ao Supabase. O Gosom roda sem a busca de e-mails nos sites. A recuperação de e-mails pode rodar à parte com o comando existente `python -m pharmaleads.recuperar_emails --somente-sem-email --atualizar-escopo --limite 25`, usando um ambiente configurado com Gosom e acesso ao Supabase.
 
 ## Ler os resultados nos logs
 

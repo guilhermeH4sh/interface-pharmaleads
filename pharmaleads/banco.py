@@ -254,8 +254,6 @@ class Banco:
             for registro in registros:
                 try: registro['dados_brutos'] = json.loads(registro['dados_brutos'] or '{}')
                 except (TypeError, ValueError): registro['dados_brutos'] = {}
-            from .enriquecedor import emails_publicos
-            registros = [r for r in registros if emails_publicos(r.get('emails'))]
             if registros:
                 cliente.salvar(registros)
                 if ao_novos:

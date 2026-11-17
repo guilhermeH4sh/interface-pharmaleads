@@ -38,7 +38,7 @@ def configuracao() -> tuple[list[str], int, bool, bool]:
     if not all(os.environ.get(x) for x in ('SUPABASE_EMAIL', 'SUPABASE_PASSWORD')):
         raise ErroPharmaLeads('Configure SUPABASE_EMAIL e SUPABASE_PASSWORD no ambiente do coletor.')
     return (montar_consultas(locais, segmentos), profundidade,
-            True, os.environ.get('ENRIQUECER_SITES') == 'true')
+            os.environ.get('EMAILS', 'true') == 'true', os.environ.get('ENRIQUECER_SITES') == 'true')
 
 
 def _sinalizar_grupo(pid: int, sinal: int) -> None:
@@ -166,7 +166,7 @@ def main() -> int:
                 else:
                     if isinstance(ultimo_erro, subprocess.TimeoutExpired):
                         raise ultimo_erro
-                    raise ErroPharmaLeads(f'Rodada falhou após duas tentativas: {ultimo_erro}')
+                    raise ErroPharmaLeads(f'Rodada falhou após {max_tentativas} tentativa(s): {ultimo_erro}')
                 enriquecidos = 0
                 if enriquecer:
                     _progresso('enriching')
@@ -176,10 +176,10 @@ def main() -> int:
                         enriquecidos += banco.registrar_enriquecimento(contato)
                 pendentes = banco.con.execute('SELECT count(*) FROM sync_pendente').fetchone()[0]
                 from .enriquecedor import emails_publicos
-                elegiveis = sum(bool(emails_publicos(registro[0])) for registro in banco.con.execute(
+                com_email = sum(bool(emails_publicos(registro[0])) for registro in banco.con.execute(
                     'SELECT lugares.emails FROM lugares JOIN sync_pendente USING(chave)'))
                 _progresso('syncing', found_leads=novos + existentes, new_leads=novos,
-                           with_email=elegiveis, without_email=max(0, novos + existentes - elegiveis))
+                           with_email=com_email, without_email=pendentes - com_email)
                 novos_supabase = 0
                 def contar_novos(total: int) -> None:
                     nonlocal novos_supabase

@@ -31,12 +31,13 @@ class TestCloudJob(unittest.TestCase):
                       'SUPABASE_PASSWORD':'senha'}
             fake_client = MagicMock()
             fake_client.ultimo_novos = 1
+            fake_client.salvar.side_effect = len
             fake_config = {'SUPABASE_URL':'https://teste.supabase.co', 'SUPABASE_SECRET_KEY':'sb_secret_fake'}
 
             def docker(command, **_):
                 pasta = Path(command[command.index('-v') + 1].split(':/gmapsdata')[0])
                 self.assertEqual(command[command.index('-c') + 1], '1')
-                self.assertIn('-email', command)
+                self.assertNotIn('-email', command)
                 entradas = (pasta / 'input.txt').read_text(encoding='utf-8').splitlines()
                 self.assertEqual(entradas, ['farmácia de manipulação em Curitiba, PR #!#manipulacao|Curitiba, PR'])
                 with (pasta / 'results.csv').open('w', encoding='utf-8', newline='') as f:
@@ -54,10 +55,13 @@ class TestCloudJob(unittest.TestCase):
                 self.assertEqual(cloud_job.main(), 0)
             self.assertIn('"found_leads": 2', saida.getvalue())
             self.assertIn('"with_email": 1', saida.getvalue())
+            self.assertIn('"without_email": 1', saida.getvalue())
             records = fake_client.salvar.call_args.args[0]
-            self.assertEqual(len(records), 1)
+            self.assertEqual(len(records), 2)
             self.assertEqual(records[0]['chave'], 'cid-cloud-1')
             self.assertEqual(records[0]['emails'], 'contato@farmacia.com.br')
+            self.assertEqual(records[1]['chave'], 'cid-cloud-2')
+            self.assertEqual(records[1]['emails'], '')
 
     def test_render_executa_o_binario_sem_docker(self):
         with tempfile.TemporaryDirectory() as tmp:

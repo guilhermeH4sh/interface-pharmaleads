@@ -186,7 +186,7 @@ class ColetorRender:
                     'LOCAIS': atual['locais'],
                     'SEGMENTOS': atual['segmentos'],
                     'PROFUNDIDADE': atual['profundidade'],
-                    'EMAILS': 'true',
+                    'EMAILS': atual['emails'],
                     'ENRIQUECER_SITES': atual['enriquecer_sites'],
                     # O plano One-Off atual tem 2 GB. Limita a uma sessão em
                     # cada fase para evitar que os navegadores excedam a RAM.

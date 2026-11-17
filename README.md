@@ -24,8 +24,8 @@ iniciada pelo navegador local continua restrita a `127.0.0.1`.
 
 O painel chama a função Vercel `/api/collector`, que valida a sessão Supabase e encaminha o
 pedido ao Web Service do Render. Com One-Off Jobs ativado, o serviço inicia uma
-instância separada de 2 GB que executa Gosom, Chromium e Playwright. Os leads com
-e-mail continuam sendo enviados para `public.pharmaleads`.
+instância separada de 2 GB que executa Gosom, Chromium e Playwright. Os leads
+são enviados para `public.pharmaleads` mesmo quando o e-mail está vazio.
 
 1. No Render, crie um **Blueprint** a partir deste repositório. O arquivo `render.yaml`
    cria o serviço `pharmaleads-collector` no plano Starter usando `Dockerfile.render`.
@@ -104,8 +104,8 @@ percorrer as 27 capitais, intercalando as regiões,
 e depois uma cidade do interior nos estados grandes — São Paulo entra com duas. Cada
 rodada continua limitada a oito consultas para preservar estabilidade. O supervisor do
 Render inicia a próxima rodada automaticamente; **Parar coleta** encerra a rodada em
-andamento e impede as seguintes. Uma falha interrompe a fila. E-mail é obrigatório e o
-enriquecimento permanece ativo. A grade **Cobertura por UF** lê `ultima_coleta`
+andamento e impede as seguintes. O e-mail é opcional para gravar um lead.
+A grade **Cobertura por UF** lê `ultima_coleta`
 dos leads já salvos em `public.pharmaleads` e mostra a data mais recente de cada estado.
 
 ## Requisitos
