@@ -310,7 +310,7 @@ export async function fetchRemoteLeadMetrics(session: SupabaseSession, signal: A
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/leads_resumo`, {
     cache: "no-store",
     headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}` },
-    signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]),
   });
   if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
   if (!response.ok) throw new Error("Não foi possível carregar as métricas da carteira.");
