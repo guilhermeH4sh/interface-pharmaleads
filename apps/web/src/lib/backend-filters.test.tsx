@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { AUTHORIZED_USER_ID, fetchSupabaseAllLeads, filterLeadItems, mapRawLeadsToItems } from "./backend";
+import { AUTHORIZED_USER_ID, fetchSupabaseAllLeads, filterLeadItems, mapRawLeadsToItems, readRemoteLeads } from "./backend";
 import type { Lead } from "./crm";
 
 beforeEach(() => localStorage.clear());
@@ -28,6 +28,27 @@ test("tipo de estabelecimento combina seleções com UF e e-mail antes da pagina
   expect(filterLeadItems(items, { uf: "PR", segmentos: ["varejo", "manipulacao"], emailAvailability: "com" }).map(item => item.id)).toEqual(["1", "2"]);
   expect(filterLeadItems(items, { segmentos: ["veterinaria"], emailAvailability: "com" })).toHaveLength(0);
   expect(filterLeadItems(items, { segmentos: ["varejo"] }).map(item => item.id)).toEqual(["1"]);
+});
+
+test("consulta remota filtra e-mails sem regex lenta e preserva leads sem e-mail", async () => {
+  const fetcher = vi.fn(async (url: string) => {
+    const emailFilter = new URL(url).searchParams.get("emails");
+    expect(["like.*@*.*", "eq."]).toContain(emailFilter);
+    return new Response(JSON.stringify([{
+      chave: emailFilter === "eq." ? "sem" : "com",
+      nome: "Farmácia",
+      emails: emailFilter === "eq." ? "" : "contato@farmacia.com.br",
+      crm_included: false,
+    }]));
+  });
+  vi.stubGlobal("fetch", fetcher);
+  const session = { access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 };
+  const filters = { uf: "", origem: "Todas as origens", segmentos: [], query: "" };
+  const withEmail = await readRemoteLeads(session, { ...filters, emailAvailability: "com" }, { limit: 10 });
+  const withoutEmail = await readRemoteLeads(session, { ...filters, emailAvailability: "sem" }, { limit: 10 });
+  expect(withEmail.items.map(item => item.id)).toEqual(["com"]);
+  expect(withoutEmail.items.map(item => item.id)).toEqual(["sem"]);
+  expect(fetcher).toHaveBeenCalledTimes(2);
 });
 
 test("pagina por chave sem repetir linhas quando novas coletas alteram a base", async () => {

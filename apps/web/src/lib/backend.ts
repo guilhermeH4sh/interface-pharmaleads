@@ -319,7 +319,6 @@ export async function fetchRemoteLeadMetrics(session: SupabaseSession, signal: A
   return metrics;
 }
 
-const EMAIL_TOKEN = "(^|[,;[:space:]])[^@,;[:space:]]+@[^@,;[:space:]]+[.][^@,;[:space:]]+($|[,;[:space:]])";
 const restValue = (value: string) => `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 const OUTSIDE_CRM = "(crm_included.eq.false,and(crm_included.is.null,or(crm_status.is.null,crm_status.eq.Não contatado)))";
 
@@ -337,7 +336,8 @@ export async function readRemoteLeads(
   if (filters.uf) query.set("uf_prospeccao", `eq.${filters.uf}`);
   if (filters.origem && filters.origem !== "Todas as origens") query.set("fonte_prospeccao", `eq.${filters.origem}`);
   if (filters.segmentos.length) query.set("segmento", `in.(${filters.segmentos.map(restValue).join(",")})`);
-  if (filters.emailAvailability !== "todos") query.set("emails", `${filters.emailAvailability === "sem" ? "not." : ""}match.${EMAIL_TOKEN}`);
+  if (filters.emailAvailability === "com") query.set("emails", "like.*@*.*");
+  if (filters.emailAvailability === "sem") query.set("emails", "eq.");
   const term = filters.query.trim();
   if (term) {
     const pattern = term.replace(/[\\%_]/g, "\\$&");
