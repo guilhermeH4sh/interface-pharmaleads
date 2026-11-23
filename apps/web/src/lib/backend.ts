@@ -34,7 +34,7 @@ let whatsappColumnAvailable = true;
 
 async function fetchLeadTable(query: URLSearchParams, options: RequestInit) {
   const select = (query.get("select") ?? "").split(",");
-  const withoutVerification = select.includes("whatsapp_verificacao") && !query.has("whatsapp_verificacao->>estado");
+  const withoutVerification = select.includes("whatsapp_verificacao");
   if (withoutVerification && !whatsappColumnAvailable) {
     query.set("select", select.filter(column => column !== "whatsapp_verificacao").join(","));
   }
@@ -355,10 +355,6 @@ function applyRemoteLeadFilters(query: URLSearchParams, filters: RemoteLeadFilte
   if (filters.segmentos.length) query.set("segmento", `in.(${filters.segmentos.map(restValue).join(",")})`);
   if (filters.emailAvailability === "com") query.set("emails", "like.*@*.*");
   if (filters.emailAvailability === "sem") query.set("emails", "eq.");
-  if (filters.whatsappConfirmed) {
-    query.set("whatsapp_verificacao", "not.is.null");
-    query.set("whatsapp_verificacao->>estado", "eq.confirmado");
-  }
   const term = filters.query.trim();
   if (term) {
     const pattern = term.replace(/[\\%_]/g, "\\$&");
@@ -369,6 +365,14 @@ function applyRemoteLeadFilters(query: URLSearchParams, filters: RemoteLeadFilte
 
 export async function countRemoteLeads(session: SupabaseSession, filters: RemoteLeadFilters, signal: AbortSignal) {
   let active = await validSupabaseSession(session);
+  if (filters.whatsappConfirmed) {
+    const deleted = loadDeletedIds();
+    let total = 0;
+    for await (const batch of readConfirmedLeads(active, filters, { limit: 75, idsOnly: true, signal })) {
+      total += batch.filter(row => !deleted.has(row.chave)).length;
+    }
+    return total;
+  }
   const query = new URLSearchParams({ select: "chave", limit: "1" });
   applyRemoteLeadFilters(query, filters);
   const response = await fetch(`${SUPABASE_URL}/rest/v1/pharmaleads?${query}`, {
@@ -396,13 +400,26 @@ export async function countRemoteLeads(session: SupabaseSession, filters: Remote
   }
 }
 
-export async function readRemoteLeads(
-  session: SupabaseSession, filters: RemoteLeadFilters,
-  options: { limit: number; cursor?: string; since?: string; createdSince?: string; peek?: boolean; idsOnly?: boolean; ids?: string[]; signal?: AbortSignal },
-) {
-  const active = await validSupabaseSession(session);
+interface RemoteReadOptions {
+  limit: number;
+  cursor?: string;
+  since?: string;
+  createdSince?: string;
+  peek?: boolean;
+  idsOnly?: boolean;
+  ids?: string[];
+  signal?: AbortSignal;
+}
+
+type RemoteLeadRow = Lead & NonNullable<Lead["dados_brutos"]> & {
+  uf_prospeccao?: string;
+  fonte_prospeccao?: LeadItem["origem"];
+};
+
+async function fetchRemoteLeadRows(active: SupabaseSession, filters: RemoteLeadFilters, options: RemoteReadOptions) {
   const query = new URLSearchParams({
-    select: options.idsOnly ? "chave" : SUPABASE_LIST_COLUMNS + ",uf_prospeccao,fonte_prospeccao",
+    select: options.idsOnly ? (filters.whatsappConfirmed ? "chave,whatsapp_verificacao" : "chave")
+      : SUPABASE_LIST_COLUMNS + ",uf_prospeccao,fonte_prospeccao",
     order: "chave.asc",
     limit: String(options.limit + Number(Boolean(options.peek))),
   });
@@ -410,7 +427,7 @@ export async function readRemoteLeads(
   if (options.since) query.set("ultima_coleta", `gte.${options.since}`);
   if (options.createdSince) query.set("primeira_coleta", `gte.${options.createdSince}`);
   if (options.cursor) query.set("chave", `gt.${options.cursor}`);
-  if (options.ids) query.set("chave", `in.(${options.ids.map(restValue).join(",")})`);
+  if (options.ids) query.append("chave", `in.(${options.ids.map(restValue).join(",")})`);
   const response = await fetchLeadTable(query, {
     cache: "no-store",
     headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}` },
@@ -418,9 +435,54 @@ export async function readRemoteLeads(
   });
   if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
   if (!response.ok) throw new Error(`Não foi possível consultar os leads (HTTP ${response.status}).`);
-  const fetched = (await response.json()) as Array<Lead & NonNullable<Lead["dados_brutos"]> & {
-    uf_prospeccao?: string; fonte_prospeccao?: LeadItem["origem"];
-  }>;
+  return (await response.json()) as RemoteLeadRow[];
+}
+
+async function* readConfirmedLeads(active: SupabaseSession, filters: RemoteLeadFilters, options: RemoteReadOptions) {
+  if (!whatsappColumnAvailable) throw new Error("A verificação de WhatsApp ainda precisa ser ativada no Supabase.");
+  const pageSize = 500;
+  // A ordem acompanha o índice parcial. Os demais filtros são aplicados por chave
+  // para evitar varrer a tabela completa quando há poucas verificações.
+  const query = new URLSearchParams({ select: "chave,whatsapp_verificacao", whatsapp_verificacao: "not.is.null",
+    order: "whatsapp_verificacao->>estado.asc,chave.asc", limit: String(pageSize) });
+  const ids = options.ids ? new Set(options.ids) : undefined;
+  const seen = new Set<string>();
+  for (let offset = 0; ; offset += pageSize) {
+    options.signal?.throwIfAborted();
+    query.set("offset", String(offset));
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/pharmaleads?${query}`, {
+      cache: "no-store", headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}` },
+      signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000),
+    });
+    if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
+    if (!response.ok) throw new Error(`Não foi possível consultar as verificações de WhatsApp (HTTP ${response.status}).`);
+    const rows = (await response.json()) as Pick<Lead, "chave" | "whatsapp_verificacao">[];
+    const keys = rows.filter(row => row.whatsapp_verificacao?.estado === "confirmado"
+      && (!ids || ids.has(row.chave)) && !seen.has(row.chave)).map(row => row.chave);
+    for (const key of keys) seen.add(key);
+    for (let index = 0; index < keys.length; index += 75) {
+      const batch = keys.slice(index, index + 75);
+      const leads = await fetchRemoteLeadRows(active, filters, { ...options, ids: batch, limit: batch.length, peek: false });
+      yield leads.filter(lead => lead.whatsapp_verificacao?.estado === "confirmado");
+    }
+    if (rows.length < pageSize) return;
+  }
+}
+
+export async function readRemoteLeads(session: SupabaseSession, filters: RemoteLeadFilters, options: RemoteReadOptions) {
+  const active = await validSupabaseSession(session);
+  let fetched: RemoteLeadRow[];
+  if (filters.whatsappConfirmed) {
+    fetched = [];
+    const limit = options.limit + Number(Boolean(options.peek));
+    for await (const batch of readConfirmedLeads(active, filters, options)) {
+      fetched.push(...batch);
+      if (fetched.length >= limit) break;
+    }
+    fetched = fetched.slice(0, limit);
+  } else {
+    fetched = await fetchRemoteLeadRows(active, filters, options);
+  }
   const rows = options.peek ? fetched.slice(0, options.limit) : fetched;
   const deleted = loadDeletedIds();
   const geografia = new Map(rows.map(row => [row.chave, row]));

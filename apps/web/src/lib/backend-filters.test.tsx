@@ -78,6 +78,31 @@ test("só a confirmação libera o link de WhatsApp e usa o número verificado",
   expect(items[0].whatsappPublicado).toBe("5512999990000");
 });
 
+test("consulta primeiro as verificações e aplica UF e e-mail apenas às chaves confirmadas", async () => {
+  const verification = { numero: "5512999990000", estado: "confirmado", verificado_em: "2026-11-22T12:00:00Z" };
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+    const query = new URL(url).searchParams;
+    expect(init?.method).not.toBe("HEAD");
+    if (query.has("whatsapp_verificacao")) {
+      expect(query.has("uf_prospeccao")).toBe(false);
+      expect(query.get("order")).toBe("whatsapp_verificacao->>estado.asc,chave.asc");
+      return new Response(JSON.stringify([
+        { chave: "a", whatsapp_verificacao: verification },
+        { chave: "b", whatsapp_verificacao: { ...verification, estado: "indisponivel" } },
+      ]));
+    }
+    expect(query.get("chave")).toBe('in.("a")');
+    expect(query.get("uf_prospeccao")).toBe("eq.SP");
+    expect(query.get("emails")).toBe("like.*@*.*");
+    return new Response(JSON.stringify([{ chave: "a", nome: "Farmácia", emails: "farmacia@example.org",
+      whatsapp_verificacao: verification }]));
+  }));
+  const session = { access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 };
+  const filters = { uf: "SP", emailAvailability: "com" as const, origem: "", segmentos: [], query: "", whatsappConfirmed: true };
+  expect((await readRemoteLeads(session, filters, { limit: 10 })).ids).toEqual(["a"]);
+  expect(await countRemoteLeads(session, filters, new AbortController().signal)).toBe(1);
+});
+
 test("pagina por chave sem repetir linhas quando novas coletas alteram a base", async () => {
   const first = Array.from({ length: 500 }, (_, index) => ({ chave: String(index).padStart(4, "0"), nome: "Farmácia" }));
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
