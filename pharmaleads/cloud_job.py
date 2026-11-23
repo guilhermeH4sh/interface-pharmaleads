@@ -15,6 +15,9 @@ from .config import ErroPharmaLeads
 from .gerador import montar_consultas, validar_segmentos
 
 MARCADOR_PROGRESSO = 'PHARMALEADS_PROGRESS '
+SEM_RESULTADOS = 3
+FALHA_SINCRONIZACAO = 4
+TEMPO_LIMITE = 124
 
 TERMOS_POR_SEGMENTO = {'varejo': 3, 'manipulacao': 1, 'homeopatia': 1,
                        'veterinaria': 1, 'distribuidoras': 2}
@@ -152,8 +155,8 @@ def main() -> int:
                     try:
                         _progresso('searching' if tentativa == 1 else 'retrying')
                         _rodar_docker(comando, timeout=int(os.environ.get('GOSOM_TIMEOUT', '1500')))
-                        if not saida.is_file() or saida.stat().st_size < 10:
-                            raise ErroPharmaLeads('Gosom retornou um CSV vazio.')
+                        if not saida.is_file():
+                            raise ErroPharmaLeads('Gosom não gerou o CSV de resultados.')
                         _progresso('importing')
                         novos, existentes = banco.importar_csv(saida, sincronizar=False)
                         break
@@ -167,6 +170,18 @@ def main() -> int:
                     if isinstance(ultimo_erro, subprocess.TimeoutExpired):
                         raise ultimo_erro
                     raise ErroPharmaLeads(f'Rodada falhou após {max_tentativas} tentativa(s): {ultimo_erro}')
+                resultados = banco.ultimas_metricas['resultados_por_consulta']
+                consultas_com_resultados = 0
+                for linha in consultas:
+                    consulta, _, rotulo = linha.partition(' #!#')
+                    quantidade = resultados[rotulo]
+                    consultas_com_resultados += int(quantidade > 0)
+                    print(f'Consulta {consulta}: {quantidade} registro(s) no CSV.', flush=True)
+                if not (novos or existentes):
+                    _progresso('round_complete', queries=len(consultas),
+                               queries_with_results=0, duration_seconds=int(time.monotonic() - inicio))
+                    print('Gosom terminou sem retornar estabelecimentos utilizáveis.', file=sys.stderr)
+                    return SEM_RESULTADOS
                 enriquecidos = 0
                 if enriquecer:
                     _progresso('enriching')
@@ -185,16 +200,23 @@ def main() -> int:
                     nonlocal novos_supabase
                     novos_supabase += total
 
-                enviados = banco.sincronizar_pendentes(
-                    obrigatorio=True, ao_enviar=lambda total: _progresso('synced', synced_leads=total),
-                    ao_novos=contar_novos,
-                ) if pendentes else 0
+                erro_sync = None
+                try:
+                    enviados = banco.sincronizar_pendentes(
+                        obrigatorio=True, ao_enviar=lambda total: _progresso('synced', synced_leads=total),
+                        ao_novos=contar_novos,
+                    ) if pendentes else 0
+                except (ErroPharmaLeads, OSError) as exc:
+                    erro_sync = exc
                 duracao = max(time.monotonic() - inicio, 1)
                 _progresso('round_complete', new_supabase_leads=novos_supabase,
                            queries=len(consultas), duration_seconds=int(duracao),
-                           queries_with_results=banco.ultimas_metricas['consultas_com_resultado'],
+                           queries_with_results=consultas_com_resultados,
                            local_duplicates=banco.ultimas_metricas['duplicados_locais'],
                            new_leads_per_hour=int(novos_supabase * 3600 / duracao))
+                if erro_sync is not None:
+                    print(f'Falha ao gravar no Supabase: {erro_sync}', file=sys.stderr)
+                    return FALHA_SINCRONIZACAO
                 print(f'Coleta concluída: {novos} novos, {existentes} atualizados; '
                       f'{enriquecidos} enriquecidos; {enviados} enviados, '
                       f'{novos_supabase} novos no Supabase em {duracao:.0f}s.', flush=True)
@@ -203,7 +225,7 @@ def main() -> int:
         return 0
     except subprocess.TimeoutExpired as exc:
         print(f'Rodada excedeu o limite de tempo: {exc}', file=sys.stderr)
-        return 124
+        return TEMPO_LIMITE
     except (ErroPharmaLeads, OSError, subprocess.CalledProcessError) as exc:
         print(f'Coleta falhou: {exc}', file=sys.stderr)
         return 1

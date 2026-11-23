@@ -101,7 +101,7 @@ class TestFluxoCompleto(unittest.TestCase):
         # 2 locais (repetido ignorado) x (3 termos varejo + 1 manipulação) = 8 buscas
         self.assertEqual((r["locais"], r["consultas"], r["lotes"]), (2, 8, 3))
         primeiro = sorted(config.pasta_consultas().glob("lote_*.txt"))[0].read_text(encoding="utf-8")
-        self.assertIn("farmácia em Sorocaba, SP #!#varejo|Sorocaba, SP", primeiro)
+        self.assertIn("farmácia em Sorocaba, SP #!#v2|varejo|farmácia|Sorocaba, SP", primeiro)
         with self.assertRaises(ErroPharmaLeads):
             gerador.gerar_lotes()  # já existem lotes, exige --recriar
         gerador.gerar_lotes(recriar=True, segmentos=["distribuidoras"])
@@ -134,7 +134,7 @@ class TestFluxoCompleto(unittest.TestCase):
         self.assertEqual(self.banco.exportar(destino, ativas=True, com_celular=True), 2)
         with open(destino, newline="", encoding="utf-8-sig") as f:
             linhas = list(csv.DictReader(f))
-        self.assertEqual(linhas[0]["whatsapp_link"], "https://wa.me/5515999990000")
+        self.assertEqual(linhas[0]["whatsapp_link"], "")
         self.assertEqual(linhas[0]["local_busca"] in ("Sorocaba, SP", "Campinas, SP"), True)
         self.assertEqual(self.banco.exportar(destino, com_email=True), 0)
         self.assertEqual(self.banco.exportar(destino, segmento="varejo"), 6)

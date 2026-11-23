@@ -18,7 +18,7 @@ export function RelatoriosTab({ summary, leads = [], onExportFullCSV }: Relatori
       return {
         withPhonePct: "0% com telefone registrado",
         whatsappCount: 0,
-        whatsappPct: "0% com WhatsApp identificado",
+        whatsappPct: "0% com WhatsApp confirmado",
         segments: [
           { label: "Farmácias de Varejo / Drogarias", pct: 0, count: 0, barClass: "bg-primary" },
           { label: "Farmácias de Manipulação (Magistrais)", pct: 0, count: 0, barClass: "bg-primary-strong" },
@@ -34,7 +34,7 @@ export function RelatoriosTab({ summary, leads = [], onExportFullCSV }: Relatori
     const withPhonePct = `${Math.round((withPhoneCount / total) * 100)}% com telefone registrado`;
 
     const whatsappCount = leads.filter((l) => Boolean(l.whatsappLink)).length;
-    const whatsappPct = `${((whatsappCount / total) * 100).toFixed(1).replace(/\.0$/, "")}% com WhatsApp identificado`;
+    const whatsappPct = `${((whatsappCount / total) * 100).toFixed(1).replace(/\.0$/, "")}% com WhatsApp confirmado`;
 
     let varejo = 0;
     let manipulacao = 0;
@@ -104,7 +104,7 @@ export function RelatoriosTab({ summary, leads = [], onExportFullCSV }: Relatori
         <div className={cn(ui.cardInteractive, "p-6")}>
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
-              Contatos com WhatsApp
+              WhatsApp confirmado
             </span>
             <TrendingUp size={18} className="text-brand" />
           </div>

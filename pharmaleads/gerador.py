@@ -5,9 +5,9 @@ Combina LOCAIS (cidades/bairros) com os TERMOS de cada SEGMENTO e grava as
 buscas em pequenos arquivos (lotes) na pasta dados/consultas/.
 
 Cada linha tem o formato que o gosom entende:
-    farmácia em Sorocaba, SP #!#varejo|Sorocaba, SP
+    farmácia em Sorocaba, SP #!#v2|varejo|farmácia|Sorocaba, SP
 O pedaço depois de "#!#" é um rótulo que o gosom devolve no resultado (coluna
-input_id). Assim, cada lead guarda de qual segmento e de qual local veio.
+input_id). O rótulo identifica o segmento, o termo e o local da consulta.
 """
 from __future__ import annotations
 
@@ -54,8 +54,16 @@ def montar_consultas(locais: list[str], segmentos: list[str]) -> list[str]:
                 if texto.lower() in vistas:
                     continue
                 vistas.add(texto.lower())
-                linhas.append(f"{texto} #!#{segmento}|{local}")
+                linhas.append(f"{texto} #!#v2|{segmento}|{termo}|{local}")
     return linhas
+
+
+def segmento_e_local(rotulo: str) -> tuple[str, str]:
+    if rotulo.startswith('v2|'):
+        partes = rotulo.split('|', 3)
+        return (partes[1], partes[3]) if len(partes) == 4 else ('', '')
+    segmento, separador, local = rotulo.partition('|')
+    return (segmento, local) if separador else ('', '')
 
 
 def gerar_lotes(

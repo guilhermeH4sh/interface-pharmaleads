@@ -1,4 +1,4 @@
-import { entradaNacional } from './cobertura.mjs';
+import { CAPITAIS, entradaNacional } from './cobertura.mjs';
 
 const SUPABASE_URL = 'https://qxsdcrywsjkrpcbfgbxb.supabase.co';
 const PUBLISHABLE_KEY = 'sb_publishable_9AdBAjeEHFysAVpC7VCLMw_cDgQ4Fl0';
@@ -10,12 +10,20 @@ function header(req, name) { return req.headers?.[name] || req.headers?.[name.to
 
 export function validateInput(body) {
   if (!body || typeof body !== 'object') throw new Error('Configuração inválida.');
-  const locais = typeof body.locais === 'string' ? body.locais.split(/\r?\n/).map(x => x.trim()).filter(Boolean) : [];
   const segmentos = Array.isArray(body.segmentos) ? [...new Set(body.segmentos)] : [];
   const profundidade = Number(body.profundidade);
-  if (!locais.length || locais.length > 20 || locais.some(x => x.length > 100 || /[\x00-\x1f]|#!#/.test(x))) throw new Error('Informe de 1 a 20 locais válidos, um por linha.');
   if (!segmentos.length || segmentos.some(x => typeof x !== 'string' || !Object.hasOwn(TERMS, x))) throw new Error('Escolha pelo menos um segmento válido.');
   if (!Number.isInteger(profundidade) || profundidade < 1 || profundidade > 10) throw new Error('A profundidade deve estar entre 1 e 10.');
+  if (body.cobertura === 'estadual') {
+    const uf = typeof body.uf === 'string' ? body.uf.trim().toUpperCase() : '';
+    if (uf.length !== 2 || !CAPITAIS.some(local => local.endsWith(`, ${uf}`)) || profundidade > 3) {
+      throw new Error('Informe uma UF válida e profundidade de 1 a 3 para a busca ampliada.');
+    }
+    return { modo: 'estadual', uf, segmentos: segmentos.join(','), profundidade: String(profundidade),
+      enriquecer_sites: String(body.enriquecerSites === true) };
+  }
+  const locais = typeof body.locais === 'string' ? body.locais.split(/\r?\n/).map(x => x.trim()).filter(Boolean) : [];
+  if (!locais.length || locais.length > 20 || locais.some(x => x.length > 100 || /[\x00-\x1f]|#!#/.test(x))) throw new Error('Informe de 1 a 20 locais válidos, um por linha.');
   if (locais.length * segmentos.reduce((sum, x) => sum + TERMS[x], 0) > 20) throw new Error('Esta coleta excede 20 buscas. Reduza os locais ou segmentos.');
   const unicos = [...new Set(locais)];
   const opcaoEnriquecimento = body.enriquecerSites ?? body.enriquecer_sites;

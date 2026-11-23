@@ -103,6 +103,20 @@ test('encaminha primeira rodada nacional e o Render continua a fila', async () =
   assert.ok(Number(input.total_rodadas) > 1);
 });
 
+test('encaminha busca ampliada por UF e restringe a profundidade', async () => {
+  const calls = setupRender(async () => ({ status: 202, json: async () => ({ run: { id: 3, status: 'queued' } }) }));
+  const payload = { action: 'start', uf: 'SP', cobertura: 'estadual', segmentos: ['varejo'], profundidade: 2 };
+  const res = response();
+  await handler({ method: 'POST', headers: { authorization: 'Bearer jwt-de-teste' }, body: payload }, res);
+  assert.equal(res.statusCode, 202);
+  assert.deepEqual(JSON.parse(calls.at(-1).options.body), {
+    modo: 'estadual', uf: 'SP', segmentos: 'varejo', profundidade: '2', enriquecer_sites: 'false',
+    request_id: JSON.parse(calls.at(-1).options.body).request_id,
+  });
+  assert.throws(() => validateInput({ ...payload, profundidade: 4 }), /profundidade de 1 a 3/);
+  assert.throws(() => validateInput({ ...payload, uf: 'XX' }), /UF válida/);
+});
+
 test('consulta status e solicita parada no Render', async () => {
   const calls = setupRender(async (url) => {
     if (url.endsWith('/v1/status')) return { ok: true, status: 200, json: async () => ({ run: { id: 9, status: 'in_progress' } }) };

@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
 from pharmaleads.agenda import GRUPOS, disparar, entrada_agendada
-from pharmaleads.cloud_job import MARCADOR_PROGRESSO
+from pharmaleads.cloud_job import MARCADOR_PROGRESSO, SEM_RESULTADOS
 from pharmaleads.render_service import ColetorRender, Handler
 
 
@@ -48,13 +48,15 @@ class TestAgenda(unittest.TestCase):
             self.assertEqual(env['EMAILS'], 'false')
             self.assertEqual(env['ENRIQUECER_SITES'], 'false')
             saida = MARCADOR_PROGRESSO + '{"stage":"round_complete","new_supabase_leads":1000}\n'
-            return Mock(stdout=StringIO(saida), wait=Mock(return_value=1 if len(locais) == 2 else 0))
+            codigo = {1: SEM_RESULTADOS, 2: 1}.get(len(locais), 0)
+            return Mock(stdout=StringIO(saida if codigo == 0 else ''), wait=Mock(return_value=codigo))
 
         popen.side_effect = processo
         coletor = ColetorRender()
         self.assertEqual(coletor.executar_job(entrada_agendada(7, 1, 'agenda-teste')), 'failure')
         self.assertEqual(locais, list(GRUPOS[7]))
         self.assertEqual(coletor.status()['skipped_rounds'], 1)
+        self.assertEqual(coletor.status()['empty_rounds'], 1)
         self.assertNotIn('goal_leads', coletor.status())
 
     @patch('pharmaleads.render_service.RenderJobs')

@@ -11,6 +11,7 @@ import { Modal } from "../ui/modal";
 import { Select } from "../ui/select";
 
 type SearchFilters = { uf: string; origem: string; segmentos: string[] };
+type SearchRequest = SearchFilters & { profundidade?: number; enriquecerSites?: boolean };
 
 interface Props {
   session?: SupabaseSession | null;
@@ -31,7 +32,7 @@ export function LeadSearch({ session, filters, modalOpen, closeModal, onSearch, 
   onSessionUpdate, onSessionInvalid, disabled }: Props) {
   const [entry, setEntry] = useState<{ uf: string; text: string }>();
   const text = entry?.uf === filters.uf ? entry.text : filters.uf;
-  const [draft, setDraft] = useState<SearchFilters>();
+  const [draft, setDraft] = useState<SearchRequest>();
   const [run, setRun] = useState<CollectorRun | null>(null);
   const [statusError, setStatusError] = useState("");
   const [error, setError] = useState("");
@@ -42,9 +43,9 @@ export function LeadSearch({ session, filters, modalOpen, closeModal, onSearch, 
   const [busy, setBusy] = useState(false);
   const active = isActive(run);
   const pending = useRef(false);
-  const submitted = useRef<SearchFilters | null>(null);
+  const submitted = useRef<SearchRequest | null>(null);
   const tracked = useRef<{ id: CollectorRun["id"]; uf: string; synced: number; startedAt: string } | null>(null);
-  const modalFilters = draft ?? filters;
+  const modalFilters: SearchRequest = draft ?? filters;
 
   useEffect(() => {
     if (!session || busy) return;
@@ -77,7 +78,7 @@ export function LeadSearch({ session, filters, modalOpen, closeModal, onSearch, 
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [session, busy, retry, onResultsChange, onSessionUpdate, onSessionInvalid]);
 
-  async function control(action: "start" | "stop", search?: SearchFilters) {
+  async function control(action: "start" | "stop", search?: SearchRequest) {
     if (!session || pending.current) return;
     if (action === "start" && active) {
       setNotice("Já há uma coleta em andamento. Os leads salvos continuam disponíveis.");
@@ -91,7 +92,10 @@ export function LeadSearch({ session, filters, modalOpen, closeModal, onSearch, 
       const startedAt = new Date().toISOString();
       const input = search ? buildCollectorSearch("", search.uf, search.segmentos.length
         ? search.segmentos : ESTABLISHMENTS.map(item => item.value), "Google Maps") : undefined;
-      const payload = input ? { action, ...input, locais: input.locais.join("\n"), enriquecerSites: false } : { action };
+      const payload = input && search?.profundidade
+        ? { action, cobertura: "estadual" as const, uf: search.uf, segmentos: input.segmentos,
+          profundidade: search.profundidade, enriquecerSites: search.enriquecerSites === true }
+        : input ? { action, ...input, locais: input.locais.join("\n"), enriquecerSites: false } : { action };
       const response = await controlCloudCollector(session, payload);
       setRun(response.run);
       setStatusError("");
@@ -107,7 +111,7 @@ export function LeadSearch({ session, filters, modalOpen, closeModal, onSearch, 
     }
   }
 
-  function search(next: SearchFilters) {
+  function search(next: SearchRequest) {
     setError("");
     setNotice("");
     setRetryAction(undefined);
@@ -158,7 +162,7 @@ export function LeadSearch({ session, filters, modalOpen, closeModal, onSearch, 
       )}
       {run && (active || dismissed !== run.id) && <CollectorProgress run={run} stale={Boolean(statusError)} onDismiss={() => setDismissed(run.id)} />}
       {active && (
-        <button type="button" className={ui.btnSecondary} disabled={busy || run?.status === "cancelling"}
+        <button type="button" className={cn(ui.btnSecondary, "h-10 px-4 text-sm")} disabled={busy || run?.status === "cancelling"}
           onClick={() => void control("stop")}>
           <Square size={14} /> {run?.status === "cancelling" ? "Parando…" : "Parar coleta"}
         </button>
@@ -172,7 +176,24 @@ export function LeadSearch({ session, filters, modalOpen, closeModal, onSearch, 
             onChange={origem => setDraft({ ...modalFilters, origem })} />
           <Select label="Tipo de estabelecimento" multiple values={modalFilters.segmentos} options={ESTABLISHMENTS}
             onChange={segmentos => setDraft({ ...modalFilters, segmentos })} />
-          <button type="submit" disabled={!modalFilters.uf || active || busy || disabled} className={ui.btnBrand}>
+          {session && (modalFilters.origem === "Todas as origens" || modalFilters.origem === "Google Maps") && (
+            <>
+              <Select label="Alcance da coleta" value={String(modalFilters.profundidade ?? 0)} options={[
+                { value: "0", label: "Busca rápida por UF" },
+                { value: "1", label: "Municípios da UF · profundidade 1" },
+                { value: "2", label: "Municípios da UF · profundidade 2" },
+                { value: "3", label: "Municípios da UF · profundidade 3" },
+              ]} onChange={value => setDraft({ ...modalFilters, profundidade: Number(value) || undefined })} />
+              {modalFilters.profundidade && (
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <input type="checkbox" className={ui.checkbox} checked={modalFilters.enriquecerSites ?? false}
+                    onChange={event => setDraft({ ...modalFilters, enriquecerSites: event.target.checked })} />
+                  Buscar contatos nos sites dos novos leads
+                </label>
+              )}
+            </>
+          )}
+          <button type="submit" disabled={!modalFilters.uf || active || busy || disabled} className={cn(ui.btnBrand, "h-10 px-5 text-sm")}>
             Iniciar pesquisa
           </button>
           {active && <p className="text-sm text-muted-foreground">Aguarde a coleta em andamento ou use Parar coleta.</p>}

@@ -15,8 +15,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 from .agenda import entrada_agendada
-from .cobertura import entradas_seguintes
-from .cloud_job import MARCADOR_PROGRESSO
+from .cobertura import entradas_seguintes, montar_fila
+from .cloud_job import FALHA_SINCRONIZACAO, MARCADOR_PROGRESSO, SEM_RESULTADOS, TEMPO_LIMITE
 from .gerador import montar_consultas, validar_segmentos
 from .config import ErroPharmaLeads
 from .render_jobs import ErroRender, RenderJobs
@@ -42,12 +42,31 @@ def validar_entrada(body: dict) -> dict[str, str]:
         except (TypeError, ValueError, KeyError):
             raise ErroPharmaLeads('Grupo ou rodada da agenda inválido.') from None
         return entrada_agendada(grupo, rodada, str(body.get('request_id') or '')[:100])
-    locais = [item.strip() for item in str(body.get('locais', '')).splitlines() if item.strip()]
     segmentos = [item.strip() for item in str(body.get('segmentos', '')).split(',') if item.strip()]
     try:
         profundidade = int(body.get('profundidade', 1))
     except (TypeError, ValueError):
         raise ErroPharmaLeads('Profundidade inválida.') from None
+    if body.get('modo') == 'estadual':
+        uf = str(body.get('uf', '')).strip().upper()
+        if len(uf) != 2 or not segmentos or not 1 <= profundidade <= 3:
+            raise ErroPharmaLeads('Informe UF, tipos de estabelecimento e profundidade de 1 a 3.')
+        fila = montar_fila(segmentos, uf=uf)
+        try:
+            rodada = int(body.get('rodada', 1))
+        except (TypeError, ValueError):
+            raise ErroPharmaLeads('Rodada estadual inválida.') from None
+        if not 1 <= rodada <= len(fila):
+            raise ErroPharmaLeads('Rodada estadual inválida.')
+        locais = fila[rodada - 1]
+        return {
+            'locais': '\n'.join(locais), 'segmentos': ','.join(segmentos), 'profundidade': str(profundidade),
+            'modo': 'estadual', 'uf': uf, 'rodada': str(rodada), 'total_rodadas': str(len(fila)),
+            'emails': 'false', 'enriquecer_sites': 'true' if str(body.get('enriquecer_sites')).lower() == 'true' else 'false',
+            'resumo': ' · '.join(locais)[:180],
+            'request_id': str(body.get('request_id') or f'render-{int(time.time())}')[:100],
+        }
+    locais = [item.strip() for item in str(body.get('locais', '')).splitlines() if item.strip()]
     if (not locais or len(locais) > 20 or
             any(len(item) > 100 or '#!#' in item or any(ord(c) < 32 for c in item) for item in locais)):
         raise ErroPharmaLeads('Informe de 1 a 20 locais válidos.')
@@ -153,6 +172,8 @@ class ColetorRender:
             return f"Agenda {entrada['grupo']}h · {entrada['rodada']}/{entrada['total_rodadas']} · {entrada['resumo']}"
         if entrada['modo'] == 'nacional':
             return f"Nacional {entrada['rodada']}/{entrada['total_rodadas']} · {entrada['resumo']}"
+        if entrada['modo'] == 'estadual':
+            return f"{entrada['uf']} {entrada['rodada']}/{entrada['total_rodadas']} · {entrada['resumo']}"
         return f"Coleta · {entrada['resumo']}"
 
     def _atualizar(self, **campos) -> None:
@@ -172,13 +193,15 @@ class ColetorRender:
                 return None
             return entrada_agendada(int(entrada['grupo']), rodada + 1, entrada['request_id'])
         return entradas_seguintes(rodada, entrada['segmentos'].split(','), entrada['profundidade'],
-                                  entrada['emails'], entrada['enriquecer_sites'], entrada['request_id'])
+                                  entrada['emails'], entrada['enriquecer_sites'], entrada['request_id'],
+                                  uf=entrada.get('uf', ''))
 
     def _executar(self, entrada: dict) -> None:
         atual = entrada
-        concluidas = puladas = enviados = novos_supabase = 0
+        concluidas = puladas = vazias = enviados = novos_supabase = 0
         inicio = time.monotonic()
         resultado = 'success'
+        falha = None
         try:
             while atual and not self._parar.is_set():
                 ambiente = os.environ.copy()
@@ -193,7 +216,8 @@ class ColetorRender:
                     'GOSOM_CONCURRENCY': ambiente.get('GOSOM_CONCURRENCY', '1'),
                     'SITE_CONCURRENCY': ambiente.get('SITE_CONCURRENCY', '1'),
                     'GOSOM_MAX_ATTEMPTS': '1' if atual['modo'] != 'avulsa' else '2',
-                    'GOSOM_TIMEOUT': '300' if atual['modo'] != 'avulsa' else ambiente.get('GOSOM_TIMEOUT', '1500'),
+                    'GOSOM_TIMEOUT': {'agenda': '300', 'nacional': '300', 'estadual': '600'}.get(
+                        atual['modo'], ambiente.get('GOSOM_TIMEOUT', '1500')),
                     'GOSOM_BIN': ambiente.get('GOSOM_BIN', '/usr/bin/google-maps-scraper'),
                     'PHARMALEADS_HOME': ambiente.get('PHARMALEADS_HOME', '/tmp/pharmaleads'),
                     'PHARMALEADS_PROGRESS': '1',
@@ -238,11 +262,22 @@ class ColetorRender:
                     self._processo = None
                 if self._parar.is_set():
                     break
+                if codigo == SEM_RESULTADOS:
+                    vazias += 1
+                    concluidas += 1
+                    self._atualizar(completed_rounds=concluidas, empty_rounds=vazias)
+                    atual = self._proxima_rodada(atual)
+                    continue
                 if codigo != 0:
-                    if (codigo == 124 and atual['modo'] == 'nacional') or atual['modo'] == 'agenda':
+                    motivo, categoria = {
+                        TEMPO_LIMITE: ('Tempo limite na busca', 'timeout'),
+                        FALHA_SINCRONIZACAO: ('Falha ao gravar no Supabase', 'sync'),
+                    }.get(codigo, (f'Falha (código {codigo})', 'collector'))
+                    if resultado == 'success':
+                        falha = categoria
+                    if (codigo == TEMPO_LIMITE and atual['modo'] in {'nacional', 'estadual'}) or atual['modo'] == 'agenda':
                         puladas += 1
                         concluidas += 1
-                        motivo = 'Tempo limite de 5 minutos' if codigo == 124 else f'Falha (código {codigo})'
                         print(f"{motivo}: pulando rodada {rodada} ({atual['resumo']}).", flush=True)
                         if atual['modo'] == 'agenda':
                             resultado = 'failure'
@@ -258,6 +293,10 @@ class ColetorRender:
                     print(f'Meta atingida: {novos_supabase} leads únicos novos.', flush=True)
                     break
                 atual = self._proxima_rodada(atual)
+            if resultado == 'success' and concluidas and concluidas == vazias + puladas:
+                resultado = 'failure'
+                if not puladas:
+                    falha = 'empty'
             if (entrada['modo'] != 'agenda' and not self._parar.is_set()
                     and resultado == 'success' and novos_supabase < META_LEADS):
                 print(f'Fila concluída: {novos_supabase}/{META_LEADS} leads únicos novos. '
@@ -265,12 +304,14 @@ class ColetorRender:
         except Exception as exc:  # mantém o servidor vivo e registra o erro nos logs do Render
             print(f'Falha no supervisor da coleta: {exc}', file=sys.stderr, flush=True)
             resultado = 'failure'
+            falha = 'collector'
         finally:
             with self._lock:
                 self._processo = None
                 if self._parar.is_set():
                     resultado = 'cancelled'
-                self._atualizar(status='completed', conclusion=resultado, stage=resultado)
+                detalhes = {'failure_reason': falha} if resultado == 'failure' and falha else {}
+                self._atualizar(status='completed', conclusion=resultado, stage=resultado, **detalhes)
 
 
 class Handler(BaseHTTPRequestHandler):

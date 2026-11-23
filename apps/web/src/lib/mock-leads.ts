@@ -1,4 +1,5 @@
 import { parseLeadEmails, type EmailAvailability } from "./email";
+import type { WhatsAppVerification } from "./whatsapp";
 
 /**
  * Módulo de dados mockados e serviços assíncronos no formato Supabase
@@ -31,6 +32,8 @@ export interface LeadItem {
   avaliacoesRecentes?: Array<{ nota?: string; texto?: string; data?: string }>;
   link?: string;
   whatsappLink?: string;
+  whatsappPublicado?: string;
+  whatsappVerificacao?: WhatsAppVerification;
   ultimaColeta?: string;
   dataCriacao?: string;
   updatedAt?: number;

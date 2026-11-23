@@ -2,10 +2,13 @@ import json
 import shlex
 import threading
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from pharmaleads.render_jobs import COMANDO_JOB, MARCADOR_JOB, ErroRender, RenderJobs
+from pharmaleads.render_one_off import registrar_progresso
 from pharmaleads.render_service import Handler, validar_entrada
 
 
@@ -59,6 +62,20 @@ class TestRenderJobs(unittest.TestCase):
         # Job concluído não significa que todas as rodadas planejadas rodaram;
         # sem evento de progresso, a API não deve inventar uma contagem final.
         self.assertNotIn('completed_rounds', run)
+
+    def test_status_final_preserva_motivo_registrado_pelo_job(self):
+        with patch.object(self.cliente, '_api', side_effect=lambda *args, dados, **kwargs: {**self.job, **dados}) as api:
+            self.cliente.iniciar(self.entrada)
+            self.job.update(api.call_args.kwargs['dados'], status='failed')
+        log = StringIO()
+        with redirect_stdout(log):
+            registrar_progresso({'failure_reason': 'empty', 'completed_rounds': 3, 'empty_rounds': 3})
+        with patch.object(self.cliente, '_api', side_effect=[
+            [], [{'job': self.job}], {'ownerId': 'tea-teste'},
+            {'logs': [{'message': log.getvalue().strip()}]},
+        ]):
+            run = self.cliente.status()
+        self.assertEqual((run['conclusion'], run['failure_reason'], run['empty_rounds']), ('failure', 'empty', 3))
 
     def test_cancelamento_e_corrida_com_termino_do_job(self):
         with patch.object(self.cliente, '_api', return_value=None) as api:

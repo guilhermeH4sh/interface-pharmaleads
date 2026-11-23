@@ -121,11 +121,13 @@ class RenderJobs:
         acompanhavel = entrada is not None
         entrada = entrada or {}
         modo = entrada.get('modo')
-        fila = modo in {'agenda', 'nacional'}
+        fila = modo in {'agenda', 'nacional', 'estadual'}
         rodada = int(entrada['rodada']) if fila else 1
         total = int(entrada['total_rodadas']) if fila else 1
         if modo == 'nacional':
             titulo = f'Nacional {rodada}/{total}'
+        elif modo == 'estadual':
+            titulo = f"{entrada['uf']} {rodada}/{total}"
         elif modo == 'agenda':
             titulo = f"Agenda {entrada['grupo']}h · {rodada}/{total}"
         else:
@@ -134,7 +136,6 @@ class RenderJobs:
             titulo += f" · {entrada['resumo']}"
         estado = job['status']
         status = ESTADOS.get(estado, 'completed')
-        concluiu = estado == 'succeeded'
         total_execucao = total - rodada + 1
         run = {
             'id': job['id'], 'status': status, 'conclusion': CONCLUSOES.get(estado),
@@ -178,13 +179,15 @@ class RenderJobs:
             for campo in ('round', 'completed_rounds', 'synced_leads', 'new_supabase_leads',
                           'goal_leads', 'new_leads_per_hour', 'queries_completed',
                           'queries_with_results', 'local_duplicates', 'found_leads',
-                          'new_leads', 'with_email', 'without_email', 'skipped_rounds'):
+                          'new_leads', 'with_email', 'without_email', 'skipped_rounds', 'empty_rounds'):
                 valor = dados.get(campo)
                 if type(valor) is int and valor >= 0:
                     if campo == 'completed_rounds':
-                        valor = total if job['status'] == 'succeeded' else min(valor, total)
+                        valor = min(valor, total)
                     progresso[campo] = valor
             if status == 'in_progress' and dados.get('stage') in ETAPAS:
                 progresso['stage'] = dados['stage']
+            if job['status'] == 'failed' and dados.get('failure_reason') in ('empty', 'timeout', 'sync', 'collector'):
+                progresso['failure_reason'] = dados['failure_reason']
             return progresso
         return {}

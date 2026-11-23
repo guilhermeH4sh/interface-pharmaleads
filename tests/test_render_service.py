@@ -4,11 +4,45 @@ from io import StringIO
 from unittest.mock import MagicMock, patch
 
 from pharmaleads.config import ErroPharmaLeads
-from pharmaleads.cloud_job import MARCADOR_PROGRESSO
+from pharmaleads.cloud_job import FALHA_SINCRONIZACAO, MARCADOR_PROGRESSO, SEM_RESULTADOS, TEMPO_LIMITE
 from pharmaleads.render_service import ColetorRender, validar_entrada
 
 
 class TestRenderService(unittest.TestCase):
+    @patch('pharmaleads.render_service.subprocess.Popen')
+    def test_busca_estadual_percorre_municipios_sem_habilitar_email_no_gosom(self, popen):
+        ambientes = []
+
+        def executar(*args, env, **kwargs):
+            ambientes.append(env)
+            processo = MagicMock(stdout=StringIO(''))
+            processo.wait.return_value = 0
+            return processo
+
+        popen.side_effect = executar
+        coletor = ColetorRender()
+        self.assertEqual(coletor.executar_job({'modo': 'estadual', 'uf': 'SP', 'segmentos': 'varejo',
+                                             'profundidade': 2, 'enriquecer_sites': True}), 'success')
+        self.assertGreater(len(ambientes), 1)
+        locais = [local for env in ambientes for local in env['LOCAIS'].splitlines()]
+        self.assertIn('São Paulo, SP', locais)
+        self.assertIn('Campinas, SP', locais)
+        self.assertEqual(len(locais), len(set(locais)))
+        self.assertTrue(all(local.endswith(', SP') for local in locais))
+        self.assertTrue(all(env['PROFUNDIDADE'] == '2' and env['EMAILS'] == 'false' and
+                            env['ENRIQUECER_SITES'] == 'true' for env in ambientes))
+
+    @patch('pharmaleads.render_service.subprocess.Popen')
+    def test_expoe_motivo_terminal_da_coleta_avulsa(self, popen):
+        for codigo, motivo in ((SEM_RESULTADOS, 'empty'), (TEMPO_LIMITE, 'timeout'), (FALHA_SINCRONIZACAO, 'sync')):
+            with self.subTest(motivo=motivo):
+                popen.return_value.stdout = StringIO('')
+                popen.return_value.wait.return_value = codigo
+                coletor = ColetorRender()
+                entrada = {'locais': 'Curitiba, PR', 'segmentos': 'varejo'}
+                self.assertEqual(coletor.executar_job(entrada), 'failure')
+                self.assertEqual(coletor.status()['failure_reason'], motivo)
+
     @patch('pharmaleads.render_service.entradas_seguintes')
     @patch('pharmaleads.render_service.subprocess.Popen')
     def test_meta_para_sem_iniciar_proxima_rodada(self, popen, seguinte):

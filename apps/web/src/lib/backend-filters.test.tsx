@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { AUTHORIZED_USER_ID, fetchSupabaseAllLeads, filterLeadItems, mapRawLeadsToItems, readRemoteLeads } from "./backend";
+import { AUTHORIZED_USER_ID, countRemoteLeads, fetchSupabaseAllLeads, filterLeadItems, mapRawLeadsToItems, readRemoteLeads } from "./backend";
 import type { Lead } from "./crm";
 
 beforeEach(() => localStorage.clear());
@@ -49,6 +49,33 @@ test("consulta remota filtra e-mails sem regex lenta e preserva leads sem e-mail
   expect(withEmail.items.map(item => item.id)).toEqual(["com"]);
   expect(withoutEmail.items.map(item => item.id)).toEqual(["sem"]);
   expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
+test("conta toda a seleção de SP com e-mail quando o Supabase cancela o COUNT", async () => {
+  const keys = Array.from({ length: 500 }, (_, index) => ({ chave: String(index).padStart(4, "0") }));
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    const query = new URL(url).searchParams;
+    expect(query.get("uf_prospeccao")).toBe("eq.SP");
+    expect(query.get("emails")).toBe("like.*@*.*");
+    expect(query.get("select")).toBe("chave");
+    if (init?.method === "HEAD") return new Response(null, { status: 500 });
+    return new Response(JSON.stringify(query.get("chave") === "gt.0499" ? [{ chave: "0500" }] : keys));
+  });
+  vi.stubGlobal("fetch", fetcher);
+  const session = { access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 };
+  const total = await countRemoteLeads(session, { uf: "SP", emailAvailability: "com", origem: "", segmentos: [], query: "" },
+    new AbortController().signal);
+  expect(total).toBe(501);
+});
+
+test("só a confirmação libera o link de WhatsApp e usa o número verificado", () => {
+  const lead = { chave: "a", nome: "Farmácia", telefone: "(12) 3207-0978", whatsapp_link: "https://wa.me/551232070978",
+    dados_brutos: { enriquecimento_site: { whatsapp_link: "https://wa.me/5512999990000" } } } as Lead;
+  const confirmation = { numero: "5512999990000", estado: "confirmado", verificado_em: "2026-11-22T12:00:00Z" } as const;
+  const items = mapRawLeadsToItems([lead, { ...lead, chave: "b", whatsapp_verificacao: confirmation },
+    { ...lead, chave: "c", whatsapp_verificacao: { ...confirmation, estado: "indisponivel" } }]);
+  expect(items.map(item => item.whatsappLink)).toEqual([undefined, "https://wa.me/5512999990000", undefined]);
+  expect(items[0].whatsappPublicado).toBe("5512999990000");
 });
 
 test("pagina por chave sem repetir linhas quando novas coletas alteram a base", async () => {

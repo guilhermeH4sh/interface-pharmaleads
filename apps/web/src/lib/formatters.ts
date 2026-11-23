@@ -21,16 +21,6 @@ export function formatPhone(value: string | null | undefined): string {
   return value;
 }
 
-export function buildWhatsAppLink(phone: string | null | undefined): string {
-  if (!phone) return "#";
-  const clean = phone.replace(/\D/g, "");
-  if (!clean) return "#";
-  if (clean.startsWith("55") && clean.length > 11) {
-    return `https://wa.me/${clean}`;
-  }
-  return `https://wa.me/55${clean}`;
-}
-
 export function formatNumberBR(value: number): string {
   return new Intl.NumberFormat("pt-BR").format(value);
 }

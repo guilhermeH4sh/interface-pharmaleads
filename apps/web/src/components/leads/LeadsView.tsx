@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, AlertCircle, Lock, Download } from "lucide-react";
+import { Plus, AlertCircle, Lock, Download, ListChecks } from "lucide-react";
 import { MetricsCards } from "./MetricsCards";
 import { LeadsTable } from "./LeadsTable";
 import { FiltersSidebar, type SideFilters } from "./FiltersSidebar";
@@ -13,6 +13,8 @@ import { cn } from "../../lib/utils";
 import type { EmailAvailability } from "../../lib/email";
 import { ESTABLISHMENTS, SOURCES } from "../../lib/prospect-options";
 import { getPreferences } from "../../lib/preferences";
+import { formatNumberBR } from "../../lib/formatters";
+import { whatsAppUrl, type WhatsAppVerification } from "../../lib/whatsapp";
 import {
   computeSummaryFromItems,
   filterLeadItems,
@@ -20,6 +22,8 @@ import {
   markLeadDeletedLocal,
   AccessError,
   readRemoteLeads,
+  countRemoteLeads,
+  saveWhatsAppVerification,
   walkRemoteLeads,
   fetchRemoteLeadMetrics,
   type DataSourceMode,
@@ -112,6 +116,7 @@ export function LeadsView({
     const value = getUrlParam("email", "todos");
     return value === "com" || value === "sem" ? value : "todos";
   });
+  const [selectedWhatsappConfirmed, setSelectedWhatsappConfirmed] = useState(() => getUrlParam("whatsapp") === "confirmado");
 
   // Estados do modo Mock
   const [mockLeads, setMockLeads] = useState<LeadItem[]>([]);
@@ -128,12 +133,19 @@ export function LeadsView({
   const isRemote = dataSourceMode === "supabase" && Boolean(supabaseSession);
   const filters = useMemo(() => ({
     uf: selectedUF, origem: selectedOrigem, segmentos: selectedSegmentos,
-    emailAvailability: selectedEmailAvailability, query: searchQuery, includeCrm: searched,
-  }), [selectedUF, selectedOrigem, selectedSegmentos, selectedEmailAvailability, searchQuery, searched]);
+    emailAvailability: selectedEmailAvailability, whatsappConfirmed: isRemote && selectedWhatsappConfirmed,
+    query: searchQuery, includeCrm: searched,
+  }), [selectedUF, selectedOrigem, selectedSegmentos, selectedEmailAvailability, selectedWhatsappConfirmed, isRemote, searchQuery, searched]);
+  const hasLeadFilters = Boolean(searchQuery.trim() || selectedUF || selectedSegmentos.length)
+    || selectedOrigem !== "Todas as origens" || selectedEmailAvailability !== "todos" || filters.whatsappConfirmed;
+  const showFullResults = searched || hasLeadFilters;
   const [cursors, setCursors] = useState<Array<string | undefined>>([undefined]);
   const cursor = cursors[currentPage - 1];
-  const request = useMemo(() => ({ filters, cursor, currentPage, pageSize, remoteVersion, searched, queryRetry }),
-    [filters, cursor, currentPage, pageSize, remoteVersion, searched, queryRetry]);
+  const request = useMemo(() => ({ filters, cursor, currentPage, pageSize, remoteVersion, showFullResults, queryRetry }),
+    [filters, cursor, currentPage, pageSize, remoteVersion, showFullResults, queryRetry]);
+  const countRequest = useMemo(() => ({ filters, remoteVersion, queryRetry, collectionUpdate }),
+    [filters, remoteVersion, queryRetry, collectionUpdate]);
+  const [countResult, setCountResult] = useState<{ request: typeof countRequest; total?: number }>();
   const [remotePage, setRemotePage] = useState<{
     request: typeof request; items: LeadItem[]; next?: string; error?: string;
   }>();
@@ -145,7 +157,7 @@ export function LeadsView({
   useEffect(() => {
     if (!isRemote || !supabaseSession) return;
     const controller = new AbortController();
-    const remaining = request.searched ? Infinity : PREVIEW_LEAD_LIMIT - (request.currentPage - 1) * request.pageSize;
+    const remaining = request.showFullResults ? Infinity : PREVIEW_LEAD_LIMIT - (request.currentPage - 1) * request.pageSize;
     const limit = Math.min(request.pageSize, remaining);
     void readRemoteLeads(supabaseSession, request.filters, {
       limit, cursor: request.cursor, peek: remaining > limit, signal: controller.signal,
@@ -161,6 +173,20 @@ export function LeadsView({
     });
     return () => controller.abort();
   }, [isRemote, supabaseSession, request, collectionUpdate, onSessionUpdate, onSessionInvalid]);
+
+  useEffect(() => {
+    if (!isRemote || !supabaseSession || !showFullResults) return;
+    const session = supabaseSession;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void countRemoteLeads(session, countRequest.filters, controller.signal).then(total => {
+        if (!controller.signal.aborted) setCountResult({ request: countRequest, total });
+      }).catch(() => {
+        if (!controller.signal.aborted) setCountResult({ request: countRequest });
+      });
+    }, 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [countRequest, isRemote, showFullResults, supabaseSession]);
 
   useEffect(() => {
     if (!isRemote || !supabaseSession) return;
@@ -203,6 +229,7 @@ export function LeadsView({
     if (selectedOrigem && selectedOrigem !== "Todas as origens") params.set("origem", selectedOrigem);
     if (selectedSegmentos.length) params.set("segmentos", selectedSegmentos.join(","));
     if (selectedEmailAvailability !== "todos") params.set("email", selectedEmailAvailability);
+    if (selectedWhatsappConfirmed) params.set("whatsapp", "confirmado");
 
     const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
     window.history.replaceState({}, "", newUrl);
@@ -213,6 +240,7 @@ export function LeadsView({
     selectedOrigem,
     selectedSegmentos,
     selectedEmailAvailability,
+    selectedWhatsappConfirmed,
     isRemote,
   ]);
 
@@ -275,8 +303,6 @@ export function LeadsView({
     }
   }, [isRealMode]);
 
-  const hasLeadFilters = Boolean(searchQuery.trim() || selectedUF || selectedSegmentos.length)
-    || selectedOrigem !== "Todas as origens" || selectedEmailAvailability !== "todos";
   const filteredRealLeads = useMemo(
     () => isRealMode && hasLeadFilters ? filterLeadItems(realLeads, {
       query: searchQuery,
@@ -313,11 +339,12 @@ export function LeadsView({
   const remoteItems = currentPage === 1
     ? [...pageItems, ...liveItems.filter(item => !pageItems.some(row => row.id === item.id))]
     : pageItems.filter(item => !liveIds.has(item.id));
-  const activeItems = isRemote ? remoteItems : searched ? localItems
+  const activeItems = isRemote ? remoteItems : showFullResults ? localItems
     : localItems.slice(0, Math.max(0, PREVIEW_LEAD_LIMIT - (currentPage - 1) * pageSize));
   const activeTotal = isRemote ? activeItems.length : realPagination?.total ?? mockTotalLeads;
   const unboundedPages = realPagination?.totalPages ?? mockTotalPages;
-  const activeTotalPages = searched ? unboundedPages : Math.min(unboundedPages, Math.ceil(PREVIEW_LEAD_LIMIT / pageSize));
+  const activeTotalPages = showFullResults ? unboundedPages : Math.min(unboundedPages, Math.ceil(PREVIEW_LEAD_LIMIT / pageSize));
+  const filteredCount = isRemote ? countResult?.request === countRequest ? countResult : undefined : { total: activeTotal };
   const activeSummary = isRealMode ? realSummary : mockSummary;
   const activeLoading = isRemote ? !page : isRealMode ? isLoadingReal : isLoadingMock;
   const activeError = operationError || page?.error || realError;
@@ -341,6 +368,7 @@ export function LeadsView({
     setSelectedOrigem(filters.origem);
     setSelectedSegmentos(filters.segmentos);
     setSelectedEmailAvailability(filters.emailAvailability);
+    setSelectedWhatsappConfirmed(filters.whatsappConfirmed ?? false);
     setCurrentPage(1);
     clearSelection();
   };
@@ -352,6 +380,7 @@ export function LeadsView({
     setSelectedOrigem("Todas as origens");
     setSelectedSegmentos([]);
     setSelectedEmailAvailability("todos");
+    setSelectedWhatsappConfirmed(false);
     setCurrentPage(1);
     setSearched(false);
     clearSelection();
@@ -359,7 +388,22 @@ export function LeadsView({
 
   const handleSearch = (search: { uf: string; origem: string; segmentos: string[] }) => {
     setSearched(true);
-    handleApplySideFilters({ ...search, statusSelect: "Todos os status", emailAvailability: selectedEmailAvailability });
+    handleApplySideFilters({ ...search, statusSelect: "Todos os status", emailAvailability: selectedEmailAvailability,
+      whatsappConfirmed: selectedWhatsappConfirmed });
+  };
+
+  const verifyWhatsApp = async (id: string, verification: WhatsAppVerification) => {
+    if (!supabaseSession) return;
+    try {
+      const active = await saveWhatsAppVerification(supabaseSession, id, verification);
+      if (active !== supabaseSession) onSessionUpdate?.(active);
+      setDetailLead(current => current?.id === id ? { ...current, whatsappVerificacao: verification,
+        whatsappLink: verification.estado === "confirmado" ? whatsAppUrl(verification.numero) : undefined } : current);
+      setQueryRetry(value => value + 1);
+    } catch (error) {
+      if (error instanceof AccessError) onSessionInvalid?.();
+      throw error;
+    }
   };
 
   const handleBatchAddToCrm = async () => {
@@ -572,7 +616,7 @@ export function LeadsView({
         modalOpen={searchOpen} closeModal={() => setSearchOpen(false)} onSearch={handleSearch}
         onResultsChange={refreshAfterCollection} onSessionUpdate={onSessionUpdate} onSessionInvalid={onSessionInvalid}
         disabled={Boolean(operation)} />
-      {!searched && <p className="text-sm text-muted-foreground">Amostra de até {PREVIEW_LEAD_LIMIT} leads. Pesquise um estado para ver todos os resultados desse recorte.</p>}
+      {!showFullResults && <p className="text-sm text-muted-foreground">Amostra de até {PREVIEW_LEAD_LIMIT} leads. Aplique filtros ou pesquise um estado para ver todos os resultados do recorte.</p>}
       {searched && isRemote && !activeLoading && !page?.error && !activeItems.length && (
         <p role="status" className="text-sm text-muted-foreground">Nenhum lead salvo para esses filtros. Se houver uma coleta em andamento, a lista será atualizada quando ela enviar resultados.</p>
       )}
@@ -583,23 +627,30 @@ export function LeadsView({
       <div className={cn(ui.cardInteractive, "w-full flex flex-col")}>
         <fieldset disabled={Boolean(operation)} className="min-w-0 p-4 md:p-6 border-b border-border">
           <FiltersSidebar
-            key={`${selectedUF}|${selectedOrigem}|${selectedSegmentos.join(",")}|${selectedEmailAvailability}`}
+            key={`${selectedUF}|${selectedOrigem}|${selectedSegmentos.join(",")}|${selectedEmailAvailability}|${selectedWhatsappConfirmed}`}
             selectedUF={selectedUF}
             selectedStatus="Todos os status"
             selectedOrigem={selectedOrigem}
             selectedSegmentos={selectedSegmentos}
             selectedEmailAvailability={selectedEmailAvailability}
+            selectedWhatsappConfirmed={isRemote ? selectedWhatsappConfirmed : undefined}
             onApplyFilters={handleApplySideFilters}
             onResetFilters={handleResetFilters}
             availableUFs={availableUFs}
             availableOrigins={availableOrigins}
             showStatusFilter={false}
           />
-          {isRemote && (activeTotal > 0 || page?.next) && (
-            <button type="button" className={cn(ui.btnSecondary, "mt-4")} onClick={() => void selectAllResults()}>
-              Selecionar todos os resultados
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-3 empty:hidden mt-4">
+            {showFullResults && <p role="status" className="text-sm font-medium tabular-nums text-muted-foreground">
+              {filteredCount?.total !== undefined ? `${formatNumberBR(filteredCount.total)} ${filteredCount.total === 1 ? "lead encontrado" : "leads encontrados"}`
+                : filteredCount ? "Total indisponível" : "Contando resultados…"}
+            </p>}
+            {isRemote && (activeTotal > 0 || page?.next) && (
+              <button type="button" className={cn(ui.btnSecondary, "h-10 px-4 text-sm")} onClick={() => void selectAllResults()}>
+                <ListChecks size={16} aria-hidden="true" /> Selecionar todos os resultados
+              </button>
+            )}
+          </div>
         </fieldset>
 
         <LeadsTable
@@ -638,6 +689,7 @@ export function LeadsView({
       <LeadDetailsModal
         lead={detailLead}
         onClose={() => setDetailLead(null)}
+        onVerifyWhatsApp={isRemote ? verifyWhatsApp : undefined}
         showStatusControls={false}
         onAddToCrm={detailLead?.crmIncluded ? undefined : async (leadId) => {
           const added = await onCrmMembershipChange?.(leadId, true);

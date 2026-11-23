@@ -14,6 +14,7 @@ export interface SideFilters {
   origem: string;
   segmentos: string[];
   emailAvailability: EmailAvailability;
+  whatsappConfirmed?: boolean;
 }
 
 interface FiltersSidebarProps {
@@ -22,6 +23,7 @@ interface FiltersSidebarProps {
   selectedOrigem: string;
   selectedSegmentos: string[];
   selectedEmailAvailability: EmailAvailability;
+  selectedWhatsappConfirmed?: boolean;
   onApplyFilters: (filters: SideFilters) => void;
   onResetFilters: () => void;
   availableUFs?: string[];
@@ -44,6 +46,7 @@ export function FiltersSidebar({
   selectedOrigem,
   selectedSegmentos,
   selectedEmailAvailability,
+  selectedWhatsappConfirmed,
   onApplyFilters,
   onResetFilters,
   availableUFs,
@@ -57,6 +60,7 @@ export function FiltersSidebar({
   const [origem, setOrigem] = useState(selectedOrigem || ORIGEM_ALL);
   const [segmentos, setSegmentos] = useState(selectedSegmentos);
   const [emailAvailability, setEmailAvailability] = useState<EmailAvailability>(selectedEmailAvailability);
+  const [whatsappConfirmed, setWhatsappConfirmed] = useState(selectedWhatsappConfirmed ?? false);
 
   const ufOptions = useMemo(
     () => [{ value: "", label: "Todas as UFs" }, ...(availableUFs ?? getUFs()).map((item) => ({ value: item, label: item }))],
@@ -71,7 +75,7 @@ export function FiltersSidebar({
     [availableOrigins]
   );
 
-  const hasFilters = Boolean(uf || segmentos.length) || (showStatusFilter && status !== STATUS_ALL) || origem !== ORIGEM_ALL || emailAvailability !== "todos";
+  const hasFilters = Boolean(uf || segmentos.length) || (showStatusFilter && status !== STATUS_ALL) || origem !== ORIGEM_ALL || emailAvailability !== "todos" || whatsappConfirmed;
 
   const reset = () => {
     setUf("");
@@ -79,6 +83,7 @@ export function FiltersSidebar({
     setOrigem(ORIGEM_ALL);
     setSegmentos([]);
     setEmailAvailability("todos");
+    setWhatsappConfirmed(false);
     onResetFilters();
   };
 
@@ -99,7 +104,7 @@ export function FiltersSidebar({
         className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end"
         onSubmit={(event) => {
           event.preventDefault();
-          onApplyFilters({ uf, statusSelect: showStatusFilter ? status : STATUS_ALL, origem, segmentos, emailAvailability });
+          onApplyFilters({ uf, statusSelect: showStatusFilter ? status : STATUS_ALL, origem, segmentos, emailAvailability, whatsappConfirmed });
         }}
       >
         <Select
@@ -150,9 +155,15 @@ export function FiltersSidebar({
           triggerClassName="h-10"
         />
 
-        <button type="submit" className={cn(ui.btnBrand, "h-10 text-xs sm:col-span-2 xl:col-span-4 justify-self-start px-6")}>
-          <Filter size={15} aria-hidden="true" /> Aplicar filtros
-        </button>
+        <div className="flex flex-wrap items-center gap-4 sm:col-span-2 xl:col-span-4">
+          <button type="submit" className={cn(ui.btnBrand, "h-10 text-xs px-6")}>
+            <Filter size={15} aria-hidden="true" /> Aplicar filtros
+          </button>
+          {selectedWhatsappConfirmed !== undefined && <label className="flex items-center gap-2 text-sm text-foreground">
+            <input type="checkbox" className={ui.checkbox} checked={whatsappConfirmed}
+              onChange={event => setWhatsappConfirmed(event.target.checked)} /> Só WhatsApp confirmado
+          </label>}
+        </div>
       </form>
     </section>
   );

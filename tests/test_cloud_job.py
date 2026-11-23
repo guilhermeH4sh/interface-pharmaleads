@@ -2,6 +2,8 @@ import csv
 import io
 import os
 import signal
+import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -26,7 +28,7 @@ class TestCloudJob(unittest.TestCase):
 
     def test_docker_realimenta_o_supabase_apos_importacao(self):
         with tempfile.TemporaryDirectory() as tmp:
-            config = {'LOCAIS':'Curitiba, PR', 'SEGMENTOS':'manipulacao', 'PROFUNDIDADE':'1',
+            config = {'LOCAIS':'Curitiba, PR', 'SEGMENTOS':'varejo', 'PROFUNDIDADE':'1',
                       'EMAILS':'false', 'PHARMALEADS_HOME':tmp, 'SUPABASE_EMAIL':'teste@example.com',
                       'SUPABASE_PASSWORD':'senha'}
             fake_client = MagicMock()
@@ -39,15 +41,16 @@ class TestCloudJob(unittest.TestCase):
                 self.assertEqual(command[command.index('-c') + 1], '1')
                 self.assertNotIn('-email', command)
                 entradas = (pasta / 'input.txt').read_text(encoding='utf-8').splitlines()
-                self.assertEqual(entradas, ['farmácia de manipulação em Curitiba, PR #!#manipulacao|Curitiba, PR'])
+                rotulos = [entrada.split(' #!#', 1)[1] for entrada in entradas]
+                self.assertEqual(len(set(rotulos)), 3)
                 with (pasta / 'results.csv').open('w', encoding='utf-8', newline='') as f:
                     writer = csv.DictWriter(f, fieldnames=['cid','title','address','input_id','emails'])
                     writer.writeheader()
                     writer.writerow({'cid':'cid-cloud-1','title':'Farmácia real',
-                                     'address':'Curitiba, PR','input_id':'manipulacao|Curitiba, PR',
+                                     'address':'Curitiba, PR','input_id':rotulos[0],
                                      'emails':'contato@farmacia.com.br'})
                     writer.writerow({'cid':'cid-cloud-2','title':'Farmácia sem contato',
-                                     'address':'Curitiba, PR','input_id':'manipulacao|Curitiba, PR',
+                                     'address':'Curitiba, PR','input_id':rotulos[1],
                                      'emails':''})
 
             saida = io.StringIO()
@@ -56,12 +59,38 @@ class TestCloudJob(unittest.TestCase):
             self.assertIn('"found_leads": 2', saida.getvalue())
             self.assertIn('"with_email": 1', saida.getvalue())
             self.assertIn('"without_email": 1', saida.getvalue())
+            self.assertIn('"queries_with_results": 2', saida.getvalue())
+            self.assertIn('Consulta farmácia 24 horas em Curitiba, PR: 0', saida.getvalue())
             records = fake_client.salvar.call_args.args[0]
             self.assertEqual(len(records), 2)
             self.assertEqual(records[0]['chave'], 'cid-cloud-1')
             self.assertEqual(records[0]['emails'], 'contato@farmacia.com.br')
             self.assertEqual(records[1]['chave'], 'cid-cloud-2')
             self.assertEqual(records[1]['emails'], '')
+            self.assertEqual({(r['segmento'], r['local_busca']) for r in records}, {('varejo', 'Curitiba, PR')})
+
+    def test_csv_sem_leads_timeout_e_gravacao_falha_tem_codigos_distintos(self):
+        cenarios = {'vazio': cloud_job.SEM_RESULTADOS, 'timeout': cloud_job.TEMPO_LIMITE,
+                    'supabase': cloud_job.FALHA_SINCRONIZACAO}
+        for cenario, esperado in cenarios.items():
+            with self.subTest(cenario=cenario), tempfile.TemporaryDirectory() as tmp:
+                env = {'LOCAIS': 'Curitiba, PR', 'SEGMENTOS': 'varejo', 'PHARMALEADS_HOME': tmp,
+                       'GOSOM_BIN': sys.executable, 'GOSOM_MAX_ATTEMPTS': '1',
+                       'SUPABASE_EMAIL': 'teste@example.com', 'SUPABASE_PASSWORD': 'senha'}
+
+                def gosom(comando, timeout):
+                    if cenario == 'timeout':
+                        raise subprocess.TimeoutExpired(comando, timeout)
+                    linhas = 'title,address\n'
+                    if cenario == 'supabase':
+                        linhas += 'Farmácia Centro,Rua Exemplo 1\n'
+                    Path(comando[comando.index('-results') + 1]).write_text(linhas, encoding='utf-8')
+
+                with patch.dict(os.environ, env, clear=True), patch.object(cloud_job, '_rodar_docker', side_effect=gosom), patch.object(
+                    cloud_job.Banco, 'sincronizar_pendentes', side_effect=ErroPharmaLeads('rede indisponível')
+                ) as sincronizar:
+                    self.assertEqual(cloud_job.main(), esperado)
+                    self.assertEqual(sincronizar.call_count, int(cenario == 'supabase'))
 
     def test_render_executa_o_binario_sem_docker(self):
         with tempfile.TemporaryDirectory() as tmp:

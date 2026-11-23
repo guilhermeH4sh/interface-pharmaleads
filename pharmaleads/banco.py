@@ -8,12 +8,14 @@ import json
 import sqlite3
 import re
 import sys
+from collections import Counter
 from itertools import islice
 from datetime import datetime, timezone
 from pathlib import Path
 
 from . import config
 from .config import ErroPharmaLeads
+from .gerador import segmento_e_local
 
 # Campos do resultado do gosom que ocupam muito espaço e não precisamos guardar.
 CAMPOS_PESADOS = {
@@ -70,7 +72,7 @@ def classificar_situacao(status: str) -> str:
 def analisar_telefone(texto: str) -> tuple[str, bool]:
     """
     Devolve (telefone só com números e DDI 55, é_celular).
-    Celular brasileiro = DDD + 9 dígitos começando com 9 (provável WhatsApp).
+    Celular brasileiro = DDD + 9 dígitos começando com 9.
     """
     d = re.sub(r"\D", "", texto or "")
     if d.startswith("55") and len(d) in (12, 13):
@@ -141,7 +143,7 @@ class Banco:
 
     def importar_csv(self, caminho, *, sincronizar=True):
         novos=existentes=0; agora=_agora(); novas_chaves=[]; csv.field_size_limit(20*1024*1024)
-        consultas_com_resultado = set()
+        resultados_por_consulta: Counter[str] = Counter()
         linhas_csv = 0
         with open(caminho,encoding='utf-8-sig',newline='') as f:
             leitor=csv.DictReader(f)
@@ -151,11 +153,12 @@ class Banco:
                 for linha in leitor:
                     if None in linha or any(v is None for v in linha.values()): raise ErroPharmaLeads('CSV incompleto ou inválido.')
                     linhas_csv += 1
-                    if linha.get('input_id'):
-                        consultas_com_resultado.add(linha['input_id'])
                     nome=pegar(linha,'title','name'); endereco=pegar(linha,'address')
                     chave=pegar(linha,'cid','place_id','data_id','link') or f'{nome}|{endereco}'.lower()
                     if not chave.strip('|'): continue
+                    rotulo = pegar(linha, 'input_id')
+                    if rotulo:
+                        resultados_por_consulta[rotulo] += 1
                     anterior=self.con.execute('SELECT * FROM lugares WHERE chave=?',(chave,)).fetchone()
                     if anterior is None and nome and endereco:
                         anterior=self.con.execute('SELECT * FROM lugares WHERE nome=? AND endereco=? LIMIT 1',
@@ -163,12 +166,25 @@ class Banco:
                         if anterior is not None:
                             chave=anterior['chave']
                     ant=dict(anterior) if anterior else {}
-                    rotulo=pegar(linha,'input_id'); segmento,local=rotulo.split('|',1) if '|' in rotulo else ('','')
+                    segmento, local = segmento_e_local(rotulo)
                     telefone=pegar(linha,'phone') or ant.get('telefone') or ''
                     site=pegar(linha,'website') or ant.get('site') or ''
                     emails=pegar(linha,'emails','email') or ant.get('emails') or ''
                     normalizado,celular=analisar_telefone(telefone); status=pegar(linha,'status')
-                    registro=dict(chave=chave,nome=nome,segmento=ant.get('segmento') or segmento,categoria=pegar(linha,'category'),endereco=endereco,local_busca=ant.get('local_busca') or local,telefone=telefone,telefone_normalizado=normalizado,celular=int(celular),whatsapp_link=f'https://wa.me/{normalizado}' if celular else '',site=site,emails=emails,score_contato=sum(bool(x) for x in (telefone,site,emails)),latitude=pegar(linha,'latitude'),longitude=pegar(linha,'longitude','longtitude'),avaliacao=pegar(linha,'review_rating'),qtd_avaliacoes=pegar(linha,'review_count'),status_maps=status,situacao=classificar_situacao(status),link=pegar(linha,'link'),dados_brutos=json.dumps(dados_maps(linha),ensure_ascii=False),primeira_coleta=ant.get('primeira_coleta') or agora,ultima_coleta=agora)
+                    brutos = dados_maps(linha)
+                    whatsapp_publicado = ''
+                    if site and site == ant.get('site'):
+                        try:
+                            anteriores = json.loads(ant.get('dados_brutos') or '{}')
+                        except (TypeError, ValueError):
+                            anteriores = {}
+                        evidencia = anteriores.get('enriquecimento_site') if isinstance(anteriores, dict) else None
+                        if isinstance(evidencia, dict):
+                            brutos['enriquecimento_site'] = evidencia
+                            link_publicado = evidencia.get('whatsapp_link')
+                            if isinstance(link_publicado, str):
+                                whatsapp_publicado = link_publicado
+                    registro=dict(chave=chave,nome=nome,segmento=ant.get('segmento') or segmento,categoria=pegar(linha,'category'),endereco=endereco,local_busca=ant.get('local_busca') or local,telefone=telefone,telefone_normalizado=normalizado,celular=int(celular),whatsapp_link=whatsapp_publicado,site=site,emails=emails,score_contato=sum(bool(x) for x in (telefone,site,emails)),latitude=pegar(linha,'latitude'),longitude=pegar(linha,'longitude','longtitude'),avaliacao=pegar(linha,'review_rating'),qtd_avaliacoes=pegar(linha,'review_count'),status_maps=status,situacao=classificar_situacao(status),link=pegar(linha,'link'),dados_brutos=json.dumps(brutos,ensure_ascii=False),primeira_coleta=ant.get('primeira_coleta') or agora,ultima_coleta=agora)
                     cols=','.join(COLUNAS_LUGARES); params=','.join(':'+c for c in COLUNAS_LUGARES)
                     self.con.execute(f'INSERT OR REPLACE INTO lugares ({cols}) VALUES ({params})',registro)
                     self.con.execute('INSERT OR IGNORE INTO sync_pendente(chave) VALUES(?)',(chave,))
@@ -178,7 +194,8 @@ class Banco:
                         novas_chaves.append(chave)
         self.ultimas_chaves_novas = novas_chaves
         self.ultimas_metricas = {'linhas_csv': linhas_csv,
-                                 'consultas_com_resultado': len(consultas_com_resultado),
+                                 'consultas_com_resultado': len(resultados_por_consulta),
+                                 'resultados_por_consulta': resultados_por_consulta,
                                  'duplicados_locais': existentes}
         if sincronizar:
             try:
@@ -211,7 +228,7 @@ class Banco:
             if email not in emails:
                 emails.append(email)
         novo_email = ', '.join(emails)
-        novo_whatsapp = antigo['whatsapp_link'] or contato.whatsapp_link
+        novo_whatsapp = contato.whatsapp_link or antigo['whatsapp_link']
         try:
             brutos = json.loads(antigo['dados_brutos'] or '{}')
         except (TypeError, ValueError):
@@ -267,7 +284,6 @@ class Banco:
     def resumo(self):
         def unico(sql): return self.con.execute(sql).fetchone()[0]
         def agrupar(campo): return {r[0] or '(sem valor)':r[1] for r in self.con.execute(f'SELECT {campo},count(*) FROM lugares GROUP BY {campo}')}
-        from collections import Counter
         return {'lotes':dict(Counter(self.estado_lote(p.name)[0] for p in config.pasta_consultas().glob('lote_*.txt'))), 'total':unico('SELECT count(*) FROM lugares'), 'situacao':agrupar('situacao'),'segmento':agrupar('segmento'),'com_telefone':unico("SELECT count(*) FROM lugares WHERE telefone <> ''"),'com_celular':unico('SELECT count(*) FROM lugares WHERE celular=1'),'com_site':unico("SELECT count(*) FROM lugares WHERE site <> ''"),'com_email':unico("SELECT count(*) FROM lugares WHERE emails <> ''")}
 
     def exportar(self,destino,ativas=False,com_email=False,com_telefone=False,com_celular=False,segmento=None):

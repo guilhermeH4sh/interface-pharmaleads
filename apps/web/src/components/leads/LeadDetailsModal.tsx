@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ExternalLink,
   MapPin,
@@ -10,7 +11,8 @@ import {
   Clock,
   BriefcaseBusiness,
 } from "lucide-react";
-import { formatCNPJ, formatPhone, buildWhatsAppLink } from "../../lib/formatters";
+import { formatCNPJ, formatPhone } from "../../lib/formatters";
+import { normalizeWhatsAppNumber, whatsAppUrl, type WhatsAppState, type WhatsAppVerification } from "../../lib/whatsapp";
 import { StatusBadge } from "./StatusBadge";
 import { Modal } from "../ui/modal";
 import { ui } from "../../lib/ui";
@@ -23,6 +25,7 @@ interface LeadDetailsModalProps {
   onClose: () => void;
   onChangeStatus?: (leadId: string, status: LeadStatus) => void;
   onAddToCrm?: (leadId: string) => void;
+  onVerifyWhatsApp?: (leadId: string, verification: WhatsAppVerification) => Promise<void>;
   showStatusControls?: boolean;
 }
 
@@ -33,11 +36,27 @@ const SITUACAO_LABELS: Record<string, string> = {
   fechada: "Fechada",
 };
 
-export function LeadDetailsModal({ lead, onClose, onChangeStatus, onAddToCrm, showStatusControls = true }: LeadDetailsModalProps) {
+export function LeadDetailsModal({ lead, onClose, onChangeStatus, onAddToCrm, onVerifyWhatsApp, showStatusControls = true }: LeadDetailsModalProps) {
+  const [verificationRequest, setVerificationRequest] = useState<{ id: string; saving: boolean; error?: string }>();
   if (!lead) return null;
 
   const emails = parseLeadEmails(lead.email);
-  const whatsappUrl = lead.whatsappLink || buildWhatsAppLink(lead.telefone);
+  const verification = lead.whatsappVerificacao;
+  const candidate = normalizeWhatsAppNumber(verification?.numero) ?? lead.whatsappPublicado ?? normalizeWhatsAppNumber(lead.telefone);
+  const verificationTime = verification && Date.parse(verification.verificado_em);
+  const currentRequest = verificationRequest?.id === lead.id ? verificationRequest : undefined;
+  const saveVerification = async (estado: WhatsAppState) => {
+    if (!candidate || !onVerifyWhatsApp || currentRequest?.saving) return;
+    const id = lead.id;
+    setVerificationRequest({ id, saving: true });
+    try {
+      await onVerifyWhatsApp(id, { numero: candidate, estado, verificado_em: new Date().toISOString() });
+      setVerificationRequest(current => current?.id === id ? undefined : current);
+    } catch (error) {
+      setVerificationRequest(current => current?.id === id ? { id, saving: false,
+        error: error instanceof Error ? error.message : "Não foi possível salvar a confirmação." } : current);
+    }
+  };
 
   return (
     <Modal
@@ -138,17 +157,36 @@ export function LeadDetailsModal({ lead, onClose, onChangeStatus, onAddToCrm, sh
               <span className="text-foreground font-medium tabular-nums">
                 {formatPhone(lead.telefone)}
               </span>
-              {whatsappUrl && (
+            </div>
+            {candidate && (onVerifyWhatsApp || lead.whatsappLink) && (
+              <div className="mt-3 space-y-2 border-t border-border pt-2.5">
+                <p className="text-sm font-medium text-foreground">
+                  {verification?.estado === "confirmado" ? "WhatsApp confirmado"
+                    : verification?.estado === "indisponivel" ? "WhatsApp indisponível na última verificação"
+                    : lead.whatsappPublicado ? "WhatsApp publicado no site, aguardando confirmação"
+                    : "WhatsApp por confirmar"}
+                </p>
+                <p className="text-xs text-muted-foreground">{formatPhone(candidate.slice(2))}
+                  {verificationTime && Number.isFinite(verificationTime)
+                    ? ` · Verificado em ${new Date(verificationTime).toLocaleDateString("pt-BR")}` : ""}
+                </p>
                 <a
-                  href={whatsappUrl}
+                  href={whatsAppUrl(candidate)}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-xs text-brand hover:underline font-semibold"
                 >
-                  Abrir WhatsApp <ExternalLink size={12} />
+                  {lead.whatsappLink ? "Abrir no WhatsApp" : "Testar número no WhatsApp"} <ExternalLink size={12} />
                 </a>
-              )}
-            </div>
+                {onVerifyWhatsApp && <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={currentRequest?.saving} className={cn(ui.btnSecondary, "h-9 px-3 text-xs")}
+                    onClick={() => void saveVerification("confirmado")}>Confirmar WhatsApp</button>
+                  <button type="button" disabled={currentRequest?.saving} className={cn(ui.btnSecondary, "h-9 px-3 text-xs")}
+                    onClick={() => void saveVerification("indisponivel")}>Marcar indisponível</button>
+                </div>}
+                {currentRequest?.error && <p role="alert" className="text-xs text-muted-foreground">{currentRequest.error}</p>}
+              </div>
+            )}
           </div>
 
           {/* Endereço Completo */}

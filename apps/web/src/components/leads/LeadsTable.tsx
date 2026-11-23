@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { MoreHorizontal, ChevronLeft, ChevronRight, Eye, Trash2, SearchX, BriefcaseBusiness } from "lucide-react";
-import { formatCNPJ, formatPhone, buildWhatsAppLink, formatNumberBR } from "../../lib/formatters";
+import { formatCNPJ, formatPhone, formatNumberBR } from "../../lib/formatters";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import type { LeadItem } from "../../lib/mock-leads";
@@ -187,8 +187,8 @@ export function LeadsTable({
                     <td className="py-3.5 px-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1.5 tabular-nums text-foreground whitespace-nowrap">
                         <span>{formatPhone(row.telefone)}</span>
-                        <a
-                          href={buildWhatsAppLink(row.telefone)}
+                        {row.whatsappLink && <a
+                          href={row.whatsappLink}
                           target="_blank"
                           rel="noreferrer"
                           aria-label={`Abrir WhatsApp de ${row.nome}`}
@@ -196,7 +196,7 @@ export function LeadsTable({
                           className="w-7 h-7 inline-flex items-center justify-center rounded-md text-brand hover:bg-primary-soft transition-colors"
                         >
                           <WhatsAppIcon />
-                        </a>
+                        </a>}
                       </div>
                     </td>
                     <td className="py-3.5 px-3 text-muted-foreground max-w-[190px]">
@@ -261,15 +261,15 @@ export function LeadsTable({
                       </p>
                     </div>
                   </div>
-                  <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
-                    <a
-                      href={buildWhatsAppLink(row.telefone)}
+                  <div className={cn("mt-3 grid gap-2", row.whatsappLink ? "grid-cols-[1fr_1fr_auto]" : "grid-cols-[1fr_auto]")}>
+                    {row.whatsappLink && <a
+                      href={row.whatsappLink}
                       target="_blank"
                       rel="noreferrer"
                       className={cn(ui.btnSecondary, "h-11 text-sm")}
                     >
                       <WhatsAppIcon /> WhatsApp
-                    </a>
+                    </a>}
                     <button onClick={() => onViewDetails(row)} className={cn(ui.btnSecondary, "h-11 text-sm")}>
                       <Eye size={16} /> Detalhes
                     </button>
@@ -355,16 +355,16 @@ export function LeadsTable({
           >
             <BriefcaseBusiness size={16} /> Marcar em contato e adicionar ao CRM
           </button>}
-          <a
+          {menu.lead.whatsappLink && <a
             role="menuitem"
-            href={buildWhatsAppLink(menu.lead.telefone)}
+            href={menu.lead.whatsappLink}
             target="_blank"
             rel="noreferrer"
             className={ui.menuItem}
             onClick={() => setMenu(null)}
           >
             <WhatsAppIcon /> Abrir no WhatsApp
-          </a>
+          </a>}
           <div className="border-t border-border my-1" />
           <button role="menuitem" className={ui.menuItem} onClick={() => { setMenu(null); confirmDelete(menu.lead); }}>
             <Trash2 size={16} /> Excluir

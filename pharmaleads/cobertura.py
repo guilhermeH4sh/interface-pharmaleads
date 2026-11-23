@@ -26,8 +26,8 @@ def locais_nacionais() -> list[str]:
     return capitais + interior
 
 
-def montar_fila(segmentos: list[str]) -> list[list[str]]:
-    """Agrupa os locais sem ultrapassar 20 buscas por rodada."""
+def montar_fila(segmentos: list[str], *, uf: str = '') -> list[list[str]]:
+    """Agrupa as localidades do plano sem ultrapassar oito buscas por rodada."""
     segmentos = validar_segmentos(segmentos)
     por_local = sum(len(config.SEGMENTOS[nome]['termos']) for nome in segmentos)
     tamanho = LIMITE_BUSCAS // por_local
@@ -35,14 +35,19 @@ def montar_fila(segmentos: list[str]) -> list[list[str]]:
         raise ErroPharmaLeads('Os segmentos escolhidos não cabem em 8 buscas por rodada.')
     # Limita o trabalho de uma execução. Capitais vêm primeiro no plano;
     # com varejo + manipulação, 20 rodadas cobrem 40 localidades.
-    locais = locais_nacionais()[:tamanho * MAX_RODADAS_NACIONAL]
+    locais = locais_nacionais()
+    if uf:
+        locais = [local for local in locais if local.endswith(f', {uf}')]
+        if not locais:
+            raise ErroPharmaLeads('Escolha uma UF válida para a busca ampliada.')
+    locais = locais[:tamanho * MAX_RODADAS_NACIONAL]
     return [locais[i:i + tamanho] for i in range(0, len(locais), tamanho)]
 
 
 def entradas_seguintes(rodada: int, segmentos: list[str], profundidade: str,
-                       emails: str, enriquecer: str, request_id: str) -> dict | None:
+                       emails: str, enriquecer: str, request_id: str, *, uf: str = '') -> dict | None:
     """Devolve os inputs da próxima rodada, ou None quando a fila acabou."""
-    fila = montar_fila(segmentos)
+    fila = montar_fila(segmentos, uf=uf)
     if rodada < 1 or rodada > len(fila):
         raise ErroPharmaLeads('Rodada nacional inválida.')
     if rodada == len(fila):
@@ -57,7 +62,8 @@ def entradas_seguintes(rodada: int, segmentos: list[str], profundidade: str,
         'profundidade': profundidade,
         'emails': emails,
         'enriquecer_sites': enriquecer,
-        'modo': 'nacional',
+        'modo': 'estadual' if uf else 'nacional',
+        **({'uf': uf} if uf else {}),
         'rodada': str(proxima),
         'total_rodadas': str(len(fila)),
         'resumo': ' · '.join(locais)[:180],

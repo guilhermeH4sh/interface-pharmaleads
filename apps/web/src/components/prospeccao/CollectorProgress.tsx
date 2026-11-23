@@ -12,6 +12,13 @@ const stages: Record<string, string> = {
   syncing: "Enviando leads ao Supabase",
 };
 
+const failures = {
+  empty: "A coleta não retornou estabelecimentos",
+  timeout: "A busca atingiu o limite de tempo",
+  sync: "Falha ao gravar os resultados no Supabase",
+  collector: "A coleta falhou",
+};
+
 export function CollectorProgress({ run, stale, onDismiss }: { run: CollectorRun; stale: boolean; onDismiss?: () => void }) {
   const running = COLETA_ATIVA_STATES.includes(run.status) || run.status === "cancelling";
   const total = run.total_rounds ?? 0;
@@ -20,7 +27,7 @@ export function CollectorProgress({ run, stale, onDismiss }: { run: CollectorRun
   const phase = run.status === "cancelling" ? "Parando coleta"
     : run.status === "completed"
       ? run.conclusion === "success" ? "Coleta concluída"
-        : run.conclusion === "cancelled" ? "Coleta cancelada" : "A coleta falhou"
+        : run.conclusion === "cancelled" ? "Coleta cancelada" : failures[run.failure_reason ?? "collector"] ?? failures.collector
       : stages[run.stage ?? run.status] ?? "Coleta em andamento";
   const animated = running && !stale;
 
@@ -40,7 +47,7 @@ export function CollectorProgress({ run, stale, onDismiss }: { run: CollectorRun
             className="h-2 overflow-hidden rounded-full bg-muted">
             <div className="h-full rounded-full bg-primary motion-safe:transition-[width] motion-safe:duration-500" style={{ width: `${100 * completed / total}%` }} />
           </div>
-          <p className="text-muted-foreground">{completed} de {total} rodadas {run.skipped_rounds ? `processadas · ${run.skipped_rounds} puladas` : "concluídas"}</p>
+          <p className="text-muted-foreground">{completed} de {total} rodadas {run.skipped_rounds || run.empty_rounds ? "processadas" : "concluídas"}{run.skipped_rounds ? ` · ${run.skipped_rounds} puladas` : ""}{run.empty_rounds ? ` · ${run.empty_rounds} sem resultados` : ""}</p>
         </>
       ) : animated ? (
         <div role="progressbar" aria-label="Coleta em andamento" className="h-2 rounded-full bg-primary/40 motion-safe:animate-pulse" />

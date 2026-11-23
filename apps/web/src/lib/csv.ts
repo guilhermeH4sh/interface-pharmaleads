@@ -15,6 +15,7 @@ const COLUMNS: [string, (lead: LeadItem) => unknown][] = [
   ["UF", (l) => l.uf],
   ["Bairro", (l) => l.bairro],
   ["Telefone", (l) => l.telefone],
+  ["WhatsApp confirmado", (l) => l.whatsappLink],
   ["Status", (l) => l.status],
   ["E-mail", (l) => parseLeadEmails(l.email).join(", ")],
   ["Origem", (l) => l.origem],

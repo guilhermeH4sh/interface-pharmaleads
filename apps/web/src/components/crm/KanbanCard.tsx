@@ -9,7 +9,6 @@ import {
   ArrowLeft,
   ArrowRight,
 } from "lucide-react";
-import { buildWhatsAppLink } from "../../lib/formatters";
 import {
   springPhysics,
   motionGestures,
@@ -67,7 +66,7 @@ export const KanbanCard = memo(function KanbanCard({
     disabled: isOverlay,
   });
 
-  const whatsappUrl = lead.whatsappLink || buildWhatsAppLink(lead.telefone);
+  const whatsappUrl = lead.whatsappLink;
 
   const isGhost = isDragging && !isOverlay;
 

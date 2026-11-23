@@ -7,6 +7,7 @@ import type {
   LeadSummary,
 } from "./mock-leads";
 import { parseLeadEmails } from "./email";
+import { normalizeWhatsAppNumber, publishedWhatsAppNumber, whatsAppUrl, type WhatsAppVerification } from "./whatsapp";
 
 // Configuração oficial do Supabase (mesma utilizada em HostedDashboard.tsx)
 export const SUPABASE_URL = "https://qxsdcrywsjkrpcbfgbxb.supabase.co";
@@ -25,8 +26,30 @@ const SUPABASE_LIST_COLUMNS = [
   "cnpj_origem:dados_brutos->>cnpj_origem",
   "cnpj_confianca:dados_brutos->>cnpj_confianca",
   "fonte_dados:dados_brutos->>fonte_dados",
+  "enriquecimento_site:dados_brutos->enriquecimento_site",
+  "whatsapp_verificacao",
   "avaliacoes_recentes:dados_brutos->avaliacoes_recentes",
 ].join(",");
+let whatsappColumnAvailable = true;
+
+async function fetchLeadTable(query: URLSearchParams, options: RequestInit) {
+  const select = (query.get("select") ?? "").split(",");
+  const withoutVerification = select.includes("whatsapp_verificacao") && !query.has("whatsapp_verificacao->>estado");
+  if (withoutVerification && !whatsappColumnAvailable) {
+    query.set("select", select.filter(column => column !== "whatsapp_verificacao").join(","));
+  }
+  const url = `${SUPABASE_URL}/rest/v1/pharmaleads`;
+  const response = await fetch(`${url}?${query}`, options);
+  if (withoutVerification && whatsappColumnAvailable && response.status === 400) {
+    const error = await response.clone().json().catch(() => null) as { code?: string; message?: string } | null;
+    if (error?.code === "42703" && error.message?.includes("whatsapp_verificacao")) {
+      whatsappColumnAvailable = false;
+      query.set("select", select.filter(column => column !== "whatsapp_verificacao").join(","));
+      return fetch(`${url}?${query}`, options);
+    }
+  }
+  return response;
+}
 
 export const COLETA_ATIVA_STATES = ["queued", "in_progress", "waiting", "pending", "requested"];
 
@@ -51,6 +74,8 @@ export interface CollectorRun {
   total_rounds?: number;
   completed_rounds?: number;
   skipped_rounds?: number;
+  empty_rounds?: number;
+  failure_reason?: "empty" | "timeout" | "sync" | "collector";
   synced_leads?: number;
   new_supabase_leads?: number;
   goal_leads?: number;
@@ -255,7 +280,7 @@ export async function fetchSupabaseAllLeads(
       limit: String(pageSize),
     });
     if (lastKey) query.set("chave", `gt.${lastKey}`);
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/pharmaleads?${query}`, {
+    const response = await fetchLeadTable(query, {
       cache: "no-store",
       headers: {
         apikey: PUBLISHABLE_KEY,
@@ -275,10 +300,10 @@ export async function fetchSupabaseAllLeads(
       throw new Error(`Consulta ao Supabase falhou (HTTP ${response.status}).`);
     }
     const batch = (await response.json()) as Array<Lead & NonNullable<Lead["dados_brutos"]>>;
-    for (const { cnpj, cnpj_origem, cnpj_confianca, fonte_dados, avaliacoes_recentes, ...row } of batch) {
+    for (const { cnpj, cnpj_origem, cnpj_confianca, fonte_dados, enriquecimento_site, avaliacoes_recentes, ...row } of batch) {
       rows.push({
         ...row,
-        dados_brutos: row.dados_brutos ?? { cnpj, cnpj_origem, cnpj_confianca, fonte_dados, avaliacoes_recentes },
+        dados_brutos: row.dados_brutos ?? { cnpj, cnpj_origem, cnpj_confianca, fonte_dados, enriquecimento_site, avaliacoes_recentes },
       });
     }
     if (batch.length) {
@@ -299,6 +324,7 @@ export interface RemoteLeadFilters {
   origem: string;
   segmentos: string[];
   emailAvailability: "todos" | "com" | "sem";
+  whatsappConfirmed?: boolean;
   query: string;
   includeCrm?: boolean;
 }
@@ -322,6 +348,54 @@ export async function fetchRemoteLeadMetrics(session: SupabaseSession, signal: A
 const restValue = (value: string) => `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 const OUTSIDE_CRM = "(crm_included.eq.false,and(crm_included.is.null,or(crm_status.is.null,crm_status.eq.Não contatado)))";
 
+function applyRemoteLeadFilters(query: URLSearchParams, filters: RemoteLeadFilters) {
+  if (!filters.includeCrm) query.set("or", OUTSIDE_CRM);
+  if (filters.uf) query.set("uf_prospeccao", `eq.${filters.uf}`);
+  if (filters.origem && filters.origem !== "Todas as origens") query.set("fonte_prospeccao", `eq.${filters.origem}`);
+  if (filters.segmentos.length) query.set("segmento", `in.(${filters.segmentos.map(restValue).join(",")})`);
+  if (filters.emailAvailability === "com") query.set("emails", "like.*@*.*");
+  if (filters.emailAvailability === "sem") query.set("emails", "eq.");
+  if (filters.whatsappConfirmed) {
+    query.set("whatsapp_verificacao", "not.is.null");
+    query.set("whatsapp_verificacao->>estado", "eq.confirmado");
+  }
+  const term = filters.query.trim();
+  if (term) {
+    const pattern = term.replace(/[\\%_]/g, "\\$&");
+    query.append("and", `(or(${["nome", "dados_brutos->>cnpj", "telefone", "emails", "categoria"]
+      .map(column => `${column}.ilike.${restValue(`%${pattern}%`)}`).join(",")}))`);
+  }
+}
+
+export async function countRemoteLeads(session: SupabaseSession, filters: RemoteLeadFilters, signal: AbortSignal) {
+  let active = await validSupabaseSession(session);
+  const query = new URLSearchParams({ select: "chave", limit: "1" });
+  applyRemoteLeadFilters(query, filters);
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/pharmaleads?${query}`, {
+    method: "HEAD", cache: "no-store", signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
+    headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}`, Prefer: "count=exact" },
+  });
+  if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
+  const count = response.headers.get("content-range")?.split("/")[1];
+  if (response.ok && count && /^\d+$/.test(count)) return Number(count);
+  if (!response.ok && response.status < 500) throw new Error(`Não foi possível contar os leads (HTTP ${response.status}).`);
+
+  // O COUNT global pode atingir o limite do Supabase. Pagine só as chaves,
+  // com o mesmo filtro, usando o índice da chave para dividir o trabalho.
+  const pageSize = 500;
+  let total = 0;
+  let cursor: string | undefined;
+  while (true) {
+    signal.throwIfAborted();
+    const page = await readRemoteLeads(active, filters, { limit: pageSize, idsOnly: true, cursor, signal });
+    total += page.ids.length;
+    if (!page.cursor || page.rowCount < pageSize) return total;
+    if (cursor === page.cursor) throw new Error("O Supabase repetiu a página durante a contagem.");
+    cursor = page.cursor;
+    active = page.session;
+  }
+}
+
 export async function readRemoteLeads(
   session: SupabaseSession, filters: RemoteLeadFilters,
   options: { limit: number; cursor?: string; since?: string; createdSince?: string; peek?: boolean; idsOnly?: boolean; ids?: string[]; signal?: AbortSignal },
@@ -332,23 +406,12 @@ export async function readRemoteLeads(
     order: "chave.asc",
     limit: String(options.limit + Number(Boolean(options.peek))),
   });
-  if (!filters.includeCrm) query.set("or", OUTSIDE_CRM);
-  if (filters.uf) query.set("uf_prospeccao", `eq.${filters.uf}`);
-  if (filters.origem && filters.origem !== "Todas as origens") query.set("fonte_prospeccao", `eq.${filters.origem}`);
-  if (filters.segmentos.length) query.set("segmento", `in.(${filters.segmentos.map(restValue).join(",")})`);
-  if (filters.emailAvailability === "com") query.set("emails", "like.*@*.*");
-  if (filters.emailAvailability === "sem") query.set("emails", "eq.");
-  const term = filters.query.trim();
-  if (term) {
-    const pattern = term.replace(/[\\%_]/g, "\\$&");
-    query.append("and", `(or(${["nome", "dados_brutos->>cnpj", "telefone", "emails", "categoria"]
-      .map(column => `${column}.ilike.${restValue(`%${pattern}%`)}`).join(",")}))`);
-  }
+  applyRemoteLeadFilters(query, filters);
   if (options.since) query.set("ultima_coleta", `gte.${options.since}`);
   if (options.createdSince) query.set("primeira_coleta", `gte.${options.createdSince}`);
   if (options.cursor) query.set("chave", `gt.${options.cursor}`);
   if (options.ids) query.set("chave", `in.(${options.ids.map(restValue).join(",")})`);
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/pharmaleads?${query}`, {
+  const response = await fetchLeadTable(query, {
     cache: "no-store",
     headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}` },
     signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000),
@@ -362,8 +425,8 @@ export async function readRemoteLeads(
   const deleted = loadDeletedIds();
   const geografia = new Map(rows.map(row => [row.chave, row]));
   const items = options.idsOnly ? [] : mapRawLeadsToItems(rows.map(
-    ({ cnpj, cnpj_origem, cnpj_confianca, fonte_dados, avaliacoes_recentes, ...row }) => ({
-      ...row, dados_brutos: row.dados_brutos ?? { cnpj, cnpj_origem, cnpj_confianca, fonte_dados, avaliacoes_recentes },
+    ({ cnpj, cnpj_origem, cnpj_confianca, fonte_dados, enriquecimento_site, avaliacoes_recentes, ...row }) => ({
+      ...row, dados_brutos: row.dados_brutos ?? { cnpj, cnpj_origem, cnpj_confianca, fonte_dados, enriquecimento_site, avaliacoes_recentes },
     }),
   )).map(item => {
     const row = geografia.get(item.id);
@@ -371,7 +434,24 @@ export async function readRemoteLeads(
   }).filter(item => (filters.includeCrm || (!item.crmIncluded && item.status === "Não contatado"))
     && (filters.emailAvailability === "todos" || (parseLeadEmails(item.email).length > 0) === (filters.emailAvailability === "com")));
   return { session: active, items, hasNext: options.peek && fetched.length > options.limit,
-    ids: rows.map(row => row.chave).filter(id => !deleted.has(id)), cursor: rows.at(-1)?.chave };
+    ids: rows.map(row => row.chave).filter(id => !deleted.has(id)), cursor: rows.at(-1)?.chave, rowCount: rows.length };
+}
+
+export async function saveWhatsAppVerification(session: SupabaseSession, id: string, verification: WhatsAppVerification) {
+  if (!whatsappColumnAvailable) throw new Error("A verificação de WhatsApp ainda precisa ser ativada no Supabase.");
+  const active = await validSupabaseSession(session);
+  const query = new URLSearchParams({ chave: `eq.${id}`, select: "chave" });
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/pharmaleads?${query}`, {
+    method: "PATCH", signal: AbortSignal.timeout(20_000),
+    headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}`,
+      "Content-Type": "application/json", Prefer: "return=representation" },
+    body: JSON.stringify({ whatsapp_verificacao: verification }),
+  });
+  if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
+  if (!response.ok || ((await response.json()) as { chave: string }[])[0]?.chave !== id) {
+    throw new Error("Não foi possível salvar a verificação de WhatsApp no Supabase.");
+  }
+  return active;
 }
 
 export async function* walkRemoteLeads(
@@ -526,7 +606,8 @@ export async function controlCloudCollector(
   session: SupabaseSession,
   payload: {
     action: "start" | "stop";
-    cobertura?: "nacional";
+    cobertura?: "nacional" | "estadual";
+    uf?: string;
     locais?: string;
     segmentos?: string[];
     profundidade?: number;
@@ -608,6 +689,8 @@ export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
         : undefined;
       const avaliacaoNum = row.avaliacao ? Number(Number(row.avaliacao).toFixed(1)) : undefined;
       const qtdNum = row.qtd_avaliacoes ? Number(row.qtd_avaliacoes) : undefined;
+      const verification = row.whatsapp_verificacao ?? undefined;
+      const verifiedNumber = verification?.estado === "confirmado" ? normalizeWhatsAppNumber(verification.numero) : undefined;
 
       return {
         id: row.chave,
@@ -619,7 +702,9 @@ export function mapRawLeadsToItems(rows: Lead[]): LeadItem[] {
         uf,
         bairro,
         telefone: row.telefone || row.telefone_normalizado || "Não informado",
-        whatsappLink: row.whatsapp_link || undefined,
+        whatsappLink: verifiedNumber ? whatsAppUrl(verifiedNumber) : undefined,
+        whatsappVerificacao: verification,
+        whatsappPublicado: publishedWhatsAppNumber(row.dados_brutos?.enriquecimento_site?.whatsapp_link),
         // Dados não contatados iniciam zerados nas métricas de Qualificados / Em contato / Respondido
         status: row.crm_included === false ? "Não contatado" : persistedCrmStatus || override?.status || "Não contatado",
         origem: row.dados_brutos?.fonte_dados === "Receita Federal" ? "Receita Federal"
