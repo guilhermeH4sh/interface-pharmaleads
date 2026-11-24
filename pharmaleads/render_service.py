@@ -275,12 +275,11 @@ class ColetorRender:
                     }.get(codigo, (f'Falha (código {codigo})', 'collector'))
                     if resultado == 'success':
                         falha = categoria
-                    if (codigo == TEMPO_LIMITE and atual['modo'] in {'nacional', 'estadual'}) or atual['modo'] == 'agenda':
+                    if atual['modo'] in {'nacional', 'estadual', 'agenda'}:
                         puladas += 1
                         concluidas += 1
                         print(f"{motivo}: pulando rodada {rodada} ({atual['resumo']}).", flush=True)
-                        if atual['modo'] == 'agenda':
-                            resultado = 'failure'
+                        resultado = 'failure'
                         self._atualizar(stage='skipping', completed_rounds=concluidas,
                                        skipped_rounds=puladas, title=self._titulo(atual))
                         atual = self._proxima_rodada(atual)

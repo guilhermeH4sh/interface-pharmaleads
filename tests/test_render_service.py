@@ -10,6 +10,23 @@ from pharmaleads.render_service import ColetorRender, validar_entrada
 
 class TestRenderService(unittest.TestCase):
     @patch('pharmaleads.render_service.subprocess.Popen')
+    def test_falha_na_primeira_rodada_nao_aborta_fila_estadual(self, popen):
+        processos = []
+
+        def executar(*args, **kwargs):
+            processo = MagicMock(stdout=StringIO(''))
+            processo.wait.return_value = 1 if not processos else 0
+            processos.append(processo)
+            return processo
+
+        popen.side_effect = executar
+        coletor = ColetorRender()
+        self.assertEqual(coletor.executar_job({'modo': 'estadual', 'uf': 'SP',
+                                              'segmentos': 'varejo'}), 'failure')
+        self.assertGreater(len(processos), 1)
+        self.assertEqual(coletor.status()['skipped_rounds'], 1)
+
+    @patch('pharmaleads.render_service.subprocess.Popen')
     def test_busca_estadual_percorre_municipios_sem_habilitar_email_no_gosom(self, popen):
         ambientes = []
 

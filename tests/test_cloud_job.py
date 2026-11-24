@@ -104,6 +104,24 @@ class TestCloudJob(unittest.TestCase):
             self.assertEqual(comando[comando.index('-results') + 1], str(saida))
             self.assertIn('-email', comando)
 
+    def test_timeout_preserva_csv_parcial_e_informa_interrupcao(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {'LOCAIS': 'Curitiba, PR', 'SEGMENTOS': 'varejo', 'PHARMALEADS_HOME': tmp,
+                   'GOSOM_BIN': sys.executable, 'GOSOM_MAX_ATTEMPTS': '2',
+                   'SUPABASE_EMAIL': 'teste@example.com', 'SUPABASE_PASSWORD': 'senha'}
+
+            def gosom(comando, timeout):
+                Path(comando[comando.index('-results') + 1]).write_text(
+                    'cid,title,address\ncid-parcial,Farmácia Centro,Curitiba PR\n', encoding='utf-8')
+                raise subprocess.TimeoutExpired(comando, timeout)
+
+            with patch.dict(os.environ, env, clear=True), patch.object(
+                cloud_job, '_rodar_docker', side_effect=gosom
+            ) as executar, patch.object(cloud_job.Banco, 'sincronizar_pendentes', return_value=1) as sync:
+                self.assertEqual(cloud_job.main(), cloud_job.TEMPO_LIMITE)
+                executar.assert_called_once()
+                sync.assert_called_once()
+
     def test_linux_encerra_o_grupo_mesmo_se_o_lider_sair_antes(self):
         processo = MagicMock(pid=123)
         with patch.object(cloud_job.os, 'name', 'posix'), patch.object(

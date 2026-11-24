@@ -144,6 +144,7 @@ def main() -> int:
                 saida = base / 'results.csv'
                 comando = _comando_gosom(base, saida, profundidade, emails)
                 ultimo_erro: Exception | None = None
+                parcial = False
                 print(f"Rodada com {len(consultas)} buscas; concorrência {comando[comando.index('-c') + 1]}.", flush=True)
                 try:
                     max_tentativas = int(os.environ.get('GOSOM_MAX_ATTEMPTS', '2'))
@@ -163,6 +164,14 @@ def main() -> int:
                     except (ErroPharmaLeads, OSError, subprocess.CalledProcessError,
                             subprocess.TimeoutExpired) as exc:
                         ultimo_erro = exc
+                        # O processo já foi encerrado pelo executor. Preserve os
+                        # registros completos antes de qualquer retry ou limpeza.
+                        if saida.is_file():
+                            novos, existentes = banco.importar_csv(saida, sincronizar=False)
+                            if novos or existentes:
+                                parcial = True
+                                print(f'Rodada interrompida; salvando CSV parcial: {exc}', flush=True)
+                                break
                         if tentativa < max_tentativas:
                             print('Resultado inválido; repetindo a rodada uma vez.', flush=True)
                             time.sleep(5)
@@ -210,16 +219,19 @@ def main() -> int:
                     erro_sync = exc
                 duracao = max(time.monotonic() - inicio, 1)
                 _progresso('round_complete', new_supabase_leads=novos_supabase,
-                           queries=len(consultas), duration_seconds=int(duracao),
+                           queries=0 if parcial else len(consultas), duration_seconds=int(duracao),
                            queries_with_results=consultas_com_resultados,
                            local_duplicates=banco.ultimas_metricas['duplicados_locais'],
                            new_leads_per_hour=int(novos_supabase * 3600 / duracao))
                 if erro_sync is not None:
                     print(f'Falha ao gravar no Supabase: {erro_sync}', file=sys.stderr)
                     return FALHA_SINCRONIZACAO
-                print(f'Coleta concluída: {novos} novos, {existentes} atualizados; '
+                rotulo_final = 'Coleta parcial' if parcial else 'Coleta concluída'
+                print(f'{rotulo_final}: {novos} novos, {existentes} atualizados; '
                       f'{enriquecidos} enriquecidos; {enviados} enviados, '
                       f'{novos_supabase} novos no Supabase em {duracao:.0f}s.', flush=True)
+                if parcial:
+                    return TEMPO_LIMITE if isinstance(ultimo_erro, subprocess.TimeoutExpired) else 1
             finally:
                 banco.fechar()
         return 0

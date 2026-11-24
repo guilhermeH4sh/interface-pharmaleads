@@ -74,9 +74,11 @@ export function LeadSearch({ session, filters, modalOpen, closeModal, onSearch, 
       } finally { polling = false; }
     }
     void poll();
-    const timer = window.setInterval(() => void poll(), 5000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void poll();
+    }, active ? 5000 : 60000);
     return () => { controller.abort(); window.clearInterval(timer); };
-  }, [session, busy, retry, onResultsChange, onSessionUpdate, onSessionInvalid]);
+  }, [session, busy, retry, active, onResultsChange, onSessionUpdate, onSessionInvalid]);
 
   async function control(action: "start" | "stop", search?: SearchRequest) {
     if (!session || pending.current) return;
