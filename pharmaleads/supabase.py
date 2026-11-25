@@ -84,7 +84,7 @@ class Supabase:
             data=json.dumps(dados).encode('utf-8'), method='POST',
             headers={'apikey': self.segredo, 'Content-Type': 'application/json'})
         try:
-            with self.opener.open(req, timeout=8) as resposta:
+            with self.opener.open(req, timeout=60) as resposta:
                 sessao = json.loads(resposta.read())
             if sessao.get('user', {}).get('id') != self.uid:
                 raise ErroPharmaLeads('O login pertence a outro UID. Use o usuário autorizado em pharmaleads.')

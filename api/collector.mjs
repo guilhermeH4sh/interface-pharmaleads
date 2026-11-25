@@ -38,15 +38,10 @@ async function authorized(req) {
   const match = /^Bearer ([^\s]+)$/.exec(header(req, 'authorization'));
   if (!match) return false;
   const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${match[1]}` }, signal: AbortSignal.timeout(8000),
+    headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${match[1]}` }, signal: AbortSignal.timeout(10000),
   });
-  if (response.status >= 500 || response.status === 429) throw new Error('Serviço de autenticação temporariamente indisponível. Tente novamente em instantes.');
   if (!response.ok) return false;
-  let user;
-  try { user = await response.json(); } catch {
-    throw new Error('Serviço de autenticação temporariamente indisponível. Tente novamente em instantes.');
-  }
-  if (!user || typeof user.id !== 'string') throw new Error('Resposta inválida do serviço de autenticação.');
+  const user = await response.json();
   return user.id === AUTHORIZED_USER_ID;
 }
 

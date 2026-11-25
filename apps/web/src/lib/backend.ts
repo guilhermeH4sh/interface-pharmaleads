@@ -198,33 +198,24 @@ export async function authenticateSupabase(
   customKey = PUBLISHABLE_KEY
 ): Promise<SupabaseSession> {
   const generation = authGeneration;
-  let response: Response;
-  let body: { access_token?: string; refresh_token?: string; expires_in?: number;
-    user?: { id?: string; email?: string } };
-  try {
-    response = await fetch(`${customUrl}/auth/v1/token?grant_type=${grant}`, {
-      method: "POST",
-      headers: { apikey: customKey, "Content-Type": "application/json" },
-      body: JSON.stringify(fields),
-      signal: AbortSignal.timeout(8_000),
-    });
-    body = await response.json();
-  } catch {
-    throw new Error("Serviço de autenticação temporariamente indisponível. Tente novamente em instantes.");
-  }
+  const response = await fetch(`${customUrl}/auth/v1/token?grant_type=${grant}`, {
+    method: "POST",
+    headers: { apikey: customKey, "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  const body = (await response.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    user?: { id?: string; email?: string };
+  };
   if (generation !== authGeneration) throw new AccessError("Sessão encerrada.");
-  if (response.status >= 500 || response.status === 429) {
-    throw new Error("Serviço de autenticação temporariamente indisponível. Tente novamente em instantes.");
-  }
-  if (!response.ok) {
+  if (!response.ok || !body.access_token || !body.refresh_token || !body.expires_in) {
     throw new AccessError(
       grant === "password"
         ? "E-mail ou senha inválidos."
         : "Sua sessão expirou. Entre novamente na plataforma."
     );
-  }
-  if (!body || !body.access_token || !body.refresh_token || typeof body.expires_in !== "number" || !Number.isFinite(body.expires_in) || body.expires_in <= 0) {
-    throw new Error("Serviço de autenticação temporariamente indisponível. Tente novamente em instantes.");
   }
   if (body.user?.id !== AUTHORIZED_USER_ID) {
     clearSupabaseSession();
@@ -260,22 +251,12 @@ export async function validSupabaseSession(session: SupabaseSession): Promise<Su
 
 export async function verifyPlatformSession(session: SupabaseSession): Promise<SupabaseSession> {
   const active = await validSupabaseSession(session);
-  let identity: Response;
-  try { identity = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+  const identity = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
     headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}` },
-    signal: AbortSignal.timeout(8_000),
-  }); } catch {
-    throw new Error("Serviço de autenticação temporariamente indisponível. Tente novamente em instantes.");
-  }
+  });
   if (identity.status === 401 || identity.status === 403) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
   if (!identity.ok) throw new Error("Não foi possível validar sua sessão. Tente novamente.");
-  let user: { id?: string };
-  try { user = await identity.json(); } catch {
-    throw new Error("Serviço de autenticação temporariamente indisponível. Tente novamente em instantes.");
-  }
-  if (!user || typeof user.id !== "string") {
-    throw new Error("Serviço de autenticação temporariamente indisponível. Tente novamente em instantes.");
-  }
+  const user = (await identity.json()) as { id?: string };
   if (user.id !== AUTHORIZED_USER_ID) {
     throw new AccessError(
       "Esta conta não tem acesso à plataforma."
