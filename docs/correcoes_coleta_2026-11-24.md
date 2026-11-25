@@ -6,10 +6,13 @@
 - Continuar as rodadas estadual, nacional e agendada após erros. Uma execução com rodadas falhas termina como falha, mesmo quando salvou resultados de outras rodadas.
 - Consultar o status a cada 60 segundos em repouso e 5 segundos durante coleta. Abas ocultas não iniciam consultas periódicas; consultas iniciais e controles continuam disponíveis.
 - Versionar a criação das colunas e a restrição do CRM na migração 03. SQL não aplicado automaticamente.
+- Carregar somente membros do CRM no Kanban. O modal de inclusão busca no servidor até 31 candidatos (mostra 30 e orienta refinar a pesquisa), com debounce e cancelamento de consultas antigas.
+- Consultar os relatórios por uma RPC agregada, sem baixar os leads ao abrir. A exportação completa continua lendo a carteira somente quando solicitada pelo usuário.
+- Adicionar `12_relatorios_agregados.sql`: função com SECURITY INVOKER e acesso apenas a authenticated; índice parcial para as chaves dos membros do CRM. Precisa ser aplicado antes de publicar o novo frontend. Sem a função, Relatórios mostra erro explícito e opção de tentar novamente; não apresenta zeros fictícios.
 
 ## Limitações ainda abertas do diagnóstico
 
-- CRM e Relatórios ainda carregam a carteira inteira; precisam de paginação e agregação no servidor com migração compatível.
+- O CRM ainda carrega todos os seus membros, paginados por chave; a paginação por coluna do Kanban continua pendente para carteiras com muitos contatos em negociação. Relatórios depende da aplicação manual da migração 12; execução SQL e desempenho real ainda não verificados.
 - Cobertura ainda usa o plano estático e não tem checkpoint persistente entre One-Off Jobs.
 - Identidades Receita e Maps ainda precisam de conciliação conservadora entre fontes; não unir apenas por nome ou telefone compartilhado.
 - Revisar índices e contagens com EXPLAIN no banco real antes de publicar mudanças de esquema.

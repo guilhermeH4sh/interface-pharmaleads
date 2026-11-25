@@ -176,7 +176,7 @@ test("Leads não expõe status e a ação Adicionar ao CRM move o contato", asyn
   expect(screen.queryByRole("searchbox", { name: "Pesquisar no CRM" })).not.toBeInTheDocument();
 });
 
-test("CRM reutiliza a leitura da carteira e a aba Leads consulta só uma página", async () => {
+test("CRM reutiliza apenas os contatos ativos e a aba Leads consulta só uma página", async () => {
   localStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
   const rows = [
     { chave: "crm-pr", nome: "Farmácia Paraná", local_busca: "Curitiba, PR", endereco: "Rua A - Centro, Curitiba - PR", segmento: "varejo", emails: "contato@parana.com.br", crm_included: true, crm_status: "Em contato" },
@@ -196,12 +196,12 @@ test("CRM reutiliza a leitura da carteira e a aba Leads consulta só uma página
   expect(screen.queryByText("Filtros", { exact: true })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Aplicar filtros" })).not.toBeInTheDocument();
   const reads = fetcher.mock.calls.map(([url]) => String(url)).filter(url =>
-    url.includes("/rest/v1/pharmaleads") && !new URL(url).searchParams.has("or")).length;
+    url.includes("/rest/v1/pharmaleads") && new URL(url).searchParams.get("or")?.includes("crm_included.eq.true")).length;
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(screen.getByText("Farmácia Paulista")).toBeInTheDocument();
   const queries = fetcher.mock.calls.map(([url]) => String(url)).filter(url => url.includes("/rest/v1/pharmaleads"));
-  const paginated = queries.filter(url => new URL(url).searchParams.has("or"));
+  const paginated = queries.filter(url => new URL(url).searchParams.get("or")?.includes("crm_included.eq.false"));
   expect(paginated).toHaveLength(2);
   expect(new URL(paginated[0]).searchParams.get("limit")).toBe("11");
   expect(queries.filter(url => !paginated.includes(url))).toHaveLength(reads);
@@ -301,7 +301,7 @@ test("CRM aplica atualização otimista imediata, não refaz fetch completo e re
       });
     }
     if (url.includes("/rest/v1/pharmaleads")) {
-      if (!new URL(url).searchParams.has("or")) listReads += 1;
+      if (new URL(url).searchParams.get("or")?.includes("crm_included.eq.true")) listReads += 1;
       return Promise.resolve(new Response(JSON.stringify([row]), { headers: { "content-range": "0-0/1" } }));
     }
     return Promise.resolve(new Response(JSON.stringify({ run: null })));

@@ -4,16 +4,19 @@ import { formatNumberBR } from "../../lib/formatters";
 import { ui } from "../../lib/ui";
 import { cn } from "../../lib/utils";
 import type { LeadItem, LeadSummary } from "../../lib/mock-leads";
+import type { LeadReport } from "../../lib/backend";
 
 interface RelatoriosTabProps {
   summary: LeadSummary;
   leads?: LeadItem[];
   onExportFullCSV: () => void;
+  report?: LeadReport;
+  exporting?: boolean;
 }
 
-export function RelatoriosTab({ summary, leads = [], onExportFullCSV }: RelatoriosTabProps) {
+export function RelatoriosTab({ summary, leads = [], onExportFullCSV, report, exporting }: RelatoriosTabProps) {
   const analytics = useMemo(() => {
-    const total = leads.length;
+    const total = report?.summary.totalLeads ?? leads.length;
     if (total === 0) {
       return {
         withPhonePct: "0% com telefone registrado",
@@ -28,12 +31,12 @@ export function RelatoriosTab({ summary, leads = [], onExportFullCSV }: Relatori
       };
     }
 
-    const withPhoneCount = leads.filter(
+    const withPhoneCount = report?.phoneCount ?? leads.filter(
       (l) => Boolean(l.telefone && l.telefone !== "Não informado")
     ).length;
     const withPhonePct = `${Math.round((withPhoneCount / total) * 100)}% com telefone registrado`;
 
-    const whatsappCount = leads.filter((l) => Boolean(l.whatsappLink)).length;
+    const whatsappCount = report?.whatsappCount ?? leads.filter((l) => Boolean(l.whatsappLink && l.whatsappVerificacao?.estado === "confirmado")).length;
     const whatsappPct = `${((whatsappCount / total) * 100).toFixed(1).replace(/\.0$/, "")}% com WhatsApp confirmado`;
 
     let varejo = 0;
@@ -47,6 +50,9 @@ export function RelatoriosTab({ summary, leads = [], onExportFullCSV }: Relatori
       else if (seg.includes("homeopat")) homeopatia++;
       else if (seg.includes("veterin") || seg.includes("distrib")) outros++;
       else varejo++;
+    }
+    if (report) {
+      ({ varejo, manipulacao, homeopatia, outros } = report.segments);
     }
 
     const pct = (n: number) => Math.round((n / total) * 100);
@@ -62,7 +68,7 @@ export function RelatoriosTab({ summary, leads = [], onExportFullCSV }: Relatori
         { label: "Farmácias Veterinárias & Distribuidoras", pct: pct(outros), count: outros, barClass: "bg-muted-foreground" },
       ],
     };
-  }, [leads]);
+  }, [leads, report]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -80,9 +86,10 @@ export function RelatoriosTab({ summary, leads = [], onExportFullCSV }: Relatori
 
         <button
           onClick={onExportFullCSV}
+          disabled={exporting}
           className={cn(ui.btnBrand, "h-11 px-6 text-xs shrink-0")}
         >
-          <Download size={15} /> Exportar Base Completa (CSV)
+          <Download size={15} /> {exporting ? "Preparando exportação…" : "Exportar Base Completa (CSV)"}
         </button>
       </div>
 
@@ -180,7 +187,7 @@ export function RelatoriosTab({ summary, leads = [], onExportFullCSV }: Relatori
 
             <div className="space-y-1.5">
               <div className="flex justify-between font-semibold">
-                <span className="text-foreground">Google Meu Negócio (Perfis Verificados)</span>
+                <span className="text-foreground">Google Meu Negócio</span>
                 <span className="text-muted-foreground tabular-nums">
                   {formatNumberBR(summary.origem.googleMeuNegocio.count)} ({summary.origem.googleMeuNegocio.percent}%)
                 </span>
@@ -195,7 +202,7 @@ export function RelatoriosTab({ summary, leads = [], onExportFullCSV }: Relatori
 
             <div className="space-y-1.5">
               <div className="flex justify-between font-semibold">
-                <span className="text-foreground">Outras Fontes (Enriquecimento Web & Diretórios)</span>
+                <span className="text-foreground">Receita Federal e outras fontes</span>
                 <span className="text-muted-foreground tabular-nums">
                   {formatNumberBR(summary.origem.outrasFontes.count)} ({summary.origem.outrasFontes.percent}%)
                 </span>

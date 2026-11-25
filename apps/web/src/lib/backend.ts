@@ -266,7 +266,8 @@ export async function verifyPlatformSession(session: SupabaseSession): Promise<S
 }
 
 export async function fetchSupabaseAllLeads(
-  session: SupabaseSession
+  session: SupabaseSession,
+  options: { crmOnly?: boolean; signal?: AbortSignal } = {}
 ): Promise<{ session: SupabaseSession; rows: Lead[] }> {
   const active = await verifyPlatformSession(session);
 
@@ -280,8 +281,10 @@ export async function fetchSupabaseAllLeads(
       limit: String(pageSize),
     });
     if (lastKey) query.set("chave", `gt.${lastKey}`);
+    if (options.crmOnly) query.set("or", "(crm_included.eq.true,and(crm_included.is.null,crm_status.neq.Não contatado))");
     const response = await fetchLeadTable(query, {
       cache: "no-store",
+      signal: AbortSignal.any([...(options.signal ? [options.signal] : []), AbortSignal.timeout(20_000)]),
       headers: {
         apikey: PUBLISHABLE_KEY,
         Authorization: `Bearer ${active.access_token}`,
@@ -331,6 +334,36 @@ export interface RemoteLeadFilters {
 
 export type LeadMetrics = Pick<LeadSummary, "totalLeads" | "qualificados" | "emContato" | "estados">;
 
+export interface LeadReport {
+  summary: LeadSummary;
+  phoneCount: number;
+  whatsappCount: number;
+  segments: { varejo: number; manipulacao: number; homeopatia: number; outros: number };
+}
+
+export async function fetchLeadReport(session: SupabaseSession, signal: AbortSignal): Promise<LeadReport> {
+  const active = await validSupabaseSession(session);
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/pharmaleads_relatorio`, {
+    cache: "no-store", signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]),
+    headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}` },
+  });
+  if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
+  if (response.status === 404) throw new Error("Relatórios precisam da migração 12_relatorios_agregados.sql no Supabase.");
+  if (!response.ok) throw new Error(`Não foi possível consultar os relatórios (HTTP ${response.status}).`);
+  const report = await response.json() as LeadReport;
+  const numeric = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0;
+  if (!report?.summary || !report.segments
+      || ![report.summary.totalLeads, report.summary.estados, report.phoneCount, report.whatsappCount,
+        report.summary.qualificados, report.summary.emContato, report.summary.respondidos,
+        report.summary.naoQualificados, report.summary.naoContatados,
+        report.segments.varejo, report.segments.manipulacao, report.segments.homeopatia, report.segments.outros].every(numeric)
+      || ![report.summary.origem?.googleMaps, report.summary.origem?.googleMeuNegocio,
+        report.summary.origem?.outrasFontes].every(origin => origin && numeric(origin.count) && numeric(origin.percent))) {
+    throw new Error("O Supabase retornou um relatório inválido.");
+  }
+  return report;
+}
+
 export async function fetchRemoteLeadMetrics(session: SupabaseSession, signal: AbortSignal) {
   const active = await validSupabaseSession(session);
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/leads_resumo`, {
@@ -347,6 +380,20 @@ export async function fetchRemoteLeadMetrics(session: SupabaseSession, signal: A
 
 const restValue = (value: string) => `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 const OUTSIDE_CRM = "(crm_included.eq.false,and(crm_included.is.null,or(crm_status.is.null,crm_status.eq.Não contatado)))";
+
+export async function fetchCrmCandidates(session: SupabaseSession, term: string, signal: AbortSignal) {
+  const active = await validSupabaseSession(session);
+  const query = new URLSearchParams({ select: SUPABASE_LIST_COLUMNS, order: "chave.asc", limit: "31", or: OUTSIDE_CRM });
+  if (term.trim()) {
+    const pattern = restValue(`%${term.trim().replace(/[\\%_]/g, "\\$&")}%`);
+    query.set("and", `(or(nome.ilike.${pattern},local_busca.ilike.${pattern},uf_prospeccao.ilike.${pattern}))`);
+  }
+  const response = await fetchLeadTable(query, { cache: "no-store", signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
+    headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${active.access_token}` } });
+  if (response.status === 401) throw new AccessError("Sua sessão expirou. Entre novamente na plataforma.");
+  if (!response.ok) throw new Error(`Não foi possível buscar contatos para o CRM (HTTP ${response.status}).`);
+  return mapRawLeadsToItems(await response.json() as Lead[]);
+}
 
 function applyRemoteLeadFilters(query: URLSearchParams, filters: RemoteLeadFilters) {
   if (!filters.includeCrm) query.set("or", OUTSIDE_CRM);

@@ -50,6 +50,7 @@ import type { LeadItem, LeadStatus } from "../../lib/mock-leads";
 interface CrmTabProps {
   leads: LeadItem[];
   availableLeads?: LeadItem[];
+  searchCandidates?: (query: string, signal: AbortSignal) => Promise<LeadItem[]>;
   searchQuery?: string;
   onAddToCrm?: (id: string) => Promise<boolean>;
   onStatusChange: (id: string, newStatus: LeadStatus) => Promise<boolean> | void;
@@ -219,6 +220,7 @@ const KanbanColumn = memo(function KanbanColumn({
 export function CrmTab({
   leads,
   availableLeads = [],
+  searchCandidates,
   searchQuery = "",
   onAddToCrm,
   onStatusChange,
@@ -234,6 +236,27 @@ export function CrmTab({
   const [addQuery, setAddQuery] = useState("");
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addError, setAddError] = useState("");
+  const [candidateResult, setCandidateResult] = useState<{
+    query: string; loader: typeof searchCandidates; items: LeadItem[]; error?: string;
+  }>();
+  const currentCandidates = candidateResult?.query === addQuery && candidateResult?.loader === searchCandidates
+    ? candidateResult : undefined;
+  const candidatesLoading = Boolean(searchCandidates && addOpen && !currentCandidates);
+  const candidateError = currentCandidates?.error ?? "";
+
+  useEffect(() => {
+    if (!addOpen || !searchCandidates) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void searchCandidates(addQuery, controller.signal).then(items => {
+        if (!controller.signal.aborted) setCandidateResult({ query: addQuery, loader: searchCandidates, items });
+      }).catch((error: unknown) => {
+        if (!controller.signal.aborted) setCandidateResult({ query: addQuery, loader: searchCandidates, items: [],
+          error: error instanceof Error ? error.message : "Falha ao buscar contatos." });
+      });
+    }, 300);
+    return () => { controller.abort(); window.clearTimeout(timer); };
+  }, [addOpen, addQuery, searchCandidates]);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overColId, setOverColId] = useState<CrmStage | null>(null);
@@ -294,12 +317,12 @@ export function CrmTab({
   const candidates = useMemo(() => {
     const included = new Set(leads.map((lead) => lead.id));
     const query = addQuery.trim().toLocaleLowerCase("pt-BR");
-    return availableLeads.filter(
+    return (searchCandidates ? currentCandidates?.items ?? [] : availableLeads).filter(
       (lead) =>
         !included.has(lead.id) &&
-        `${lead.nome} ${lead.cidade} ${lead.uf}`.toLocaleLowerCase("pt-BR").includes(query)
+        (searchCandidates || `${lead.nome} ${lead.cidade} ${lead.uf}`.toLocaleLowerCase("pt-BR").includes(query))
     );
-  }, [availableLeads, leads, addQuery]);
+  }, [availableLeads, leads, addQuery, searchCandidates, currentCandidates]);
 
   async function addLead(id: string) {
     if (!onAddToCrm || addingId) return;
@@ -752,9 +775,9 @@ export function CrmTab({
             onChange={(event) => setAddQuery(event.target.value)}
             className={ui.input}
           />
-          {(addError || errorMessage) && (
+          {(addError || candidateError || errorMessage) && (
             <p role="alert" className="text-sm">
-              {addError || errorMessage}
+              {addError || candidateError || errorMessage}
             </p>
           )}
           <ul className="space-y-2">
@@ -782,12 +805,13 @@ export function CrmTab({
               </li>
             ))}
           </ul>
-          {!candidates.length && (
+          {candidatesLoading && <p role="status">Buscando contatos…</p>}
+          {!candidatesLoading && !addError && !candidateError && !candidates.length && (
             <p className="text-sm text-muted-foreground">Nenhum lead disponível para adicionar.</p>
           )}
           {candidates.length > 30 && (
             <p className="text-sm text-muted-foreground">
-              Exibindo 30 de {candidates.length} contatos. Refine a pesquisa para encontrar um lead.
+              Exibindo os primeiros 30 contatos. Refine a pesquisa para encontrar um lead.
             </p>
           )}
         </div>

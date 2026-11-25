@@ -9,6 +9,7 @@ import { CrmTab } from "./components/crm/CrmTab";
 import { LoginPage } from "./components/auth/LoginPage";
 import { ConfigTab } from "./components/config/ConfigTab";
 import { RelatoriosTab } from "./components/relatorios/RelatoriosTab";
+import { RemoteReports } from "./components/relatorios/RemoteReports";
 import { HelpModal } from "./components/help/HelpModal";
 import { useTheme } from "./lib/theme";
 import { downloadLeadsCsv } from "./lib/csv";
@@ -20,6 +21,7 @@ import {
   computeSummaryFromItems,
   fetchLocalAllLeads,
   fetchSupabaseAllLeads,
+  fetchCrmCandidates,
   addRemoteLeadsToCrm,
   mapRawLeadsToItems,
   savedSupabaseSession,
@@ -137,7 +139,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
     }
   }, []);
 
-  // Carrega todos os leads do Supabase Online
+  // O Kanban precisa apenas dos contatos incluídos no CRM.
   const loadSupabaseLeads = useCallback(
     async (sessionOverride?: SupabaseSession | null) => {
       const currentSession = sessionOverride ?? supabaseSession;
@@ -147,7 +149,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
       setIsLoadingReal(true);
       setRealError("");
       try {
-        const res = await fetchSupabaseAllLeads(currentSession);
+        const res = await fetchSupabaseAllLeads(currentSession, { crmOnly: true });
         setSupabaseSession(res.session);
         setRawSupabaseRows(res.rows);
         lastSupabaseLoad.current = Date.now();
@@ -175,7 +177,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
       if (cancelled) return;
       if (dataSourceMode === "local") {
         void loadLocalLeads();
-      } else if (dataSourceMode === "supabase" && supabaseSession && ["crm", "relatorios"].includes(activeTab) && Date.now() - lastSupabaseLoad.current > 60_000) {
+      } else if (dataSourceMode === "supabase" && supabaseSession && activeTab === "crm" && Date.now() - lastSupabaseLoad.current > 60_000) {
         void loadSupabaseLeads(supabaseSession);
       }
     });
@@ -189,7 +191,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
     if (dataSourceMode === "local") {
       await loadLocalLeads();
     } else if (dataSourceMode === "supabase" && supabaseSession) {
-      if (activeTab === "leads") {
+      if (activeTab === "leads" || activeTab === "relatorios") {
         setOverrideVersion(v => v + 1);
         return;
       }
@@ -223,6 +225,15 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
     () => computeSummaryFromItems(realLeads),
     [realLeads]
   );
+
+  const searchCrmCandidates = useCallback(async (query: string, signal: AbortSignal) => {
+    if (!supabaseSession) return [];
+    try { return await fetchCrmCandidates(supabaseSession, query, signal); }
+    catch (error) {
+      if (error instanceof AccessError) onSignOut();
+      throw error;
+    }
+  }, [supabaseSession, onSignOut]);
 
   const handleCrmStatusChange = useCallback(
     async (id: string, newStatus: LeadStatus): Promise<boolean> => {
@@ -379,7 +390,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
         const result = await updateSupabaseCrmLead(supabaseSession, id, { crm_included: included, crm_status: newStatus });
         if (result.row.crm_included !== included || result.row.crm_status !== newStatus) throw new Error("O Supabase não confirmou a alteração do CRM.");
         setSupabaseSession(result.session);
-        setRawSupabaseRows((rows) => rows.map((row) => row.chave === id ? result.row : row));
+        setRawSupabaseRows((rows) => [...rows.filter(row => row.chave !== id), result.row]);
         setRealError("");
       } catch (err) {
         if (err instanceof AccessError) onSignOut();
@@ -453,6 +464,7 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
             <CrmTab
               leads={activeLeadsForCrm}
               availableLeads={realLeads}
+              searchCandidates={dataSourceMode === "supabase" ? searchCrmCandidates : undefined}
               onAddToCrm={(id) => handleCrmMembershipChange(id, true)}
               onStatusChange={handleCrmStatusChange}
               onRemoveFromCrm={(id) => handleCrmMembershipChange(id, false)}
@@ -467,7 +479,10 @@ export function PlatformDashboard({ initialSession, onSignOut }: { initialSessio
             <ConfigTab />
           )}
 
-          {activeTab === "relatorios" && (
+          {activeTab === "relatorios" && dataSourceMode === "supabase" && supabaseSession && (
+            <RemoteReports session={supabaseSession} version={overrideVersion} onSessionInvalid={onSignOut} />
+          )}
+          {activeTab === "relatorios" && dataSourceMode !== "supabase" && (
             <RelatoriosTab
               summary={activeSummaryForReports}
               leads={dataSourceMode === "mock" ? undefined : realLeads}
