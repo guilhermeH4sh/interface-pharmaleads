@@ -1,22 +1,54 @@
 import json
 import threading
 import unittest
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from io import StringIO
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
-from pharmaleads.agenda import GRUPOS, disparar, entrada_agendada
+from pharmaleads.agenda import HORARIOS, UFS, disparar, entrada_agendada, plano_agendado, municipios_por_uf
+from pharmaleads.config import ErroPharmaLeads
+from pharmaleads.gerador import montar_consultas
 from pharmaleads.cloud_job import MARCADOR_PROGRESSO, SEM_RESULTADOS
 from pharmaleads.render_service import ColetorRender, Handler
 
 
 class TestAgenda(unittest.TestCase):
-    def test_tres_grupos_disjuntos_cobrem_todas_as_ufs(self):
-        ufs = [local[-2:] for grupo in GRUPOS.values() for local in grupo]
-        self.assertEqual({hora: len(ufs) for hora, ufs in GRUPOS.items()}, {7: 9, 13: 9, 19: 9})
-        self.assertEqual(sorted(ufs), 'AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO'.split())
+    def test_cada_horario_visita_cidades_das_27_ufs_sem_duplicatas(self):
+        for hora in HORARIOS:
+            locais = plano_agendado(hora, '2026-11-24')
+            self.assertEqual({local[-2:] for local in locais}, UFS)
+            self.assertEqual(len(locais), 53)  # DF possui uma única localidade.
+            self.assertEqual(len(set(locais)), len(locais))
+            self.assertEqual(len({local[-2:] for local in locais[:27]}), 27)
+
+    def test_cidades_avancam_entre_horarios_e_dias_e_cobrem_toda_sp(self):
+        vistos = set()
+        anteriores = set()
+        for dia in range(110):
+            data = (date(2026, 11, 24) + timedelta(days=dia)).isoformat()
+            for hora in HORARIOS:
+                cidades = {local for local in plano_agendado(hora, data) if local.endswith(', SP')}
+                self.assertFalse(cidades & anteriores)
+                vistos.update(cidades)
+                anteriores = cidades
+        self.assertEqual(vistos, set(municipios_por_uf()['SP']))
+
+    def test_continuacao_preserva_data_e_segmentos_entre_rodadas(self):
+        entrada = entrada_agendada(19, 1, 'agenda-teste', dia='2026-11-24')
+        proxima = ColetorRender._proxima_rodada(entrada)
+        self.assertEqual(proxima['dia'], '2026-11-24')
+        self.assertEqual(proxima['locais'], plano_agendado(19, '2026-11-24')[1])
+        self.assertEqual(proxima['segmentos'], entrada['segmentos'])
+        for local in plano_agendado(19, '2026-11-24'):
+            self.assertLessEqual(len(montar_consultas([local], entrada['segmentos'].split(','))), 8)
+        self.assertIsNone(ColetorRender._proxima_rodada(entrada_agendada(19, 53, 'agenda-teste')))
+
+    def test_rejeita_configuracao_fora_dos_limites(self):
+        for hora, data, quantidade in [(8, '2026-11-24', 2), (7, 'invalid', 2), (7, '2026-11-24', 3)]:
+            with self.assertRaises(ErroPharmaLeads):
+                plano_agendado(hora, data, quantidade)
 
     @patch('pharmaleads.agenda.time.sleep')
     @patch('pharmaleads.agenda.build_opener')
@@ -54,7 +86,7 @@ class TestAgenda(unittest.TestCase):
         popen.side_effect = processo
         coletor = ColetorRender()
         self.assertEqual(coletor.executar_job(entrada_agendada(7, 1, 'agenda-teste')), 'failure')
-        self.assertEqual(locais, list(GRUPOS[7]))
+        self.assertEqual(locais, plano_agendado(7, datetime.now(timezone(timedelta(hours=-3))).date().isoformat()))
         self.assertEqual(coletor.status()['skipped_rounds'], 1)
         self.assertEqual(coletor.status()['empty_rounds'], 1)
         self.assertNotIn('goal_leads', coletor.status())

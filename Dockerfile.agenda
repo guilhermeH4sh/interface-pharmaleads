@@ -2,5 +2,6 @@ FROM python:3.12-slim
 
 WORKDIR /app
 COPY pharmaleads ./pharmaleads
+COPY api/municipios_ibge.json ./api/municipios_ibge.json
 ENV PYTHONUNBUFFERED=1
 CMD ["python", "-m", "pharmaleads.agenda"]

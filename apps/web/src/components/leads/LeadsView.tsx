@@ -58,7 +58,6 @@ interface LeadsViewProps {
   onBatchAddToCrm: (leadIds: string[]) => Promise<string[]>;
 }
 
-const PREVIEW_LEAD_LIMIT = 50;
 
 const EXPORT_PERIOD_OPTIONS: SelectOption[] = [
   { value: "7", label: "Últimos 7 dias" },
@@ -87,8 +86,7 @@ export function LeadsView({
 }: LeadsViewProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [collectionUpdate, setCollectionUpdate] = useState<{ filters: typeof filters; startedAt: string }>();
-  const [livePage, setLivePage] = useState<{ filters: typeof filters; items: LeadItem[] }>();
+  const [catalogVersion, setCatalogVersion] = useState(0);
   const [queryRetry, setQueryRetry] = useState(0);
   const [exportPeriod, setExportPeriod] = useState("7");
   const getUrlParam = (param: string, fallback = "") => {
@@ -134,17 +132,17 @@ export function LeadsView({
   const filters = useMemo(() => ({
     uf: selectedUF, origem: selectedOrigem, segmentos: selectedSegmentos,
     emailAvailability: selectedEmailAvailability, whatsappConfirmed: isRemote && selectedWhatsappConfirmed,
-    query: searchQuery, includeCrm: searched,
-  }), [selectedUF, selectedOrigem, selectedSegmentos, selectedEmailAvailability, selectedWhatsappConfirmed, isRemote, searchQuery, searched]);
+    query: searchQuery, includeCrm: true,
+  }), [selectedUF, selectedOrigem, selectedSegmentos, selectedEmailAvailability, selectedWhatsappConfirmed, isRemote, searchQuery]);
   const hasLeadFilters = Boolean(searchQuery.trim() || selectedUF || selectedSegmentos.length)
     || selectedOrigem !== "Todas as origens" || selectedEmailAvailability !== "todos" || filters.whatsappConfirmed;
-  const showFullResults = searched || hasLeadFilters;
+  const showFullResults = searched;
   const [cursors, setCursors] = useState<Array<string | undefined>>([undefined]);
   const cursor = cursors[currentPage - 1];
-  const request = useMemo(() => ({ filters, cursor, currentPage, pageSize, remoteVersion, showFullResults, queryRetry }),
-    [filters, cursor, currentPage, pageSize, remoteVersion, showFullResults, queryRetry]);
-  const countRequest = useMemo(() => ({ filters, remoteVersion, queryRetry, collectionUpdate }),
-    [filters, remoteVersion, queryRetry, collectionUpdate]);
+  const request = useMemo(() => ({ filters, cursor, currentPage, pageSize, remoteVersion, showFullResults, queryRetry, catalogVersion }),
+    [filters, cursor, currentPage, pageSize, remoteVersion, showFullResults, queryRetry, catalogVersion]);
+  const countRequest = useMemo(() => ({ filters, remoteVersion, queryRetry, catalogVersion }),
+    [filters, remoteVersion, queryRetry, catalogVersion]);
   const [countResult, setCountResult] = useState<{ request: typeof countRequest; total?: number }>();
   const [remotePage, setRemotePage] = useState<{
     request: typeof request; items: LeadItem[]; next?: string; error?: string;
@@ -155,12 +153,11 @@ export function LeadsView({
   const [metricsError, setMetricsError] = useState("");
 
   useEffect(() => {
-    if (!isRemote || !supabaseSession) return;
+    if (!isRemote || !supabaseSession || !searched) return;
     const controller = new AbortController();
-    const remaining = request.showFullResults ? Infinity : PREVIEW_LEAD_LIMIT - (request.currentPage - 1) * request.pageSize;
-    const limit = Math.min(request.pageSize, remaining);
+    const limit = request.pageSize;
     void readRemoteLeads(supabaseSession, request.filters, {
-      limit, cursor: request.cursor, peek: remaining > limit, signal: controller.signal,
+      limit, cursor: request.cursor, peek: true, signal: controller.signal,
     }).then(page => {
       if (controller.signal.aborted) return;
       setRemotePage({ request, items: page.items, next: page.hasNext ? page.cursor : undefined });
@@ -172,7 +169,7 @@ export function LeadsView({
         error: error instanceof Error ? error.message : "Falha na consulta." }));
     });
     return () => controller.abort();
-  }, [isRemote, supabaseSession, request, collectionUpdate, onSessionUpdate, onSessionInvalid]);
+  }, [isRemote, supabaseSession, searched, request, onSessionUpdate, onSessionInvalid]);
 
   useEffect(() => {
     if (!isRemote || !supabaseSession || !showFullResults) return;
@@ -201,24 +198,15 @@ export function LeadsView({
       setMetricsError("Não foi possível consultar as métricas da carteira.");
     });
     return () => controller.abort();
-  }, [isRemote, supabaseSession, remoteVersion, queryRetry, collectionUpdate, onSessionInvalid]);
+  }, [isRemote, supabaseSession, remoteVersion, queryRetry, catalogVersion, onSessionInvalid]);
 
   useEffect(() => {
-    if (!supabaseSession || !collectionUpdate || collectionUpdate.filters !== filters) return;
-    const controller = new AbortController();
-    void readRemoteLeads(supabaseSession, filters, {
-      limit: 25, createdSince: collectionUpdate.startedAt, signal: controller.signal,
-    }).then(page => {
-      if (!controller.signal.aborted) setLivePage({ filters, items: page.items });
-    }).catch(() => {
-      // A consulta principal continua disponível durante a atualização.
-    });
-    return () => controller.abort();
-  }, [supabaseSession, filters, collectionUpdate, remoteVersion]);
-
-  const refreshAfterCollection = useCallback((uf: string, startedAt: string) => {
-    if (filters.uf === uf) setCollectionUpdate({ filters, startedAt });
-  }, [filters]);
+    if (!isRemote || !searched) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") setCatalogVersion(value => value + 1);
+    }, 60000);
+    return () => window.clearInterval(timer);
+  }, [isRemote, searched]);
 
   const updateUrl = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -333,20 +321,13 @@ export function LeadsView({
 
   const page = remotePage?.request === request ? remotePage : undefined;
   const localItems = realPagination?.items ?? mockLeads;
-  const liveItems = searched && livePage?.filters === filters ? livePage.items : [];
-  const pageItems = page?.items ?? [];
-  const liveIds = new Set(liveItems.map(item => item.id));
-  const remoteItems = currentPage === 1
-    ? [...pageItems, ...liveItems.filter(item => !pageItems.some(row => row.id === item.id))]
-    : pageItems.filter(item => !liveIds.has(item.id));
-  const activeItems = isRemote ? remoteItems : showFullResults ? localItems
-    : localItems.slice(0, Math.max(0, PREVIEW_LEAD_LIMIT - (currentPage - 1) * pageSize));
+  const activeItems = !searched ? [] : isRemote ? page?.items ?? [] : localItems;
   const activeTotal = isRemote ? activeItems.length : realPagination?.total ?? mockTotalLeads;
   const unboundedPages = realPagination?.totalPages ?? mockTotalPages;
-  const activeTotalPages = showFullResults ? unboundedPages : Math.min(unboundedPages, Math.ceil(PREVIEW_LEAD_LIMIT / pageSize));
+  const activeTotalPages = unboundedPages;
   const filteredCount = isRemote ? countResult?.request === countRequest ? countResult : undefined : { total: activeTotal };
   const activeSummary = isRealMode ? realSummary : mockSummary;
-  const activeLoading = isRemote ? !page : isRealMode ? isLoadingReal : isLoadingMock;
+  const activeLoading = searched && (isRemote ? !page : isRealMode ? isLoadingReal : isLoadingMock);
   const activeError = operationError || page?.error || realError;
   const clearSelection = () => { setSelectedLeadIds([]); setSelectedWholeResults(false); };
 
@@ -362,8 +343,8 @@ export function LeadsView({
   };
 
   const handleApplySideFilters = (filters: SideFilters) => {
-    setLivePage(undefined);
-    setCollectionUpdate(undefined);
+    setSearched(true);
+    setCursors([undefined]);
     setSelectedUF(filters.uf);
     setSelectedOrigem(filters.origem);
     setSelectedSegmentos(filters.segmentos);
@@ -374,8 +355,7 @@ export function LeadsView({
   };
 
   const handleResetFilters = () => {
-    setLivePage(undefined);
-    setCollectionUpdate(undefined);
+    setCursors([undefined]);
     setSelectedUF("");
     setSelectedOrigem("Todas as origens");
     setSelectedSegmentos([]);
@@ -548,11 +528,11 @@ export function LeadsView({
             align="right"
             triggerClassName="h-12 w-44 rounded-xl text-sm"
           />
-          <button type="button" onClick={() => void handleExportByPeriod()} disabled={Boolean(operation) || (isRemote ? activeLoading || Boolean(page?.error) : !getLeadsForExportPeriod().length)} className={cn(ui.btnSecondary, "h-12 px-4 text-sm shrink-0")}>
+          <button type="button" onClick={() => void handleExportByPeriod()} disabled={!searched || Boolean(operation) || (isRemote ? activeLoading || Boolean(page?.error) : !getLeadsForExportPeriod().length)} className={cn(ui.btnSecondary, "h-12 px-4 text-sm shrink-0")}>
             <Download size={17} /><span>Exportar</span>
           </button>
           <button onClick={() => setSearchOpen(true)} disabled={Boolean(operation)} className={cn(ui.btnBrand, "h-12 px-6 sm:px-8 text-sm sm:text-base shrink-0")}>
-            <Plus size={18} strokeWidth={2.5} /><span>Nova Prospecção</span>
+            <Plus size={18} strokeWidth={2.5} /><span>Nova pesquisa</span>
           </button>
         </div>
       </div>
@@ -612,13 +592,13 @@ export function LeadsView({
       {metricsError && <p className="text-sm text-muted-foreground">{metricsError}{" "}
         <button type="button" className="underline" onClick={() => setQueryRetry(value => value + 1)}>Atualizar métricas</button>
       </p>}
-      <LeadSearch session={supabaseSession} filters={{ uf: selectedUF, origem: selectedOrigem, segmentos: selectedSegmentos }}
-        modalOpen={searchOpen} closeModal={() => setSearchOpen(false)} onSearch={handleSearch}
-        onResultsChange={refreshAfterCollection} onSessionUpdate={onSessionUpdate} onSessionInvalid={onSessionInvalid}
+      <LeadSearch key={`${searched}|${selectedUF}|${selectedOrigem}|${selectedSegmentos.join(',')}`}
+        filters={{ uf: selectedUF, origem: selectedOrigem, segmentos: selectedSegmentos }}
+        hasSearched={searched} modalOpen={searchOpen} closeModal={() => setSearchOpen(false)} onSearch={handleSearch}
         disabled={Boolean(operation)} />
-      {!showFullResults && <p className="text-sm text-muted-foreground">Amostra de até {PREVIEW_LEAD_LIMIT} leads. Aplique filtros ou pesquise um estado para ver todos os resultados do recorte.</p>}
+      {!searched && <p role="status" className="text-sm text-muted-foreground">Escolha um estado ou Todas as UFs e clique em Pesquisar para exibir os leads salvos.</p>}
       {searched && isRemote && !activeLoading && !page?.error && !activeItems.length && (
-        <p role="status" className="text-sm text-muted-foreground">Nenhum lead salvo para esses filtros. Se houver uma coleta em andamento, a lista será atualizada quando ela enviar resultados.</p>
+        <p role="status" className="text-sm text-muted-foreground">Nenhum lead salvo para esses filtros. A base recebe atualizações da coleta automática.</p>
       )}
       {operation && <p role="status">{operation}</p>}
       <p className="text-xs text-muted-foreground">A exportação inclui todos os leads que correspondem ao estado, aos filtros e ao período escolhidos.</p>
@@ -653,7 +633,7 @@ export function LeadsView({
           </div>
         </fieldset>
 
-        <LeadsTable
+        {searched && <LeadsTable
             items={activeItems}
             total={activeTotal}
             currentPage={currentPage}
@@ -674,7 +654,7 @@ export function LeadsView({
             selectedIds={selectedLeadIds}
             onToggleSelect={handleToggleSelect}
             onToggleSelectAll={handleToggleSelectAll}
-          />
+          />}
       </div>
 
       {/* Barra Flutuante de Ações em Lote */}

@@ -8,10 +8,16 @@ function TestDashboard() {
   return <PlatformDashboard initialSession={savedSupabaseSession() || { access_token: "test", refresh_token: "test", expires_at: 4102444800000 }} onSignOut={vi.fn()} />;
 }
 
+async function showSavedLeads(region = "Todas as UFs") {
+  await userEvent.click(screen.getByRole("combobox", { name: "Estado da pesquisa" }));
+  await userEvent.click(screen.getByRole("option", { name: region }));
+  await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
+}
+
 beforeEach(() => { window.localStorage.clear(); window.sessionStorage.clear(); window.history.replaceState(null, "", "/"); });
 afterEach(() => vi.unstubAllGlobals());
 
-test("Leads é inicial, pagina a amostra e apresenta métricas agregadas", async () => {
+test("Leads exige escolha explícita e pagina todos os resultados salvos", async () => {
   const rows = Array.from({ length: 55 }, (_, i) => ({
     chave: String(i).padStart(2, "0"), nome: "Farmácia " + i, uf_prospeccao: "PR", crm_included: false,
   }));
@@ -21,7 +27,7 @@ test("Leads é inicial, pagina a amostra e apresenta métricas agregadas", async
     }
     if (url.includes("/rest/v1/pharmaleads")) {
       const p = new URL(url).searchParams;
-      expect(new Headers(init?.headers).get("Prefer")).toBeNull();
+      if (init?.method === "HEAD") return new Response(null, { headers: { "content-range": "0-0/55" } });
       const after = p.get("chave")?.slice(3) ?? "";
       return new Response(JSON.stringify(rows.filter(row => row.chave > after).slice(0, Number(p.get("limit")))));
     }
@@ -29,49 +35,45 @@ test("Leads é inicial, pagina a amostra e apresenta métricas agregadas", async
   });
   vi.stubGlobal("fetch", fetcher);
   render(<TestDashboard />);
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  expect(fetcher.mock.calls.some(([url]) => url.includes("/rest/v1/pharmaleads"))).toBe(false);
+  await showSavedLeads();
   expect(screen.getByRole("button", { name: "Leads" })).toHaveAttribute("aria-current", "page");
   expect(screen.queryByRole("button", { name: /^Prospecção$/ })).not.toBeInTheDocument();
   expect(await screen.findByText("105.789")).toBeInTheDocument();
   expect(await screen.findByRole("button", { name: "Farmácia 0" })).toBeInTheDocument();
-  for (let page = 2; page <= 5; page++) {
+  for (let page = 2; page <= 6; page++) {
     await userEvent.click(screen.getByRole("button", { name: "Próxima página" }));
     expect(await screen.findByRole("button", { name: "Farmácia " + (page - 1) * 10 })).toBeInTheDocument();
   }
   expect(screen.getByRole("button", { name: "Próxima página" })).toBeDisabled();
-  expect(screen.queryByRole("button", { name: "Farmácia 50" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Farmácia 50" })).toBeInTheDocument();
 });
 
-test("pesquisa da aba Leads filtra o catálogo, inicia coleta e permite parar", async () => {
-  let run: { id: string; status: string } | null = null;
-  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+test("pesquisa filtra o catálogo por UF sem chamar o coletor", async () => {
+  const fetcher = vi.fn(async (url: string) => {
     if (url.includes("/rest/v1/pharmaleads")) {
-      const uf = new URL(url).searchParams.get("uf_prospeccao");
-      return new Response(JSON.stringify(uf === "eq.PR"
-        ? [{ chave: "pr", nome: "Farmácia do Paraná", uf_prospeccao: "PR", crm_included: false }] : []));
+      expect(new URL(url).searchParams.get("uf_prospeccao")).toBe("eq.PR");
+      return new Response(JSON.stringify([{ chave: "pr", nome: "Farmácia do Paraná", uf_prospeccao: "PR" }]),
+        { headers: { "content-range": "0-0/1" } });
     }
     if (url.includes("/rpc/leads_resumo")) return new Response(JSON.stringify([{ totalLeads: 1 }]));
-    if (init?.method === "POST") {
-      const payload = JSON.parse(String(init.body));
-      if (payload.action === "start") expect(payload).toMatchObject({
-        locais: "Paraná, PR", segmentos: ["varejo", "manipulacao", "homeopatia", "veterinaria", "distribuidoras"],
-      });
-      run = { id: "1", status: payload.action === "start" ? "queued" : "cancelling" };
-    }
-    return new Response(JSON.stringify({ run }));
+    throw new Error(`Chamada inesperada: ${url}`);
   });
   vi.stubGlobal("fetch", fetcher);
   render(<TestDashboard />);
-  await userEvent.type(screen.getByRole("searchbox", { name: "Digite o estado" }), "Paraná{Enter}");
+  expect(screen.getByRole("button", { name: "Pesquisar" })).toBeDisabled();
+  await showSavedLeads("Paraná (PR)");
   expect(await screen.findByRole("button", { name: "Farmácia do Paraná" })).toBeInTheDocument();
-  expect(await screen.findByText("Na fila")).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Parar coleta" }));
-  expect(await screen.findByText("Parando coleta")).toBeInTheDocument();
+  expect(fetcher.mock.calls.some(([url]) => url.includes("/api/collector"))).toBe(false);
+  expect(screen.queryByRole("button", { name: "Parar coleta" })).not.toBeInTheDocument();
 });
 
 test("configurações mostram apenas Supabase e preservam a conexão existente", async () => {
   sessionStorage.setItem(SESSION_KEY, JSON.stringify({ access_token: "test", refresh_token: "test", expires_at: Date.now() + 3600000 }));
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ run: null }))));
   render(<TestDashboard />);
+  await showSavedLeads();
   await userEvent.click(screen.getByRole("button", { name: "Configurações" }));
   expect(screen.getByRole("status")).toHaveTextContent("Supabase conectado");
   expect(screen.queryByRole("textbox", { name: /E-mail/ })).not.toBeInTheDocument();
@@ -82,20 +84,21 @@ test("configurações mostram apenas Supabase e preservam a conexão existente",
 });
 
 
-test("Nova Prospecção abre modal e confirma a busca na própria aba", async () => {
+test("Nova pesquisa abre modal e confirma a busca na própria aba", async () => {
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url.includes("/rest/v1/")) return new Response("[]");
     return new Response(JSON.stringify({ run: init?.method === "POST" ? { id: "1", status: "queued" } : null }));
   });
   vi.stubGlobal("fetch", fetcher);
   render(<TestDashboard />);
-  await userEvent.click(screen.getByRole("button", { name: "Nova Prospecção" }));
-  const modal = screen.getByRole("dialog", { name: "Nova Prospecção" });
+  await showSavedLeads();
+  await userEvent.click(screen.getByRole("button", { name: "Nova pesquisa" }));
+  const modal = screen.getByRole("dialog", { name: "Nova pesquisa" });
   await userEvent.click(within(modal).getByRole("combobox", { name: "UF" }));
   await userEvent.click(screen.getByRole("option", { name: "Paraná (PR)" }));
-  await userEvent.click(within(modal).getByRole("button", { name: "Iniciar pesquisa" }));
-  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Nova Prospecção" })).not.toBeInTheDocument());
-  expect(fetcher.mock.calls.some(([url, init]) => url === "/api/collector" && init?.method === "POST")).toBe(true);
+  await userEvent.click(within(modal).getByRole("button", { name: "Pesquisar leads" }));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Nova pesquisa" })).not.toBeInTheDocument());
+  expect(fetcher.mock.calls.some(([url]) => url === "/api/collector")).toBe(false);
   expect(screen.getByRole("heading", { name: "Leads – Farmácias" })).toBeInTheDocument();
 });
 
@@ -119,6 +122,7 @@ test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async ()
   });
   vi.stubGlobal("fetch", fetcher);
   render(<TestDashboard />);
+  await showSavedLeads();
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   await userEvent.click(screen.getByRole("button", { name: "Adicionar leads" }));
   const add = await screen.findByRole("button", { name: "Adicionar Farmácia da base ao CRM" });
@@ -129,7 +133,8 @@ test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async ()
   await userEvent.keyboard("{Escape}");
   expect(screen.getByText("Farmácia da base")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
-  expect(screen.queryByText("Farmácia da base")).not.toBeInTheDocument();
+  await showSavedLeads();
+  expect(await screen.findByRole("button", { name: "Farmácia da base" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(await screen.findByText("Farmácia da base")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Remover Farmácia da base do CRM" }));
@@ -137,6 +142,7 @@ test("adiciona lead real ao CRM e mantém o vínculo ao voltar à aba", async ()
   expect(included).toBe(false);
   expect(status).toBe("Não contatado");
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  await showSavedLeads();
   expect(await screen.findByRole("button", { name: "Farmácia da base" })).toBeInTheDocument();
 });
 
@@ -159,17 +165,20 @@ test("Leads não expõe status e a ação Adicionar ao CRM move o contato", asyn
   });
   vi.stubGlobal("fetch", fetcher);
   render(<TestDashboard />);
+  await showSavedLeads();
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  await showSavedLeads();
   expect(screen.getAllByRole("columnheader").map(header => header.textContent?.trim())).not.toContain("Status");
   expect(screen.queryByRole("combobox", { name: "Status" })).not.toBeInTheDocument();
   await userEvent.click(await screen.findByRole("button", { name: "Farmácia em negociação" }));
   await userEvent.click(screen.getByRole("button", { name: "Adicionar ao CRM" }));
-  await waitFor(() => expect(screen.queryByRole("button", { name: "Farmácia em negociação" })).not.toBeInTheDocument());
+  expect(await screen.findByRole("button", { name: "Farmácia em negociação" })).toBeInTheDocument();
   expect(included).toBe(true);
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(await screen.findByText("Farmácia em negociação")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
-  expect(screen.queryByText("Farmácia em negociação")).not.toBeInTheDocument();
+  await showSavedLeads();
+  expect(await screen.findByRole("button", { name: "Farmácia em negociação" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(screen.getByRole("heading", { name: "CRM" })).toBeInTheDocument();
   expect(screen.getByText("Farmácia em negociação")).toBeInTheDocument();
@@ -189,6 +198,7 @@ test("CRM reutiliza apenas os contatos ativos e a aba Leads consulta só uma pá
   });
   vi.stubGlobal("fetch", fetcher);
   render(<TestDashboard />);
+  await showSavedLeads();
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(await screen.findByText("Farmácia Paraná")).toBeInTheDocument();
   expect(screen.getByText("Farmácia Paulista")).toBeInTheDocument();
@@ -198,10 +208,11 @@ test("CRM reutiliza apenas os contatos ativos e a aba Leads consulta só uma pá
   const reads = fetcher.mock.calls.map(([url]) => String(url)).filter(url =>
     url.includes("/rest/v1/pharmaleads") && new URL(url).searchParams.get("or")?.includes("crm_included.eq.true")).length;
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  await showSavedLeads();
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(screen.getByText("Farmácia Paulista")).toBeInTheDocument();
   const queries = fetcher.mock.calls.map(([url]) => String(url)).filter(url => url.includes("/rest/v1/pharmaleads"));
-  const paginated = queries.filter(url => new URL(url).searchParams.get("or")?.includes("crm_included.eq.false"));
+  const paginated = queries.filter(url => new URL(url).searchParams.get("limit") === "11");
   expect(paginated).toHaveLength(2);
   expect(new URL(paginated[0]).searchParams.get("limit")).toBe("11");
   expect(queries.filter(url => !paginated.includes(url))).toHaveLength(reads);
@@ -223,6 +234,7 @@ test("CRM oferece Não qualificado, persiste o status e não mostra Não contata
   });
   vi.stubGlobal("fetch", fetcher);
   render(<TestDashboard />);
+  await showSavedLeads();
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   await userEvent.click(await screen.findByText("Farmácia analisada"));
   const dialog = screen.getByRole("dialog");
@@ -246,7 +258,9 @@ test("falha ao adicionar ao CRM mantém o lead em Leads", async () => {
     return new Response(JSON.stringify({ run: null }));
   }));
   render(<TestDashboard />);
+  await showSavedLeads();
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  await showSavedLeads();
   await userEvent.click(await screen.findByRole("button", { name: "Farmácia sem atualização" }));
   await userEvent.click(screen.getByRole("button", { name: "Adicionar ao CRM" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Sem permissão para atualizar");
@@ -265,7 +279,9 @@ test("Leads mostra o e-mail sem responsável e filtra com ou sem endereço váli
     return new Response(JSON.stringify({ run: null }));
   }));
   render(<TestDashboard />);
+  await showSavedLeads();
   await userEvent.click(screen.getByRole("button", { name: "Leads" }));
+  await showSavedLeads();
   expect(await within(screen.getByRole("table")).findByRole("link", { name: "contato@farmacia.com.br" })).toHaveAttribute("href", "mailto:contato@farmacia.com.br");
   const headers = screen.getAllByRole("columnheader").map((header) => header.textContent?.trim());
   expect(headers).toContain("E-mail");
@@ -309,6 +325,7 @@ test("CRM aplica atualização otimista imediata, não refaz fetch completo e re
   vi.stubGlobal("fetch", fetcher);
 
   render(<TestDashboard />);
+  await showSavedLeads();
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(await screen.findByText("Farmácia Otimista")).toBeInTheDocument();
   expect(listReads).toBe(1);
@@ -352,6 +369,7 @@ test("CRM protege contra race condition em movimentos rápidos consecutivos", as
   vi.stubGlobal("fetch", fetcher);
 
   render(<TestDashboard />);
+  await showSavedLeads();
   await userEvent.click(screen.getByRole("button", { name: "CRM" }));
   expect(await screen.findByText("Farmácia Veloz")).toBeInTheDocument();
 

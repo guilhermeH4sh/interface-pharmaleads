@@ -17,6 +17,7 @@ ENV PATH="/opt/pharmaleads-venv/bin:${PATH}" \
 WORKDIR /app
 COPY pharmaleads ./pharmaleads
 COPY api/cobertura_nacional.json ./api/cobertura_nacional.json
+COPY api/municipios_ibge.json ./api/municipios_ibge.json
 
 ENTRYPOINT []
 CMD ["python", "-m", "pharmaleads.render_service"]

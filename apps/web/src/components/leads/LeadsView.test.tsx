@@ -21,13 +21,13 @@ test("filtra tipos de leads em conjunto com e-mail e guarda a seleção na URL",
   render(<LeadsView searchQuery="" dataSourceMode="supabase" realLeads={leads}
     isSupabaseAuthenticated onBatchAddToCrm={async () => []} />);
 
-  const table = screen.getByRole("table");
-  expect(within(table).getByText("Farmácia Varejo")).toBeInTheDocument();
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("combobox", { name: "Tipo de estabelecimento" }));
   await userEvent.click(screen.getByRole("option", { name: "Farmácia de Manipulação" }));
   await userEvent.keyboard("{Escape}");
   await userEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
 
+  const table = screen.getByRole("table");
   expect(within(table).getByText("Farmácia Manipulação")).toBeInTheDocument();
   expect(within(table).queryByText("Farmácia Varejo")).not.toBeInTheDocument();
   await waitFor(() => expect(new URLSearchParams(window.location.search).get("segmentos")).toBe("manipulacao"));
@@ -40,7 +40,7 @@ test("filtra tipos de leads em conjunto com e-mail e guarda a seleção na URL",
   expect(within(table).getByText("Farmácia Manipulação")).toBeInTheDocument();
 
   await userEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
-  expect(within(table).getByText("Farmácia Veterinária")).toBeInTheDocument();
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
   await waitFor(() => expect(new URLSearchParams(window.location.search).has("segmentos")).toBe(false));
 });
 
@@ -156,6 +156,7 @@ test("ignora filtros geográficos antigos e exporta todas as páginas da UF apli
     render(<LeadsView searchQuery="" dataSourceMode="supabase" realLeads={[...prLeads, spLead]}
       isSupabaseAuthenticated onBatchAddToCrm={async () => []} />);
     const filters = screen.getByRole("region", { name: "Filtros dos leads" });
+    await userEvent.click(within(filters).getByRole("button", { name: "Aplicar filtros" }));
     expect(within(filters).getAllByRole("combobox")).toHaveLength(4);
     expect(within(filters).getByRole("combobox", { name: "UF" })).toHaveTextContent("PR");
     expect(screen.queryByText("Farmácia SP")).not.toBeInTheDocument();

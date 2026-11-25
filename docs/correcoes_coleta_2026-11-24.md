@@ -13,7 +13,7 @@
 ## Limitações ainda abertas do diagnóstico
 
 - O CRM ainda carrega todos os seus membros, paginados por chave; a paginação por coluna do Kanban continua pendente para carteiras com muitos contatos em negociação. Relatórios depende da aplicação manual da migração 12; execução SQL e desempenho real ainda não verificados.
-- Cobertura ainda usa o plano estático e não tem checkpoint persistente entre One-Off Jobs.
+- A agenda agora rotaciona municípios das 27 UFs (ver `pesquisa_catalogo_agenda.md`); ainda não tem checkpoint persistente para retomar cidades com falha entre One-Off Jobs.
 - Identidades Receita e Maps ainda precisam de conciliação conservadora entre fontes; não unir apenas por nome ou telefone compartilhado.
 - Revisar índices e contagens com EXPLAIN no banco real antes de publicar mudanças de esquema.
 - Confirmar OOM, bloqueio do Google e encerramentos por infraestrutura nos logs de uma execução real. Importar CSV parcial não recupera processos mortos pelo sistema antes de executar o tratamento.

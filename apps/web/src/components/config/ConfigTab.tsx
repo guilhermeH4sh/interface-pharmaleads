@@ -26,7 +26,7 @@ export function ConfigTab() {
       </section>
       <section className={cn(ui.card, "p-6 space-y-4")}>
         <h3 className={ui.cardTitle}><Search size={18} className="text-brand" />Coleta de leads</h3>
-        <div className="flex items-start gap-3 border-t border-border pt-4"><MailCheck size={18} className="mt-0.5 text-brand"/><div><p className="font-medium">E-mail público obrigatório</p><p className="text-sm text-muted-foreground">Novos leads só entram no Supabase quando a coleta encontra e valida um e-mail público.</p></div></div>
+        <div className="flex items-start gap-3 border-t border-border pt-4"><MailCheck size={18} className="mt-0.5 text-brand"/><div><p className="font-medium">Leads com ou sem e-mail</p><p className="text-sm text-muted-foreground">A coleta automática salva os estabelecimentos encontrados, mesmo sem e-mail. Você pode filtrar os contatos com e-mail no catálogo.</p></div></div>
         <div className="flex items-start gap-3"><Database size={18} className="mt-0.5 text-brand"/><div><p className="font-medium">Google Maps</p><p className="text-sm text-muted-foreground">Fonte de descoberta usada pela coleta. Ajustes de concorrência e credenciais são controlados pelo serviço, não pelo navegador.</p></div></div>
       </section>
       <section className={cn(ui.card, "p-6")}>

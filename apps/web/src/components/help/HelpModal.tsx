@@ -39,9 +39,9 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
             <Search size={16} className="text-brand" /> Como funciona a Coleta de Leads
           </h3>
           <p>
-            O PharmaLeads utiliza automação no Google Maps para extrair farmácias, drogarias,
-            manipulações e distribuidoras em todo o território nacional. Cada registro inclui nome
-            empresarial, telefone, endereço, avaliação e canais digitais.
+            Escolha um estado ou Todas as UFs e clique em Pesquisar para consultar os leads já
+            salvos. A coleta automática percorre cidades das 27 UFs às 07h, 13h e 19h, no horário
+            de Brasília. Nome, telefone, endereço e canais digitais são preenchidos quando disponíveis.
           </p>
         </div>
 
@@ -50,20 +50,20 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
             <Database size={16} className="text-brand" /> Dados & Supabase
           </h3>
           <p>
-            A base de dados é mantida com sincronização bidirecional na tabela{" "}
-            <code className="text-brand font-semibold">public.pharmaleads</code> do Supabase, com
-            suporte a cache local SQLite e exportação contínua com encoding UTF-8 e proteção RLS.
+            Os leads salvos ficam disponíveis para pesquisa, filtros e inclusão no CRM.
+            A exportação em CSV inclui todos os resultados do recorte escolhido, inclusive os
+            que estão em outras páginas. Leads sem e-mail também podem fazer parte da base.
           </p>
         </div>
 
         <div className="p-4 rounded-xl bg-surface border border-border">
           <h3 className="font-bold text-foreground text-sm flex items-center gap-2 mb-1.5">
-            <Cpu size={16} className="text-brand" /> Enriquecimento com IA & Playwright
+            <Cpu size={16} className="text-brand" /> Verificação dos contatos
           </h3>
           <p>
-            Quando ativado o enriquecimento, o sistema acessa os sites públicos das farmácias
-            recém-coletadas para buscar números de WhatsApp adicionais, e-mails de compras e redes
-            sociais para aceleração de conversão B2B.
+            A pesquisa do catálogo não inicia coleta nem verificação. Encontrar um telefone
+            não comprova que ele tem WhatsApp ativo. A confirmação de WhatsApp é registrada
+            separadamente, após a verificação manual do número.
           </p>
         </div>
 

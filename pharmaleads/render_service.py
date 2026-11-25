@@ -41,7 +41,9 @@ def validar_entrada(body: dict) -> dict[str, str]:
             rodada = int(body.get('rodada', 1))
         except (TypeError, ValueError, KeyError):
             raise ErroPharmaLeads('Grupo ou rodada da agenda inválido.') from None
-        return entrada_agendada(grupo, rodada, str(body.get('request_id') or '')[:100])
+        return entrada_agendada(grupo, rodada, str(body.get('request_id') or '')[:100],
+                                dia=body.get('dia'), cidades_por_uf=body.get('cidades_por_uf'),
+                                segmentos=body.get('segmentos'))
     segmentos = [item.strip() for item in str(body.get('segmentos', '')).split(',') if item.strip()]
     try:
         profundidade = int(body.get('profundidade', 1))
@@ -191,7 +193,9 @@ class ColetorRender:
         if entrada['modo'] == 'agenda':
             if rodada >= int(entrada['total_rodadas']):
                 return None
-            return entrada_agendada(int(entrada['grupo']), rodada + 1, entrada['request_id'])
+            return entrada_agendada(int(entrada['grupo']), rodada + 1, entrada['request_id'],
+                                    dia=entrada['dia'], cidades_por_uf=entrada['cidades_por_uf'],
+                                    segmentos=entrada['segmentos'])
         return entradas_seguintes(rodada, entrada['segmentos'].split(','), entrada['profundidade'],
                                   entrada['emails'], entrada['enriquecer_sites'], entrada['request_id'],
                                   uf=entrada.get('uf', ''))

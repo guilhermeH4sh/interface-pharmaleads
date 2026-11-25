@@ -1,7 +1,8 @@
-"""Amplia a cobertura nacional com os municípios mais populosos de cada UF.
+"""Atualiza a cobertura nacional e o catálogo completo de municípios.
 
 Fonte: estimativas de população municipal de 2025 do IBGE, tabela 6579.
-Não coleta nem altera leads; atualiza apenas api/cobertura_nacional.json.
+Com --todos-municipios, usa a API de localidades do IBGE para a agenda.
+Não coleta nem altera leads.
 """
 from __future__ import annotations
 
@@ -55,10 +56,37 @@ def atualizar_cache(caminho: Path) -> None:
     print(f'{len(estados)} UFs e {len(municipios)} municípios gravados em SQLite.')
 
 
+def exportar_municipios(caminho: Path) -> None:
+    """Gera o catálogo completo usado pela rotação diária, sem tocar nos leads."""
+    estados = ler_json(f'{LOCALIDADES}/estados')
+    municipios = ler_json(f'{LOCALIDADES}/municipios')
+    por_codigo = {str(item['id']): item['sigla'] for item in estados}
+    ids = [item['id'] for item in municipios]
+    if set(por_codigo.values()) != UFS or len(set(ids)) != len(ids) or len(ids) < 5500:
+        raise ValueError('Cadastro incompleto do IBGE; o catálogo original foi preservado.')
+    grupos = {uf: [] for uf in sorted(UFS)}
+    for item in sorted(municipios, key=lambda item: item['id']):
+        uf = por_codigo[str(item['id'])[:2]]
+        grupos[uf].append(f"{item['nome']}, {uf}")
+    if any(not locais or len(locais) != len(set(locais)) for locais in grupos.values()):
+        raise ValueError('Municípios ausentes ou duplicados no IBGE.')
+    dados = {'fonte': f'{LOCALIDADES}/municipios',
+             'atualizado_em': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+             'municipios': grupos}
+    temporario = caminho.with_suffix('.tmp')
+    temporario.write_text(json.dumps(dados, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    temporario.replace(caminho)
+    print(f'{len(ids)} municípios e {len(grupos)} UFs exportados para {caminho}.')
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cache-localidades', type=Path, help='Atualiza o cadastro de UFs e municípios em SQLite.')
+    parser.add_argument('--todos-municipios', action='store_true', help='Exporta todas as cidades para a agenda automática.')
     args = parser.parse_args()
+    if args.todos_municipios:
+        exportar_municipios(DESTINO.with_name('municipios_ibge.json'))
+        return
     if args.cache_localidades:
         atualizar_cache(args.cache_localidades)
         return

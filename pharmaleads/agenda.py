@@ -5,42 +5,81 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener
 
-from .config import ErroPharmaLeads
+from .config import ErroPharmaLeads, SEGMENTOS
+from .gerador import validar_segmentos
 from .supabase import SemRedirecionamento
 
 
-GRUPOS = {
-    7: ('São Paulo, SP', 'Paraná, PR', 'Santa Catarina, SC', 'Rio Grande do Sul, RS',
-        'Mato Grosso do Sul, MS', 'Mato Grosso, MT', 'Goiás, GO', 'Distrito Federal, DF', 'Tocantins, TO'),
-    13: ('Minas Gerais, MG', 'Espírito Santo, ES', 'Bahia, BA', 'Sergipe, SE', 'Alagoas, AL',
-         'Pernambuco, PE', 'Paraíba, PB', 'Rio Grande do Norte, RN', 'Ceará, CE'),
-    19: ('Rio de Janeiro, RJ', 'Maranhão, MA', 'Piauí, PI', 'Pará, PA', 'Amapá, AP',
-         'Amazonas, AM', 'Roraima, RR', 'Acre, AC', 'Rondônia, RO'),
-}
+HORARIOS = (7, 13, 19)
+UFS = frozenset('AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split())
+FUSO = timezone(timedelta(hours=-3))
 
 
-def entrada_agendada(grupo: int, rodada: int, request_id: str) -> dict[str, str]:
-    locais = GRUPOS.get(grupo)
-    if not locais or not 1 <= rodada <= len(locais):
-        raise ErroPharmaLeads('Grupo ou rodada da agenda inválido.')
+@lru_cache(maxsize=1)
+def municipios_por_uf() -> dict[str, tuple[str, ...]]:
+    caminho = Path(__file__).resolve().parent.parent / 'api' / 'municipios_ibge.json'
+    dados = json.loads(caminho.read_text(encoding='utf-8'))['municipios']
+    if (set(dados) != UFS or sum(len(locais) for locais in dados.values()) < 5500
+            or any(not locais or len(locais) != len(set(locais)) or
+                   any(not local.endswith(f', {uf}') for local in locais) for uf, locais in dados.items())):
+        raise ErroPharmaLeads('Catálogo de municípios inválido; atualize a cobertura do IBGE.')
+    return {uf: tuple(locais) for uf, locais in dados.items()}
+
+
+def plano_agendado(grupo: int, dia: str, cidades_por_uf: int = 2) -> list[str]:
+    """Toda execução visita todas as UFs; a janela de cidades avança a cada horário."""
+    try:
+        data = date.fromisoformat(dia)
+        quantidade = int(cidades_por_uf)
+    except (ValueError, TypeError):
+        raise ErroPharmaLeads('Data ou quantidade de cidades inválida.') from None
+    if grupo not in HORARIOS or not 1 <= quantidade <= 2:
+        raise ErroPharmaLeads('Informe horário da agenda e de 1 a 2 cidades por UF.')
+    municipios = municipios_por_uf()
+    turno = (data - date(2026, 1, 1)).days * len(HORARIOS) + HORARIOS.index(grupo)
+    estados = sorted(UFS)
+    deslocamento = turno % len(estados)
+    estados = estados[deslocamento:] + estados[:deslocamento]
+    # Intercala estados para que todas as UFs sejam visitadas antes da segunda cidade.
+    return [municipios[uf][(turno * quantidade + indice) % len(municipios[uf])]
+            for indice in range(quantidade) for uf in estados if indice < len(municipios[uf])]
+
+
+def entrada_agendada(grupo: int, rodada: int, request_id: str, *, dia: str | None = None,
+                     cidades_por_uf: int | None = None, segmentos: str | None = None) -> dict[str, str]:
+    dia = dia or datetime.now(FUSO).date().isoformat()
+    try:
+        quantidade = int(cidades_por_uf if cidades_por_uf is not None else os.environ.get('AGENDA_CIDADES_POR_UF', '2'))
+    except (ValueError, TypeError):
+        raise ErroPharmaLeads('Quantidade de cidades inválida.') from None
+    locais = plano_agendado(grupo, dia, quantidade)
+    segmentos = segmentos if segmentos is not None else os.environ.get('AGENDA_SEGMENTOS', ','.join(SEGMENTOS))
+    if not isinstance(segmentos, str):
+        raise ErroPharmaLeads('Segmentos da agenda inválidos.')
+    tipos = validar_segmentos(segmentos.split(','))
+    if not tipos or not 1 <= rodada <= len(locais):
+        raise ErroPharmaLeads('Segmentos ou rodada da agenda inválidos.')
     local = locais[rodada - 1]
     return {
         'modo': 'agenda', 'grupo': str(grupo), 'rodada': str(rodada),
         'total_rodadas': str(len(locais)), 'locais': local, 'resumo': local,
-        'segmentos': 'varejo', 'profundidade': '1', 'emails': 'false',
+        'segmentos': ','.join(tipos), 'profundidade': '1', 'emails': 'false',
         'enriquecer_sites': 'false', 'request_id': request_id,
+        'dia': dia, 'cidades_por_uf': str(quantidade),
     }
 
 
 def disparar(agora: datetime) -> None:
     # O cron usa UTC. Os três horários acordados correspondem a UTC-3.
     local = agora.astimezone(timezone(timedelta(hours=-3)))
-    if local.hour not in GRUPOS:
+    if local.hour not in HORARIOS:
         print('Horário fora dos três disparos da agenda.')
         return
     base = os.environ.get('RENDER_COLLECTOR_URL', '').strip().rstrip('/')
@@ -53,7 +92,7 @@ def disparar(agora: datetime) -> None:
     request_id = f'agenda-{local:%Y-%m-%d-%H}'
     request = Request(
         f'{base}/v1/jobs/start',
-        data=json.dumps(entrada_agendada(local.hour, 1, request_id)).encode(),
+        data=json.dumps(entrada_agendada(local.hour, 1, request_id, dia=local.date().isoformat())).encode(),
         headers={'Authorization': f'Bearer {token}', 'X-Render-Api-Key': api_key,
                  'Content-Type': 'application/json'},
         method='POST',
