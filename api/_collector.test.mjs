@@ -153,6 +153,21 @@ test('a fila nacional cabe em oito buscas e cobre as 27 UFs antes do interior', 
   for (const rodada of fila) assert.ok(rodada.length * 4 <= 8);
 });
 
+test('falha transitória de autenticação não vira 401 nem dispara coleta', async () => {
+  for (const upstream of [
+    () => new Response('{}', { status: 504 }),
+    () => new Response('<html>gateway</html>', { status: 200 }),
+    () => new Response('{}', { status: 200 }),
+  ]) {
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; return upstream(); };
+    const res = response();
+    await handler({ method: 'GET', headers: { authorization: 'Bearer jwt-de-teste' } }, res);
+    assert.equal(res.statusCode, 502);
+    assert.equal(calls, 1);
+  }
+});
+
 test('recusa usuário sem permissão antes de chamar Render', async () => {
   process.env.RENDER_COLLECTOR_URL = 'https://pharmaleads-collector.onrender.com';
   process.env.RENDER_COLLECTOR_TOKEN = 'segredo';
