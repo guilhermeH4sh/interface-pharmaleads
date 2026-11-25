@@ -3,7 +3,7 @@
 ## Interface
 
 - Ao abrir Leads, nenhuma linha é consultada ou exibida até uma pesquisa explícita.
-- Escolher um estado ou Todas as UFs, selecionar os tipos e clicar em Pesquisar consulta apenas `public.pharmaleads`.
+- Nos filtros inferiores, escolher um estado ou Todas as UFs, selecionar os tipos e clicar em Aplicar filtros consulta apenas `public.pharmaleads`. O formulário superior duplicado foi removido.
 - Aplicar os filtros laterais também confirma o recorte escolhido. Limpar filtros esconde os resultados e exige nova pesquisa.
 - A consulta inclui contatos já adicionados ao CRM. Não tem limite de 50 resultados: usa paginação e preserva exportação e seleção do recorte completo.
 - A tela consulta atualizações do catálogo a cada minuto quando visível. Não consulta nem inicia jobs do Render.

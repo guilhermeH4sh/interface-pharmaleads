@@ -9,9 +9,9 @@ function TestDashboard() {
 }
 
 async function showSavedLeads(region = "Todas as UFs") {
-  await userEvent.click(screen.getByRole("combobox", { name: "Estado da pesquisa" }));
-  await userEvent.click(screen.getByRole("option", { name: region }));
-  await userEvent.click(screen.getByRole("button", { name: "Pesquisar" }));
+  await userEvent.click(screen.getByRole("combobox", { name: "UF" }));
+  await userEvent.click(screen.getByRole("option", { name: region.match(/\(([A-Z]{2})\)$/)?.[1] ?? region }));
+  await userEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
 }
 
 beforeEach(() => { window.localStorage.clear(); window.sessionStorage.clear(); window.history.replaceState(null, "", "/"); });
@@ -62,7 +62,8 @@ test("pesquisa filtra o catálogo por UF sem chamar o coletor", async () => {
   });
   vi.stubGlobal("fetch", fetcher);
   render(<TestDashboard />);
-  expect(screen.getByRole("button", { name: "Pesquisar" })).toBeDisabled();
+  expect(screen.queryByRole("combobox", { name: "Estado da pesquisa" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: "Tipo de estabelecimento da pesquisa" })).not.toBeInTheDocument();
   await showSavedLeads("Paraná (PR)");
   expect(await screen.findByRole("button", { name: "Farmácia do Paraná" })).toBeInTheDocument();
   expect(fetcher.mock.calls.some(([url]) => url.includes("/api/collector"))).toBe(false);

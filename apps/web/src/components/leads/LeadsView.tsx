@@ -596,7 +596,7 @@ export function LeadsView({
         filters={{ uf: selectedUF, origem: selectedOrigem, segmentos: selectedSegmentos }}
         hasSearched={searched} modalOpen={searchOpen} closeModal={() => setSearchOpen(false)} onSearch={handleSearch}
         disabled={Boolean(operation)} />
-      {!searched && <p role="status" className="text-sm text-muted-foreground">Escolha um estado ou Todas as UFs e clique em Pesquisar para exibir os leads salvos.</p>}
+      {!searched && <p role="status" className="text-sm text-muted-foreground">Escolha um estado ou Todas as UFs nos filtros abaixo e clique em Aplicar filtros para exibir os leads salvos.</p>}
       {searched && isRemote && !activeLoading && !page?.error && !activeItems.length && (
         <p role="status" className="text-sm text-muted-foreground">Nenhum lead salvo para esses filtros. A base recebe atualizações da coleta automática.</p>
       )}

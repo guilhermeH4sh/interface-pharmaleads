@@ -39,7 +39,7 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
             <Search size={16} className="text-brand" /> Como funciona a Coleta de Leads
           </h3>
           <p>
-            Escolha um estado ou Todas as UFs e clique em Pesquisar para consultar os leads já
+            Escolha um estado ou Todas as UFs e clique em Aplicar filtros para consultar os leads já
             salvos. A coleta automática percorre cidades das 27 UFs às 07h, 13h e 19h, no horário
             de Brasília. Nome, telefone, endereço e canais digitais são preenchidos quando disponíveis.
           </p>
