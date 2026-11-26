@@ -8,6 +8,7 @@ leads*.csv
 .env.*
 !.env.example
 supabase/*.csv
+supabase/.temp/
 apps/web/node_modules/
 apps/web/dist/
 apps/web/test-results/

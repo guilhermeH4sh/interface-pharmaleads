@@ -10,10 +10,10 @@ import { parseLeadEmails } from "./email";
 import { normalizeWhatsAppNumber, publishedWhatsAppNumber, whatsAppUrl, type WhatsAppVerification } from "./whatsapp";
 
 // Configuração oficial do Supabase (mesma utilizada em HostedDashboard.tsx)
-export const SUPABASE_URL = "https://qxsdcrywsjkrpcbfgbxb.supabase.co";
-export const PUBLISHABLE_KEY = "sb_publishable_9AdBAjeEHFysAVpC7VCLMw_cDgQ4Fl0";
+export const SUPABASE_URL = "https://zofekhywrxlgziqcfeml.supabase.co";
+export const PUBLISHABLE_KEY = "sb_publishable_VLIpMJUE-4xZFw3_wsjVZQ_mibDoMlb";
 export const AUTHORIZED_USER_ID = "677ed1e4-3e73-4f2c-951f-e77386f305da";
-export const SESSION_KEY = "pharmaleads-supabase-session";
+export const SESSION_KEY = "pharmaleads-zofekhywrxlgziqcfeml-session";
 export const CRM_STORAGE_KEY = "pharmaleads-crm-overrides";
 export const DELETED_STORAGE_KEY = "pharmaleads-deleted-ids";
 

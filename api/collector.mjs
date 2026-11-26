@@ -1,7 +1,7 @@
 import { CAPITAIS, entradaNacional } from './cobertura.mjs';
 
-const SUPABASE_URL = 'https://qxsdcrywsjkrpcbfgbxb.supabase.co';
-const PUBLISHABLE_KEY = 'sb_publishable_9AdBAjeEHFysAVpC7VCLMw_cDgQ4Fl0';
+const SUPABASE_URL = 'https://zofekhywrxlgziqcfeml.supabase.co';
+const PUBLISHABLE_KEY = 'sb_publishable_VLIpMJUE-4xZFw3_wsjVZQ_mibDoMlb';
 const AUTHORIZED_USER_ID = '677ed1e4-3e73-4f2c-951f-e77386f305da';
 const TERMS = { varejo: 3, manipulacao: 1, homeopatia: 1, veterinaria: 1, distribuidoras: 2 };
 

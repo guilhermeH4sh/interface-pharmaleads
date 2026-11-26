@@ -17,7 +17,8 @@ Cole esta frase na primeira mensagem da outra conta:
   <https://github.com/guilhermeH4sh/interface-pharmaleads>
 - O repositório antigo `scraper-pharmaleads` não recebe mais o produto; a Vercel
   lê somente `interface-pharmaleads`.
-- Supabase: projeto `qxsdcrywsjkrpcbfgbxb`, tabela única `public.pharmaleads`.
+- Supabase dedicado: projeto `pharmaleads` (`zofekhywrxlgziqcfeml`), tabela
+  `public.pharmaleads`. Não usar o banco operacional Luna_Whatsapp para este produto.
 - Em 2 de novembro de 2026, a tabela tinha **2.631 leads únicos**.
 - As 27 UFs tinham registros dos segmentos `varejo` e `manipulacao`.
 - A coleta nacional automática usada para completar essa cobertura foi encerrada.

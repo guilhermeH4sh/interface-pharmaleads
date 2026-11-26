@@ -4,6 +4,13 @@ import { AUTHORIZED_USER_ID, SESSION_KEY, clearSupabaseSession, savedSupabaseSes
 beforeEach(() => { localStorage.clear(); sessionStorage.clear(); });
 afterEach(() => vi.unstubAllGlobals());
 
+test("não reaproveita tokens do projeto Luna após separar o banco", () => {
+  const legacy = { access_token: "luna-access", refresh_token: "luna-refresh", expires_at: Date.now() + 3600000 };
+  localStorage.setItem("pharmaleads-supabase-session", JSON.stringify(legacy));
+  sessionStorage.setItem("pharmaleads-supabase-session", JSON.stringify(legacy));
+  expect(savedSupabaseSession()).toBeNull();
+});
+
 test("migra a conexão existente e mantém a sessão após fechar a aba", () => {
   const session = { access_token: "access", refresh_token: "refresh", expires_at: Date.now() + 3600000 };
   sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));

@@ -7,10 +7,10 @@ import logo from "./assets/centrus-logo-original.png";
 import "./crm.css";
 
 // A publishable key is designed for browser use. Row Level Security protects the table.
-const SUPABASE_URL = "https://qxsdcrywsjkrpcbfgbxb.supabase.co";
-const PUBLISHABLE_KEY = "sb_publishable_9AdBAjeEHFysAVpC7VCLMw_cDgQ4Fl0";
+const SUPABASE_URL = "https://zofekhywrxlgziqcfeml.supabase.co";
+const PUBLISHABLE_KEY = "sb_publishable_VLIpMJUE-4xZFw3_wsjVZQ_mibDoMlb";
 const AUTHORIZED_USER_ID = "677ed1e4-3e73-4f2c-951f-e77386f305da";
-const SESSION_KEY = "pharmaleads-supabase-session";
+const SESSION_KEY = "pharmaleads-zofekhywrxlgziqcfeml-session";
 const COLUMNS = "chave,nome,segmento,categoria,endereco,local_busca,telefone,telefone_normalizado,celular,whatsapp_link,site,emails,situacao,avaliacao,qtd_avaliacoes,latitude,longitude,link,ultima_coleta";
 const UFS = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO"];
 const COLETA_ATIVA = ["queued", "in_progress", "waiting", "pending", "requested"];
