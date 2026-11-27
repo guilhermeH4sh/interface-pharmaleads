@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import time
+import unicodedata
 from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -12,8 +13,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener
 
-from .config import ErroPharmaLeads, SEGMENTOS
-from .gerador import validar_segmentos
+from .config import ErroPharmaLeads, SEGMENTOS_PADRAO
+from .gerador import montar_consultas, validar_segmentos
 from .supabase import SemRedirecionamento
 
 
@@ -30,46 +31,54 @@ def municipios_por_uf() -> dict[str, tuple[str, ...]]:
             or any(not locais or len(locais) != len(set(locais)) or
                    any(not local.endswith(f', {uf}') for local in locais) for uf, locais in dados.items())):
         raise ErroPharmaLeads('Catálogo de municípios inválido; atualize a cobertura do IBGE.')
-    return {uf: tuple(locais) for uf, locais in dados.items()}
+    def ordem_alfabetica(local: str) -> str:
+        return ''.join(c for c in unicodedata.normalize('NFKD', local)
+                       if not unicodedata.combining(c)).casefold()
+    return {uf: tuple(sorted(locais, key=ordem_alfabetica)) for uf, locais in dados.items()}
 
 
-def plano_agendado(grupo: int, dia: str, cidades_por_uf: int = 2) -> list[str]:
+def plano_agendado(grupo: int, dia: str, cidades_por_uf: int = 4) -> list[str]:
     """Toda execução visita todas as UFs; a janela de cidades avança a cada horário."""
     try:
         data = date.fromisoformat(dia)
         quantidade = int(cidades_por_uf)
     except (ValueError, TypeError):
         raise ErroPharmaLeads('Data ou quantidade de cidades inválida.') from None
-    if grupo not in HORARIOS or not 1 <= quantidade <= 2:
-        raise ErroPharmaLeads('Informe horário da agenda e de 1 a 2 cidades por UF.')
+    if grupo not in HORARIOS or not 1 <= quantidade <= 4:
+        raise ErroPharmaLeads('Informe horário da agenda e de 1 a 4 cidades por UF.')
     municipios = municipios_por_uf()
     turno = (data - date(2026, 1, 1)).days * len(HORARIOS) + HORARIOS.index(grupo)
     estados = sorted(UFS)
-    deslocamento = turno % len(estados)
-    estados = estados[deslocamento:] + estados[:deslocamento]
-    # Intercala estados para que todas as UFs sejam visitadas antes da segunda cidade.
+    # Agrupa cada UF em ordem alfabética e avança a janela a cada horário.
     return [municipios[uf][(turno * quantidade + indice) % len(municipios[uf])]
-            for indice in range(quantidade) for uf in estados if indice < len(municipios[uf])]
+            for uf in estados for indice in range(quantidade) if indice < len(municipios[uf])]
 
 
 def entrada_agendada(grupo: int, rodada: int, request_id: str, *, dia: str | None = None,
                      cidades_por_uf: int | None = None, segmentos: str | None = None) -> dict[str, str]:
     dia = dia or datetime.now(FUSO).date().isoformat()
     try:
-        quantidade = int(cidades_por_uf if cidades_por_uf is not None else os.environ.get('AGENDA_CIDADES_POR_UF', '2'))
+        quantidade = int(cidades_por_uf if cidades_por_uf is not None else os.environ.get('AGENDA_CIDADES_POR_UF', '4'))
     except (ValueError, TypeError):
         raise ErroPharmaLeads('Quantidade de cidades inválida.') from None
     locais = plano_agendado(grupo, dia, quantidade)
-    segmentos = segmentos if segmentos is not None else os.environ.get('AGENDA_SEGMENTOS', ','.join(SEGMENTOS))
+    segmentos = segmentos if segmentos is not None else os.environ.get('AGENDA_SEGMENTOS', ','.join(SEGMENTOS_PADRAO))
     if not isinstance(segmentos, str):
         raise ErroPharmaLeads('Segmentos da agenda inválidos.')
     tipos = validar_segmentos(segmentos.split(','))
-    if not tipos or not 1 <= rodada <= len(locais):
+    buscas_por_cidade = len(montar_consultas([locais[0]], tipos)) if locais and tipos else 0
+    cidades_por_rodada = min(2, 8 // buscas_por_cidade) if buscas_por_cidade else 0
+    if not cidades_por_rodada:
+        raise ErroPharmaLeads('Os segmentos da agenda excedem 8 buscas por cidade.')
+    lotes = [locais[i:i + cidades_por_rodada]
+             for i in range(0, len(locais), cidades_por_rodada)]
+    if not 1 <= rodada <= len(lotes):
         raise ErroPharmaLeads('Segmentos ou rodada da agenda inválidos.')
-    local = locais[rodada - 1]
+    cidades = lotes[rodada - 1]
+    resumo = ' · '.join(cidades)
     return {
         'modo': 'agenda', 'grupo': str(grupo), 'rodada': str(rodada),
-        'total_rodadas': str(len(locais)), 'locais': local, 'resumo': local,
+        'total_rodadas': str(len(lotes)), 'locais': '\n'.join(cidades), 'resumo': resumo,
         'segmentos': ','.join(tipos), 'profundidade': '1', 'emails': 'false',
         'enriquecer_sites': 'false', 'request_id': request_id,
         'dia': dia, 'cidades_por_uf': str(quantidade),

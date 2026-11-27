@@ -136,7 +136,7 @@ export function RelatoriosTab({ summary, leads = [], onExportFullCSV, report, ex
       </div>
 
       {/* Gráficos de Distribuição */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Distribuição por Segmento */}
         <div className={cn(ui.card, "p-6")}>
           <h3 className={cn(ui.cardTitle, "pb-3 border-b border-border")}>
@@ -160,60 +160,6 @@ export function RelatoriosTab({ summary, leads = [], onExportFullCSV, report, ex
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* Distribuição por Canal de Origem */}
-        <div className={cn(ui.card, "p-6")}>
-          <h3 className={cn(ui.cardTitle, "pb-3 border-b border-border")}>
-            <BarChart3 size={18} className="text-brand" /> Origem dos Dados Coletados
-          </h3>
-
-          <div className="mt-5 space-y-4 text-xs">
-            <div className="space-y-1.5">
-              <div className="flex justify-between font-semibold">
-                <span className="text-foreground">Google Maps Scraping Direto</span>
-                <span className="text-muted-foreground tabular-nums">
-                  {formatNumberBR(summary.origem.googleMaps.count)} ({summary.origem.googleMaps.percent}%)
-                </span>
-              </div>
-              <div className="w-full h-2.5 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full bg-primary rounded-full"
-                  style={{ width: `${summary.origem.googleMaps.percent}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex justify-between font-semibold">
-                <span className="text-foreground">Google Meu Negócio</span>
-                <span className="text-muted-foreground tabular-nums">
-                  {formatNumberBR(summary.origem.googleMeuNegocio.count)} ({summary.origem.googleMeuNegocio.percent}%)
-                </span>
-              </div>
-              <div className="w-full h-2.5 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full bg-[var(--chart-2)] rounded-full"
-                  style={{ width: `${summary.origem.googleMeuNegocio.percent}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex justify-between font-semibold">
-                <span className="text-foreground">Receita Federal e outras fontes</span>
-                <span className="text-muted-foreground tabular-nums">
-                  {formatNumberBR(summary.origem.outrasFontes.count)} ({summary.origem.outrasFontes.percent}%)
-                </span>
-              </div>
-              <div className="w-full h-2.5 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full bg-foreground rounded-full"
-                  style={{ width: `${summary.origem.outrasFontes.percent}%` }}
-                />
-              </div>
-            </div>
           </div>
         </div>
       </div>

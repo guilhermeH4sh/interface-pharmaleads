@@ -19,9 +19,9 @@ class TestAgenda(unittest.TestCase):
         for hora in HORARIOS:
             locais = plano_agendado(hora, '2026-11-24')
             self.assertEqual({local[-2:] for local in locais}, UFS)
-            self.assertEqual(len(locais), 53)  # DF possui uma única localidade.
+            self.assertEqual(len(locais), 105)  # DF possui uma única localidade.
             self.assertEqual(len(set(locais)), len(locais))
-            self.assertEqual(len({local[-2:] for local in locais[:27]}), 27)
+            self.assertEqual([local[-2:] for local in locais[:8]], ['AC'] * 4 + ['AL'] * 4)
 
     def test_cidades_avancam_entre_horarios_e_dias_e_cobrem_toda_sp(self):
         vistos = set()
@@ -39,14 +39,15 @@ class TestAgenda(unittest.TestCase):
         entrada = entrada_agendada(19, 1, 'agenda-teste', dia='2026-11-24')
         proxima = ColetorRender._proxima_rodada(entrada)
         self.assertEqual(proxima['dia'], '2026-11-24')
-        self.assertEqual(proxima['locais'], plano_agendado(19, '2026-11-24')[1])
+        self.assertEqual(proxima['locais'].splitlines(), plano_agendado(19, '2026-11-24')[2:4])
         self.assertEqual(proxima['segmentos'], entrada['segmentos'])
         for local in plano_agendado(19, '2026-11-24'):
             self.assertLessEqual(len(montar_consultas([local], entrada['segmentos'].split(','))), 8)
+        self.assertLessEqual(len(montar_consultas(entrada['locais'].splitlines(), entrada['segmentos'].split(','))), 8)
         self.assertIsNone(ColetorRender._proxima_rodada(entrada_agendada(19, 53, 'agenda-teste')))
 
     def test_rejeita_configuracao_fora_dos_limites(self):
-        for hora, data, quantidade in [(8, '2026-11-24', 2), (7, 'invalid', 2), (7, '2026-11-24', 3)]:
+        for hora, data, quantidade in [(8, '2026-11-24', 2), (7, 'invalid', 2), (7, '2026-11-24', 5)]:
             with self.assertRaises(ErroPharmaLeads):
                 plano_agendado(hora, data, quantidade)
 
@@ -86,7 +87,8 @@ class TestAgenda(unittest.TestCase):
         popen.side_effect = processo
         coletor = ColetorRender()
         self.assertEqual(coletor.executar_job(entrada_agendada(7, 1, 'agenda-teste')), 'failure')
-        self.assertEqual(locais, plano_agendado(7, datetime.now(timezone(timedelta(hours=-3))).date().isoformat()))
+        self.assertEqual([cidade for lote in locais for cidade in lote.splitlines()],
+                         plano_agendado(7, datetime.now(timezone(timedelta(hours=-3))).date().isoformat()))
         self.assertEqual(coletor.status()['skipped_rounds'], 1)
         self.assertEqual(coletor.status()['empty_rounds'], 1)
         self.assertNotIn('goal_leads', coletor.status())
